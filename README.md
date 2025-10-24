@@ -1,0 +1,165 @@
+<div align="center">
+<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
+</div>
+
+# 🛍️ Marketplace con Chat IA
+
+Marketplace moderno con autenticación OAuth, chat inteligente con IA, y gestión de anuncios.
+
+## ✨ Características
+
+- 🔐 Autenticación con Google OAuth (o Modo Demo)
+- 💬 Chat inteligente con Gemini AI
+- 📱 Gestión de anuncios con multimedia
+- 👥 Sistema de usuarios y perfiles
+- 📊 Dashboard de usuario con métricas
+- 🔔 Verificación de teléfono con Twilio
+- ⚡ Prisma Optimize para monitoreo de rendimiento
+- 🎨 Interfaz moderna y responsiva con UI blanco/azul
+
+## ⚠️ IMPORTANTE: Configuración de Google OAuth
+
+**Si ves un error 400 al registrarte**, lee el archivo [`CONFIGURACION-GOOGLE-OAUTH.md`](CONFIGURACION-GOOGLE-OAUTH.md) para configurar los URIs de redirección.
+
+**Alternativa:** La aplicación incluye un **Modo Demo** que se activa automáticamente si OAuth falla.
+
+View your app in AI Studio: https://ai.studio/apps/drive/1NL4V-fhed82GSzDRn0LHiUpLfYCiStVl
+
+## 🚀 Ejecutar Localmente
+
+**Prerequisitos:**  Node.js 18+
+
+### 1. Instalar dependencias
+```bash
+npm install
+```
+
+### 2. Configurar Prisma Optimize (Recomendado)
+
+**Opción rápida:** Ejecuta el script automático
+```bash
+.\crear-env.ps1
+```
+
+**O manualmente:** Crea un archivo `.env` en la raíz con tu API Key de Prisma Optimize:
+```env
+OPTIMIZE_API_KEY="tu_api_key_de_prisma_optimize"
+DATABASE_URL="file:./prisma/dev.db"
+```
+
+📚 Ver [`INSTRUCCIONES-RAPIDAS.md`](INSTRUCCIONES-RAPIDAS.md) para más detalles.
+
+### 2.1 Variables adicionales (Opcional)
+Puedes agregar al archivo `.env`:
+```env
+GEMINI_API_KEY=tu_api_key_aqui
+TWILIO_ACCOUNT_SID=tu_twilio_sid
+TWILIO_AUTH_TOKEN=tu_twilio_token
+TWILIO_PHONE_NUMBER=tu_numero_twilio
+```
+
+### 3. Inicializar la base de datos
+```bash
+npm run db:push
+npm run db:seed
+```
+
+### 4. Ejecutar la aplicación
+```bash
+npm run dev:all
+```
+
+La aplicación estará disponible en:
+- **Frontend**: http://localhost:3000
+- **Backend API**: http://localhost:4000
+
+## 📖 Guías de Configuración
+
+- **Google OAuth**: Ver [`CONFIGURACION-GOOGLE-OAUTH.md`](CONFIGURACION-GOOGLE-OAUTH.md)
+- **Apple Sign-In**: Ver [`README-OAUTH.md`](README-OAUTH.md)
+
+## 🎯 Características Principales
+
+### Autenticación
+- ✅ Google OAuth (Client ID ya configurado)
+- ✅ Modo Demo (sin necesidad de configuración)
+- ⏳ Apple Sign-In (requiere configuración adicional)
+
+### Chat con IA
+- Conversaciones inteligentes con Gemini AI
+- Respuestas contextuales sobre productos
+- Historial de conversaciones
+
+### Gestión de Anuncios
+- Crear, editar y eliminar anuncios
+- Subir imágenes y videos
+- Códigos únicos por anuncio
+- Sistema de vistas
+
+### Dashboard de Usuario
+- Ver tus anuncios publicados
+- Gestionar conversaciones
+- Verificar número de teléfono
+- Ver estadísticas
+
+## 🛠️ Scripts Disponibles
+
+```bash
+npm run dev          # Solo frontend (Vite)
+npm run server       # Solo backend (Express)
+npm run dev:all      # Frontend + Backend simultáneamente
+npm run build        # Compilar para producción
+npm run db:generate  # Generar cliente Prisma
+npm run db:push      # Aplicar cambios al esquema
+npm run db:studio    # Abrir Prisma Studio
+npm run db:seed      # Poblar base de datos con datos demo
+```
+
+## 📁 Estructura del Proyecto
+
+```
+marketplace-con-chat-ia/
+├── components/          # Componentes React
+│   ├── icons/          # Iconos SVG
+│   ├── AdCard.tsx      # Tarjeta de anuncio
+│   ├── ChatView.tsx    # Vista de chat
+│   ├── Dashboard.tsx   # Panel de usuario
+│   ├── HomePage.tsx    # Página principal
+│   ├── Register.tsx    # Página de registro
+│   └── ...
+├── server/             # Backend Express
+│   ├── database.js     # Funciones de base de datos
+│   ├── index.js        # Servidor principal
+│   └── seed.js         # Datos de prueba
+├── services/           # Servicios
+│   ├── apiService.ts   # Cliente API
+│   └── geminiService.ts # Integración Gemini AI
+├── config/             # Configuración
+│   └── oauth.ts        # Configuración OAuth
+├── prisma/             # Base de datos
+│   ├── schema.prisma   # Esquema de DB
+│   └── dev.db         # SQLite database
+└── ...
+```
+
+## 🔧 Solución de Problemas
+
+### Error 400 en Google OAuth
+Ver guía completa: [`CONFIGURACION-GOOGLE-OAUTH.md`](CONFIGURACION-GOOGLE-OAUTH.md)
+
+### Error "require is not defined"
+✅ **Ya corregido** - El servidor ahora usa imports ES6 correctamente
+
+### No puedo crear anuncios
+Verifica tu número de teléfono en el Dashboard primero
+
+### El chat no responde
+Verifica que tengas configurado `GEMINI_API_KEY` en tus variables de entorno
+
+## 📝 Licencia
+
+Este proyecto es de código abierto.
+
+## 🤝 Contribuciones
+
+Las contribuciones son bienvenidas. Por favor, abre un issue o pull request.

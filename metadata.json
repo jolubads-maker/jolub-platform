@@ -1,0 +1,5 @@
+{
+  "name": "Marketplace con Chat IA",
+  "description": "Una aplicación de anuncios clasificados donde los usuarios pueden publicar artículos con imágenes y videos. Incluye un contador de visitas y una función de chat impulsada por IA entre compradores y vendedores.",
+  "requestFramePermissions": []
+}

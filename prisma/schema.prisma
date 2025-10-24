@@ -1,0 +1,122 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+  previewFeatures = ["tracing"]
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+model User {
+  id            Int      @id @default(autoincrement())
+  name          String
+  avatar        String
+  email         String?  // Email para autenticación OAuth
+  provider      String?  // 'google' | 'apple' | 'manual'
+  providerId    String?  // ID del proveedor OAuth
+  sessionToken  String?  @unique // Token de sesión para detección automática
+  points        Int      @default(0)
+  phone         String?
+  phoneVerified Boolean  @default(false)
+  isOnline      Boolean  @default(true)
+  lastSeen      DateTime @default(now())
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // Relaciones
+  ads           Ad[]     @relation("UserAds")
+  sentMessages  Message[] @relation("SentMessages")
+  chatParticipants ChatParticipant[]
+
+  @@map("users")
+}
+
+model Ad {
+  id          Int      @id @default(autoincrement())
+  uniqueCode  String   @unique // Código único para cada anuncio
+  title       String
+  description String
+  details     String?  // Detalles adicionales del producto
+  price       Int
+  views       Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relaciones
+  sellerId    Int
+  seller      User     @relation("UserAds", fields: [sellerId], references: [id], onDelete: Cascade)
+  media       Media[]
+  chatLogs    ChatLog[] @relation("AdChats")
+
+  @@map("ads")
+}
+
+model Media {
+  id        Int    @id @default(autoincrement())
+  type      String // 'image' | 'video'
+  url       String
+  createdAt DateTime @default(now())
+
+  // Relaciones
+  adId      Int
+  ad        Ad     @relation(fields: [adId], references: [id], onDelete: Cascade)
+
+  @@map("media")
+}
+
+model ChatLog {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relaciones
+  adId      Int?
+  ad        Ad?     @relation("AdChats", fields: [adId], references: [id], onDelete: SetNull)
+  participants ChatParticipant[]
+  messages  Message[]
+
+  @@map("chat_logs")
+}
+
+model ChatParticipant {
+  id        Int      @id @default(autoincrement())
+  createdAt DateTime @default(now())
+
+  // Relaciones
+  chatId    String
+  chat      ChatLog  @relation(fields: [chatId], references: [id], onDelete: Cascade)
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([chatId, userId])
+  @@map("chat_participants")
+}
+
+model Message {
+  id        String   @id @default(cuid())
+  text      String
+  sender    String   // 'user' | 'seller' | 'buyer'
+  createdAt DateTime @default(now())
+
+  // Relaciones
+  chatId    String
+  chat      ChatLog  @relation(fields: [chatId], references: [id], onDelete: Cascade)
+  userId    Int
+  user      User     @relation("SentMessages", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("messages")
+}
+
+model VerificationCode {
+  id          Int      @id @default(autoincrement())
+  phoneNumber String   @unique
+  code        String
+  expiresAt   DateTime
+  createdAt   DateTime @default(now())
+
+  @@map("verification_codes")
+}
