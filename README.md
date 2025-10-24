@@ -2,14 +2,14 @@
 <img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
 </div>
 
-# 🛍️ Marketplace con Chat IA
+# 🛍️ Marketplace JOLUB
 
-Marketplace moderno con autenticación OAuth, chat inteligente con IA, y gestión de anuncios.
+Marketplace moderno con autenticación OAuth, chat directo entre usuarios, y gestión de anuncios.
 
 ## ✨ Características
 
 - 🔐 Autenticación con Google OAuth (o Modo Demo)
-- 💬 Chat inteligente con Gemini AI
+- 💬 Chat directo entre usuarios (solo cuando están en línea)
 - 📱 Gestión de anuncios con multimedia
 - 👥 Sistema de usuarios y perfiles
 - 📊 Dashboard de usuario con métricas
@@ -85,10 +85,11 @@ La aplicación estará disponible en:
 - ✅ Modo Demo (sin necesidad de configuración)
 - ⏳ Apple Sign-In (requiere configuración adicional)
 
-### Chat con IA
-- Conversaciones inteligentes con Gemini AI
-- Respuestas contextuales sobre productos
-- Historial de conversaciones
+### Chat Directo entre Usuarios
+- 💬 Comunicación en tiempo real entre comprador y vendedor
+- 🟢 Indicador de estado en línea
+- 🔒 Solo disponible cuando ambos usuarios están conectados
+- 📝 Historial de conversaciones guardado
 
 ### Gestión de Anuncios
 - Crear, editar y eliminar anuncios
@@ -118,7 +119,7 @@ npm run db:seed      # Poblar base de datos con datos demo
 ## 📁 Estructura del Proyecto
 
 ```
-marketplace-con-chat-ia/
+marketplace-jolub/
 ├── components/          # Componentes React
 │   ├── icons/          # Iconos SVG
 │   ├── AdCard.tsx      # Tarjeta de anuncio

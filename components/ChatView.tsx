@@ -101,21 +101,22 @@ const ChatView: React.FC<ChatViewProps> = ({ seller, buyer, onBack, chatLog, onS
             type="text"
             value={inputValue}
             onChange={(e) => setInputValue(e.target.value)}
-            placeholder="Escribe tu mensaje..."
-            className="flex-1 bg-gray-700 border border-gray-600 text-white rounded-full py-2 px-4 focus:ring-brand-secondary focus:border-brand-secondary"
+            placeholder={seller.isOnline ? "Escribe tu mensaje..." : "El vendedor no está en línea..."}
+            className="flex-1 bg-gray-700 border border-gray-600 text-white rounded-full py-2 px-4 focus:ring-brand-secondary focus:border-brand-secondary disabled:opacity-50"
             disabled={!seller.isOnline}
           />
           <button
             type="submit"
             disabled={!seller.isOnline || !inputValue.trim()}
             className="bg-brand-primary text-white rounded-full p-3 hover:bg-brand-dark disabled:bg-gray-600 disabled:cursor-not-allowed transition-colors"
+            title={!seller.isOnline ? "El vendedor no está en línea" : "Enviar mensaje"}
           >
             <SendIcon className="w-5 h-5" />
           </button>
         </form>
         {!seller.isOnline && (
-          <p className="text-xs text-gray-500 mt-2 text-center">
-            El vendedor no está en línea. Los mensajes se enviarán cuando esté disponible.
+          <p className="text-xs text-red-400 mt-2 text-center font-medium">
+            ⚠️ El vendedor no está en línea. Espera a que se conecte para chatear.
           </p>
         )}
       </div>

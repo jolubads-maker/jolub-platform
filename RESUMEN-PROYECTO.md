@@ -5,7 +5,7 @@
 **JOLUB** es un marketplace moderno con las siguientes características:
 
 - 🛍️ **Anuncios clasificados**: Los usuarios pueden publicar y buscar productos
-- 💬 **Chat con IA**: Asistente inteligente para ayudar en las transacciones
+- 💬 **Chat Directo**: Comunicación directa entre usuarios (solo cuando están en línea)
 - 🔐 **Autenticación OAuth**: Login con Google (y modo demo)
 - 📱 **Verificación SMS**: Usando Twilio
 - 🎨 **UI Moderna**: Diseño blanco y azul con Tailwind CSS
@@ -234,7 +234,7 @@ GEMINI_API_KEY=""
 - [x] Búsqueda de anuncios
 - [x] Vista de detalle con contador de vistas
 - [x] Dashboard de usuario
-- [x] Chat con IA (Gemini)
+- [x] Chat directo entre usuarios
 - [x] Verificación de teléfono (Twilio)
 - [x] UI moderna blanco/azul
 - [x] Grid de 3 columnas para anuncios

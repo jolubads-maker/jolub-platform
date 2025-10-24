@@ -1,8 +1,6 @@
 import React, { useState, useCallback, useEffect } from 'react';
-import type { Chat } from '@google/genai';
 import { GoogleOAuthProvider } from '@react-oauth/google';
 import { Ad, User, ViewState, View, AdFormData, ChatLog, ChatMessage } from './types';
-import { createChatSession } from './services/geminiService';
 import { apiService } from './services/apiService';
 import { OAUTH_CONFIG } from './config/oauth';
 import AdList from './components/AdList';
