@@ -227,3 +227,4 @@ Una vez completados los pasos anteriores, tu aplicación JOLUB estará en produc
 **Fecha de Preparación:** Enero 2025
 **Última Actualización:** Schema PostgreSQL + Migraciones
 
+

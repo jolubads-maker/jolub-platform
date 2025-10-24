@@ -117,3 +117,4 @@ A veces Vite usa puertos diferentes.
 
 **¿Sigue sin funcionar?** Usa el **Modo Demo** mientras esperas que se propaguen los cambios de Google. ¡La aplicación funciona perfectamente con el Modo Demo!
 
+
