@@ -12,7 +12,10 @@
     "db:generate": "prisma generate",
     "db:push": "prisma db push",
     "db:studio": "prisma studio",
-    "db:seed": "node server/seed.js"
+    "db:seed": "node server/seed.js",
+    "db:migrate": "prisma migrate deploy",
+    "start": "node server/index.js",
+    "postinstall": "prisma generate"
   },
   "dependencies": {
     "@google/genai": "^1.21.0",
