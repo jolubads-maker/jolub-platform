@@ -6,6 +6,8 @@
 
 Marketplace moderno con autenticación OAuth, chat directo entre usuarios, y gestión de anuncios.
 
+🌐 **Demo en vivo**: https://anuncios-omega.vercel.app
+
 ## ✨ Características
 
 - 🔐 Autenticación con Google OAuth (o Modo Demo)
