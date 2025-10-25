@@ -115,15 +115,56 @@ export const dbUtils = {
     });
   },
 
-  // Obtener todos los anuncios con sus vendedores
-  async getAllAds() {
-    return await prisma.ad.findMany({
+  // Obtener todos los anuncios con sus vendedores (con filtros opcionales)
+  async getAllAds(filters = {}) {
+    const { category, minPrice, maxPrice, location, search, userId } = filters;
+    
+    const where = {};
+    
+    if (category && category !== 'Todas') {
+      where.category = category;
+    }
+    
+    if (minPrice !== undefined) {
+      where.price = { ...where.price, gte: minPrice };
+    }
+    
+    if (maxPrice !== undefined) {
+      where.price = { ...where.price, lte: maxPrice };
+    }
+    
+    if (location) {
+      where.location = { contains: location, mode: 'insensitive' };
+    }
+    
+    if (search) {
+      where.OR = [
+        { title: { contains: search, mode: 'insensitive' } },
+        { description: { contains: search, mode: 'insensitive' } },
+        { uniqueCode: { contains: search, mode: 'insensitive' } }
+      ];
+    }
+    
+    const ads = await prisma.ad.findMany({
+      where,
       include: {
         media: true,
-        seller: true
+        seller: true,
+        favorites: userId ? { where: { userId } } : false
       },
       orderBy: { createdAt: 'desc' }
     });
+    
+    // Agregar flag isFavorite si hay userId
+    if (userId) {
+      return ads.map(ad => ({
+        ...ad,
+        isFavorite: ad.favorites && ad.favorites.length > 0,
+        favorites: undefined // Remover el array de favoritos del resultado
+      }));
+    }
+    
+    return ads;
   },
 
   // Obtener anuncios de un usuario
@@ -347,6 +388,59 @@ export const dbUtils = {
       },
       orderBy: { createdAt: 'desc' }
     });
+  },
+
+  // Agregar anuncio a favoritos
+  async addFavorite(userId, adId) {
+    return await prisma.favorite.create({
+      data: {
+        userId,
+        adId
+      }
+    });
+  },
+
+  // Eliminar anuncio de favoritos
+  async removeFavorite(userId, adId) {
+    return await prisma.favorite.deleteMany({
+      where: {
+        userId,
+        adId
+      }
+    });
+  },
+
+  // Obtener favoritos de un usuario
+  async getUserFavorites(userId) {
+    const favorites = await prisma.favorite.findMany({
+      where: { userId },
+      include: {
+        ad: {
+          include: {
+            media: true,
+            seller: true
+          }
+        }
+      },
+      orderBy: { createdAt: 'desc' }
+    });
+    
+    return favorites.map(fav => ({
+      ...fav.ad,
+      isFavorite: true
+    }));
+  },
+
+  // Verificar si un anuncio es favorito
+  async isFavorite(userId, adId) {
+    const favorite = await prisma.favorite.findFirst({
+      where: {
+        userId,
+        adId
+      }
+    });
+    
+    return !!favorite;
   }
 };
 

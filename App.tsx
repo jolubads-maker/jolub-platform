@@ -423,6 +423,7 @@ const App: React.FC = () => {
           onShowRegister={handleShowRegister}
           onLogout={handleLogout}
           onCreateAd={handleShowCreateForm}
+          onAdsUpdate={setAds}
         />;
     }
   };

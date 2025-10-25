@@ -20,6 +20,16 @@ export interface Media {
   url: string;
 }
 
+export type AdCategory = 
+  | 'Electrónica'
+  | 'Vehículos'
+  | 'Hogar'
+  | 'Moda'
+  | 'Deportes'
+  | 'Juguetes'
+  | 'Libros'
+  | 'Otros';
+
 export interface Ad {
   id: number;
   uniqueCode: string;
@@ -27,12 +37,22 @@ export interface Ad {
   description: string;
   details?: string;
   price: number;
+  category: AdCategory;
+  location?: string;
   sellerId: number;
   views: number;
   media: Media[];
+  isFavorite?: boolean; // Indica si el usuario actual lo marcó como favorito
 }
 
-export type AdFormData = Omit<Ad, 'id' | 'sellerId' | 'views'>;
+export type AdFormData = Omit<Ad, 'id' | 'sellerId' | 'views' | 'isFavorite'>;
+
+export interface Favorite {
+  id: number;
+  userId: number;
+  adId: number;
+  createdAt: Date;
+}
 
 
 export enum View {

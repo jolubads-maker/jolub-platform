@@ -207,6 +207,56 @@ class ApiService {
     if (!response.ok) throw new Error('Error buscando anuncios');
     return response.json();
   }
+
+  // ===== FAVORITOS =====
+
+  // Agregar favorito
+  async addFavorite(userId: number, adId: number): Promise<void> {
+    const response = await fetch(`${API_BASE}/favorites`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId, adId })
+    });
+    if (!response.ok) throw new Error('Error agregando favorito');
+  }
+
+  // Eliminar favorito
+  async removeFavorite(userId: number, adId: number): Promise<void> {
+    const response = await fetch(`${API_BASE}/favorites?userId=${userId}&adId=${adId}`, {
+      method: 'DELETE'
+    });
+    if (!response.ok) throw new Error('Error eliminando favorito');
+  }
+
+  // Obtener favoritos de un usuario
+  async getUserFavorites(userId: number): Promise<Ad[]> {
+    const response = await fetch(`${API_BASE}/users/${userId}/favorites`);
+    if (!response.ok) throw new Error('Error obteniendo favoritos');
+    return response.json();
+  }
+
+  // Obtener anuncios con información de favoritos del usuario
+  async getAdsWithFavorites(userId: number, filters?: {
+    category?: string;
+    minPrice?: number;
+    maxPrice?: number;
+    location?: string;
+    search?: string;
+  }): Promise<Ad[]> {
+    const params = new URLSearchParams({ userId: userId.toString() });
+    
+    if (filters) {
+      if (filters.category) params.append('category', filters.category);
+      if (filters.minPrice !== undefined) params.append('minPrice', filters.minPrice.toString());
+      if (filters.maxPrice !== undefined) params.append('maxPrice', filters.maxPrice.toString());
+      if (filters.location) params.append('location', filters.location);
+      if (filters.search) params.append('search', filters.search);
+    }
+
+    const response = await fetch(`${API_BASE}/ads?${params.toString()}`);
+    if (!response.ok) throw new Error('Error obteniendo anuncios');
+    return response.json();
+  }
 }
 
 export const apiService = new ApiService();

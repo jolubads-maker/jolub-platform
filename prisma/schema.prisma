@@ -31,6 +31,7 @@ model User {
   ads           Ad[]     @relation("UserAds")
   sentMessages  Message[] @relation("SentMessages")
   chatParticipants ChatParticipant[]
+  favorites     Favorite[] // Anuncios favoritos del usuario
 
   @@map("users")
 }
@@ -42,6 +43,8 @@ model Ad {
   description String
   details     String?  // Detalles adicionales del producto
   price       Int
+  category    String   @default("Otros") // Categoría del producto
+  location    String?  // Ubicación del vendedor
   views       Int      @default(0)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -51,7 +54,10 @@ model Ad {
   seller      User     @relation("UserAds", fields: [sellerId], references: [id], onDelete: Cascade)
   media       Media[]
   chatLogs    ChatLog[] @relation("AdChats")
+  favorites   Favorite[] // Usuarios que marcaron como favorito
 
+  @@index([category]) // Índice para búsquedas rápidas por categoría
+  @@index([price]) // Índice para filtros de precio
   @@map("ads")
 }
 
@@ -119,4 +125,18 @@ model VerificationCode {
   createdAt   DateTime @default(now())
 
   @@map("verification_codes")
+}
+
+model Favorite {
+  id        Int      @id @default(autoincrement())
+  createdAt DateTime @default(now())
+
+  // Relaciones
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  adId      Int
+  ad        Ad       @relation(fields: [adId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, adId]) // Un usuario solo puede marcar un anuncio como favorito una vez
+  @@map("favorites")
 }

@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { Ad, User } from '../types';
-import AdCard from './AdCard'; // Asumo que también modernizarás AdCard
+import AdCard from './AdCard';
+import AdFilters, { FilterValues } from './AdFilters';
 import UserCircleIcon from './icons/UserCircleIcon';
+import { apiService } from '../services/apiService';
 
 interface HomePageProps {
   currentUser: User | null;
@@ -13,6 +15,7 @@ interface HomePageProps {
   onShowRegister: () => void;
   onLogout: () => void;
   onCreateAd: () => void;
+  onAdsUpdate: (ads: Ad[]) => void; // Nueva prop para actualizar ads cuando cambian
 }
 
 // 🎨 Definición de color para el ejemplo (Asegúrate de tenerlos en tu configuración de Tailwind)
@@ -28,11 +31,27 @@ const HomePage: React.FC<HomePageProps> = ({
   onShowLogin,
   onShowRegister,
   onLogout,
-  onCreateAd
+  onCreateAd,
+  onAdsUpdate
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [filteredAds, setFilteredAds] = useState<Ad[]>(ads);
   const [isSearching, setIsSearching] = useState(false);
+  const [filters, setFilters] = useState<FilterValues>({
+    category: 'Todas',
+    minPrice: 0,
+    maxPrice: 100000,
+    location: ''
+  });
+  const [searchHistory, setSearchHistory] = useState<string[]>([]);
+
+  // Cargar historial de búsquedas al montar
+  useEffect(() => {
+    const history = localStorage.getItem('searchHistory');
+    if (history) {
+      setSearchHistory(JSON.parse(history));
+    }
+  }, []);
 
   // Filtrar anuncios basado en la búsqueda (Lógica inalterada)
   useEffect(() => {
@@ -60,6 +79,110 @@ const HomePage: React.FC<HomePageProps> = ({
 
     return () => clearTimeout(searchTimeout);
   }, [searchQuery, ads, users]);
+
+  // Guardar búsqueda en historial
+  const saveSearchToHistory = (query: string) => {
+    if (!query.trim()) return;
+    
+    const newHistory = [query, ...searchHistory.filter(q => q !== query)].slice(0, 10);
+    setSearchHistory(newHistory);
+    localStorage.setItem('searchHistory', JSON.stringify(newHistory));
+  };
+
+  // Manejar cambio de filtros
+  const handleFilterChange = async (newFilters: FilterValues) => {
+    setFilters(newFilters);
+    setIsSearching(true);
+
+    try {
+      if (currentUser) {
+        const filtered = await apiService.getAdsWithFavorites(currentUser.id, {
+          category: newFilters.category !== 'Todas' ? newFilters.category : undefined,
+          minPrice: newFilters.minPrice > 0 ? newFilters.minPrice : undefined,
+          maxPrice: newFilters.maxPrice < 100000 ? newFilters.maxPrice : undefined,
+          location: newFilters.location || undefined,
+          search: searchQuery || undefined
+        });
+        setFilteredAds(filtered);
+        onAdsUpdate(filtered);
+      } else {
+        // Filtrar localmente si no hay usuario
+        let filtered = ads;
+        
+        if (newFilters.category !== 'Todas') {
+          filtered = filtered.filter(ad => ad.category === newFilters.category);
+        }
+        
+        if (newFilters.minPrice > 0) {
+          filtered = filtered.filter(ad => ad.price >= newFilters.minPrice);
+        }
+        
+        if (newFilters.maxPrice < 100000) {
+          filtered = filtered.filter(ad => ad.price <= newFilters.maxPrice);
+        }
+        
+        if (newFilters.location) {
+          filtered = filtered.filter(ad => 
+            ad.location?.toLowerCase().includes(newFilters.location.toLowerCase())
+          );
+        }
+        
+        if (searchQuery) {
+          const query = searchQuery.toLowerCase();
+          filtered = filtered.filter(ad => 
+            ad.title.toLowerCase().includes(query) ||
+            ad.description.toLowerCase().includes(query)
+          );
+        }
+        
+        setFilteredAds(filtered);
+      }
+    } catch (error) {
+      console.error('Error aplicando filtros:', error);
+    } finally {
+      setIsSearching(false);
+    }
+  };
+
+  // Resetear filtros
+  const handleResetFilters = () => {
+    setFilters({
+      category: 'Todas',
+      minPrice: 0,
+      maxPrice: 100000,
+      location: ''
+    });
+    setSearchQuery('');
+    setFilteredAds(ads);
+  };
+
+  // Toggle favorito
+  const handleToggleFavorite = async (adId: number) => {
+    if (!currentUser) {
+      onShowLogin();
+      return;
+    }
+
+    try {
+      const ad = filteredAds.find(a => a.id === adId);
+      if (!ad) return;
+
+      if (ad.isFavorite) {
+        await apiService.removeFavorite(currentUser.id, adId);
+      } else {
+        await apiService.addFavorite(currentUser.id, adId);
+      }
+
+      // Actualizar el estado local
+      const updatedAds = filteredAds.map(a => 
+        a.id === adId ? { ...a, isFavorite: !a.isFavorite } : a
+      );
+      setFilteredAds(updatedAds);
+      onAdsUpdate(updatedAds);
+    } catch (error) {
+      console.error('Error toggling favorito:', error);
+    }
+  };
 
   const getSellerInfo = (sellerId: number) => {
     return users.find(u => u.id === sellerId);
@@ -191,6 +314,11 @@ const HomePage: React.FC<HomePageProps> = ({
                 placeholder="Buscar por título, código único, vendedor..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
+                onKeyPress={(e) => {
+                  if (e.key === 'Enter' && searchQuery.trim()) {
+                    saveSearchToHistory(searchQuery);
+                  }
+                }}
                 className="
                   w-full px-6 py-4 pl-14 
                   bg-white border border-gray-200 rounded-2xl 
@@ -212,6 +340,24 @@ const HomePage: React.FC<HomePageProps> = ({
               </div>
             </div>
             
+            {/* Historial de búsquedas */}
+            {!searchQuery && searchHistory.length > 0 && (
+              <div className="mt-4 p-4 bg-white rounded-xl border border-gray-200 shadow-md">
+                <p className="text-sm font-semibold text-gray-700 mb-2">🕐 Búsquedas recientes:</p>
+                <div className="flex flex-wrap gap-2">
+                  {searchHistory.map((term, index) => (
+                    <button
+                      key={index}
+                      onClick={() => setSearchQuery(term)}
+                      className="px-3 py-1 bg-gray-100 hover:bg-blue-100 text-gray-700 hover:text-blue-700 text-sm rounded-full transition-colors"
+                    >
+                      {term}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {searchQuery && (
               <div className="mt-4 text-sm text-blue-600 text-center font-medium">
                 {isSearching ? (
@@ -242,20 +388,25 @@ const HomePage: React.FC<HomePageProps> = ({
           </div>
         )}
 
+        {/* Filtros */}
+        <AdFilters
+          onFilterChange={handleFilterChange}
+          onReset={handleResetFilters}
+        />
+
         {/* Lista de anuncios */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
           {filteredAds.length > 0 ? (
             filteredAds.map((ad) => {
               const seller = getSellerInfo(ad.sellerId);
               return (
-                // ❗ Asumo que el componente AdCard.tsx también ha sido modernizado
-                // para usar sombras más suaves, bordes redondeados y transiciones.
                 <AdCard
                   key={ad.id}
                   ad={ad}
                   seller={seller}
                   onSelect={() => onSelectAd(ad.id)}
                   currentUser={currentUser}
+                  onToggleFavorite={handleToggleFavorite}
                 />
               );
             })
