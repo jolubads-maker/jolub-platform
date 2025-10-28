@@ -57,8 +57,12 @@ export const dbUtils = {
     }
 
     if (!user) {
+      // Generar ID único para el usuario (ej: "USER-1234567890")
+      const uniqueId = `USER-${Date.now()}${Math.floor(Math.random() * 1000)}`;
+      
       user = await prisma.user.create({
         data: {
+          uniqueId: uniqueId,
           name: userData.name,
           avatar: userData.avatar,
           email: userData.email,

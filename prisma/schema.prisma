@@ -13,6 +13,7 @@ datasource db {
 
 model User {
   id            Int      @id @default(autoincrement())
+  uniqueId      String?  @unique // ID único para dashboard dinámico (ej: "USER-123456789")
   name          String
   avatar        String
   email         String?  // Email para autenticación OAuth

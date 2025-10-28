@@ -2,6 +2,7 @@ import { Chat } from '@google/genai';
 
 export interface User {
   id: number;
+  uniqueId?: string; // ID único generado para el dashboard dinámico (ej: "USER-123456789")
   name: string;
   avatar: string;
   email?: string;
@@ -72,7 +73,7 @@ export type ViewState =
   | { view: View.Chat; sellerId: number; buyerId: number; chatId: string; from?: 'dashboard' }
   | { view: View.Login }
   | { view: View.Register }
-  | { view: View.Dashboard };
+  | { view: View.Dashboard; userId: number; uniqueId: string };
 
 
 export interface ChatMessage {

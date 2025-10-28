@@ -267,6 +267,21 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, userAds, userChats, 
                 <h1 className="text-4xl lg:text-5xl font-bold bg-gradient-to-r from-white to-gray-300 bg-clip-text text-transparent mb-2">
                   {currentUser.name}
                 </h1>
+                <div className="flex items-center space-x-2 mb-2">
+                  <span className="text-sm font-mono text-blue-200 bg-blue-900/30 px-3 py-1 rounded-full border border-blue-400/30">
+                    ID: {currentUser.uniqueId || `USER-${currentUser.id}`}
+                  </span>
+                  <button 
+                    onClick={() => {
+                      navigator.clipboard.writeText(currentUser.uniqueId || `USER-${currentUser.id}`);
+                      alert('ID copiado al portapapeles!');
+                    }}
+                    className="text-blue-300 hover:text-blue-100 transition-colors"
+                    title="Copiar ID"
+                  >
+                    📋
+                  </button>
+                </div>
                 <p className="text-xl text-gray-300 mb-2">Bienvenido a tu panel de control</p>
                 <div className="flex items-center">
                   <span className={`text-sm font-medium ${currentUser.isOnline ? 'text-green-400' : 'text-gray-400'}`}>

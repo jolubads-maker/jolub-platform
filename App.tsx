@@ -125,7 +125,8 @@ const App: React.FC = () => {
   const handleShowCreateForm = useCallback(() => {
     if (currentUser && !currentUser.phoneVerified) {
       alert('Por favor, verifica tu número de teléfono en el panel de control para poder publicar anuncios.');
-      setViewState({ view: View.Dashboard });
+      const uniqueId = currentUser.uniqueId || `USER-${currentUser.id}`;
+      setViewState({ view: View.Dashboard, userId: currentUser.id, uniqueId: uniqueId });
       return;
     }
     setViewState({ view: View.Create });
@@ -133,7 +134,12 @@ const App: React.FC = () => {
 
   const handleShowLogin = useCallback(() => setViewState({ view: View.Login }), []);
   const handleShowRegister = useCallback(() => setViewState({ view: View.Register }), []);
-  const handleShowDashboard = useCallback(() => setViewState({ view: View.Dashboard }), []);
+  const handleShowDashboard = useCallback(() => {
+    if (currentUser) {
+      const uniqueId = currentUser.uniqueId || `USER-${currentUser.id}`;
+      setViewState({ view: View.Dashboard, userId: currentUser.id, uniqueId: uniqueId });
+    }
+  }, [currentUser]);
   const handleBackToHome = useCallback(() => setViewState({ view: View.List }), []);
 
   const handleLogout = useCallback(async () => {
@@ -180,7 +186,15 @@ const App: React.FC = () => {
       // Cargar chats del usuario
       await loadUserChats(updatedUser.id);
       
-      setViewState({ view: View.Dashboard });
+      // Redirigir al dashboard dinámico con ID único
+      const uniqueId = updatedUser.uniqueId || `USER-${updatedUser.id}`;
+      setViewState({ 
+        view: View.Dashboard, 
+        userId: updatedUser.id,
+        uniqueId: uniqueId
+      });
+      
+      console.log(`✅ Usuario logueado exitosamente: ${updatedUser.name} (ID: ${uniqueId})`);
     } catch (error) {
       console.error('Error en login:', error);
       alert('Error al iniciar sesión. Inténtalo de nuevo.');
@@ -301,7 +315,8 @@ const App: React.FC = () => {
           buyer={currentUser} 
           onBack={() => {
             if (viewState.from === 'dashboard') {
-              setViewState({ view: View.Dashboard });
+              const uniqueId = currentUser.uniqueId || `USER-${currentUser.id}`;
+              setViewState({ view: View.Dashboard, userId: currentUser.id, uniqueId: uniqueId });
             } else {
               handleBackToList();
             }
