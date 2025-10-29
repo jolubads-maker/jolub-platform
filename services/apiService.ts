@@ -1,5 +1,8 @@
 // Servicio para manejar todas las llamadas a la API
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:4000/api';
+import { getApiUrl } from '../config/api.config';
+
+const API_BASE = getApiUrl();
+console.log('🌐 API URL configurada:', API_BASE);
 
 export interface User {
   id: number;
