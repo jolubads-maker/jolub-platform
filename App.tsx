@@ -167,14 +167,22 @@ const App: React.FC = () => {
     providerId?: string;
   }) => {
     try {
+      console.log('🔵 [1/5] Iniciando proceso de login/registro...', userInfo);
+      
       // Crear o actualizar usuario en la base de datos
+      console.log('🔵 [2/5] Creando/actualizando usuario en BD...');
       const user = await apiService.createOrUpdateUser(userInfo);
+      console.log('✅ [2/5] Usuario creado/actualizado:', user);
       
       // Generar token de sesión
+      console.log('🔵 [3/5] Generando token de sesión...');
       const sessionToken = await apiService.generateSessionToken(user.id);
+      console.log('✅ [3/5] Token generado:', sessionToken.substring(0, 20) + '...');
       
       // Actualizar estado en línea
+      console.log('🔵 [4/5] Actualizando estado en línea...');
       const updatedUser = await apiService.updateUserOnlineStatus(user.id, true);
+      console.log('✅ [4/5] Estado actualizado:', updatedUser);
       
       setCurrentUser(updatedUser);
       setUsers(prevUsers => prevUsers.map(u => u.id === updatedUser.id ? updatedUser : u));
@@ -184,19 +192,23 @@ const App: React.FC = () => {
       localStorage.setItem('sessionToken', sessionToken);
       
       // Cargar chats del usuario
+      console.log('🔵 [5/5] Cargando chats del usuario...');
       await loadUserChats(updatedUser.id);
+      console.log('✅ [5/5] Chats cargados');
       
       // Redirigir al dashboard dinámico con ID único
       const uniqueId = updatedUser.uniqueId || `USER-${updatedUser.id}`;
+      console.log('🚀 Redirigiendo al dashboard dinámico...');
       setViewState({ 
         view: View.Dashboard, 
         userId: updatedUser.id,
         uniqueId: uniqueId
       });
       
-      console.log(`✅ Usuario logueado exitosamente: ${updatedUser.name} (ID: ${uniqueId})`);
+      console.log(`✅ ¡LOGIN EXITOSO! Usuario: ${updatedUser.name} (ID: ${uniqueId})`);
     } catch (error) {
-      console.error('Error en login:', error);
+      console.error('❌ ERROR EN LOGIN:', error);
+      console.error('❌ Detalles del error:', JSON.stringify(error, null, 2));
       alert('Error al iniciar sesión. Inténtalo de nuevo.');
     }
   }, []);

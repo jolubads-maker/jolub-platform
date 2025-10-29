@@ -66,13 +66,21 @@ class ApiService {
     provider?: 'google' | 'apple' | 'manual';
     providerId?: string;
   }): Promise<User> {
+    console.log('📡 POST /api/users', userData);
     const response = await fetch(`${API_BASE}/users`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(userData)
     });
-    if (!response.ok) throw new Error('Error creando usuario');
-    return response.json();
+    console.log('📡 Response status:', response.status, response.statusText);
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('❌ Error response:', errorText);
+      throw new Error(`Error creando usuario: ${response.status} ${errorText}`);
+    }
+    const user = await response.json();
+    console.log('📡 Usuario recibido:', user);
+    return user;
   }
 
   async updateUserOnlineStatus(userId: number, isOnline: boolean): Promise<User> {
@@ -195,12 +203,19 @@ class ApiService {
   }
 
   async generateSessionToken(userId: number): Promise<string> {
+    console.log('📡 POST /api/users/${userId}/session-token');
     const response = await fetch(`${API_BASE}/users/${userId}/session-token`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' }
     });
-    if (!response.ok) throw new Error('Error generando token de sesión');
+    console.log('📡 Response status:', response.status);
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('❌ Error generando token:', errorText);
+      throw new Error(`Error generando token de sesión: ${response.status} ${errorText}`);
+    }
     const data = await response.json();
+    console.log('📡 Token recibido');
     return data.sessionToken;
   }
 
