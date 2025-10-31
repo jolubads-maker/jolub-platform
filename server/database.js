@@ -129,12 +129,14 @@ export const dbUtils = {
       where.category = category;
     }
     
-    if (minPrice !== undefined) {
-      where.price = { ...where.price, gte: minPrice };
-    }
-    
-    if (maxPrice !== undefined) {
-      where.price = { ...where.price, lte: maxPrice };
+    if (minPrice !== undefined || maxPrice !== undefined) {
+      where.price = {};
+      if (minPrice !== undefined) {
+        where.price.gte = minPrice;
+      }
+      if (maxPrice !== undefined) {
+        where.price.lte = maxPrice;
+      }
     }
     
     if (location) {
@@ -149,14 +151,29 @@ export const dbUtils = {
       ];
     }
     
+    // Optimizar query: solo incluir lo necesario
     const ads = await prisma.ad.findMany({
       where,
       include: {
-        media: true,
-        seller: true,
-        favorites: userId ? { where: { userId } } : false
+        media: {
+          take: 10 // Limitar media para evitar cargar demasiado
+        },
+        seller: {
+          select: {
+            id: true,
+            name: true,
+            avatar: true,
+            isOnline: true,
+            phoneVerified: true
+          }
+        },
+        favorites: userId ? { 
+          where: { userId },
+          select: { id: true }
+        } : false
       },
-      orderBy: { createdAt: 'desc' }
+      orderBy: { createdAt: 'desc' },
+      take: 100 // Limitar resultados para mejor rendimiento
     });
     
     // Agregar flag isFavorite si hay userId
@@ -250,7 +267,7 @@ export const dbUtils = {
     return message;
   },
 
-  // Obtener chats de un usuario
+  // Obtener chats de un usuario (optimizado)
   async getUserChats(userId) {
     return await prisma.chatParticipant.findMany({
       where: { userId: userId },
@@ -258,16 +275,45 @@ export const dbUtils = {
         chat: {
           include: {
             participants: {
-              include: { user: true }
+              include: { 
+                user: {
+                  select: {
+                    id: true,
+                    name: true,
+                    avatar: true,
+                    isOnline: true,
+                    lastSeen: true
+                  }
+                }
+              }
             },
             messages: {
-              include: { user: true },
+              select: {
+                id: true,
+                text: true,
+                sender: true,
+                userId: true,
+                createdAt: true,
+                user: {
+                  select: {
+                    id: true,
+                    name: true,
+                    avatar: true
+                  }
+                }
+              },
               orderBy: { createdAt: 'desc' },
               take: 1
             }
           }
         }
-      }
+      },
+      orderBy: {
+        chat: {
+          updatedAt: 'desc'
+        }
+      },
+      take: 50 // Limitar a 50 chats más recientes
     });
   },
 

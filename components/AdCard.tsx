@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { memo } from 'react';
 import { Ad, User } from '../types';
 import EyeIcon from './icons/EyeIcon';
 
@@ -10,7 +10,7 @@ interface AdCardProps {
   onToggleFavorite?: (adId: number) => void;
 }
 
-const AdCard: React.FC<AdCardProps> = ({ ad, seller, onSelect, currentUser, onToggleFavorite }) => {
+const AdCard: React.FC<AdCardProps> = memo(({ ad, seller, onSelect, currentUser, onToggleFavorite }) => {
   const firstMedia = ad.media[0];
 
   const handleFavoriteClick = (e: React.MouseEvent) => {
@@ -140,6 +140,17 @@ const AdCard: React.FC<AdCardProps> = ({ ad, seller, onSelect, currentUser, onTo
       </div>
     </div>
   );
-};
+}, (prevProps, nextProps) => {
+  // Comparación personalizada para evitar re-renders innecesarios
+  return (
+    prevProps.ad.id === nextProps.ad.id &&
+    prevProps.ad.isFavorite === nextProps.ad.isFavorite &&
+    prevProps.ad.views === nextProps.ad.views &&
+    prevProps.currentUser?.id === nextProps.currentUser?.id &&
+    prevProps.seller?.id === nextProps.seller?.id
+  );
+});
+
+AdCard.displayName = 'AdCard';
 
 export default AdCard;

@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import { GoogleOAuthProvider } from '@react-oauth/google';
 import { Ad, User, ViewState, View, AdFormData, ChatLog, ChatMessage } from './types';
 import { apiService } from './services/apiService';
@@ -22,12 +22,14 @@ const App: React.FC = () => {
   const [viewState, setViewState] = useState<ViewState>({ view: View.List });
   const [chatLogs, setChatLogs] = useState<Map<string, ChatLog>>(new Map());
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   // Cargar datos iniciales de la base de datos
   useEffect(() => {
     const loadInitialData = async () => {
       try {
         setLoading(true);
+        setError(null);
         const [usersData, adsData] = await Promise.all([
           apiService.getUsers(),
           apiService.getAds()
@@ -44,26 +46,39 @@ const App: React.FC = () => {
             if (user) {
               setCurrentUser(user);
               await loadUserChats(user.id);
+              // Si hay token válido, redirigir al dashboard
+              const uniqueId = user.uniqueId || `USER-${user.id}`;
+              setViewState({ view: View.Dashboard, userId: user.id, uniqueId: uniqueId });
               return;
             }
           } catch (error) {
             console.error('Error verificando token de sesión:', error);
             localStorage.removeItem('sessionToken');
+            localStorage.removeItem('currentUser');
           }
         }
         
         // Fallback al método anterior si no hay token válido
         const savedUser = localStorage.getItem('currentUser');
         if (savedUser) {
-          const user = JSON.parse(savedUser);
-          const userInDb = usersData.find(u => u.id === user.id);
-          if (userInDb) {
-            setCurrentUser(userInDb);
-            await loadUserChats(userInDb.id);
+          try {
+            const user = JSON.parse(savedUser);
+            const userInDb = usersData.find(u => u.id === user.id);
+            if (userInDb) {
+              setCurrentUser(userInDb);
+              await loadUserChats(userInDb.id);
+              // Redirigir al dashboard si hay usuario guardado
+              const uniqueId = userInDb.uniqueId || `USER-${userInDb.id}`;
+              setViewState({ view: View.Dashboard, userId: userInDb.id, uniqueId: uniqueId });
+            }
+          } catch (parseError) {
+            console.error('Error parseando usuario guardado:', parseError);
+            localStorage.removeItem('currentUser');
           }
         }
       } catch (error) {
         console.error('Error cargando datos iniciales:', error);
+        setError('Error al cargar los datos. Por favor, recarga la página.');
       } finally {
         setLoading(false);
       }
@@ -167,7 +182,13 @@ const App: React.FC = () => {
     providerId?: string;
   }) => {
     try {
+      setError(null);
       console.log('🔵 [1/5] Iniciando proceso de login/registro...', userInfo);
+      
+      // Validar datos de entrada
+      if (!userInfo.name || !userInfo.avatar) {
+        throw new Error('Datos de usuario incompletos');
+      }
       
       // Crear o actualizar usuario en la base de datos
       console.log('🔵 [2/5] Creando/actualizando usuario en BD...');
@@ -185,7 +206,13 @@ const App: React.FC = () => {
       console.log('✅ [4/5] Estado actualizado:', updatedUser);
       
       setCurrentUser(updatedUser);
-      setUsers(prevUsers => prevUsers.map(u => u.id === updatedUser.id ? updatedUser : u));
+      setUsers(prevUsers => {
+        const existing = prevUsers.find(u => u.id === updatedUser.id);
+        if (existing) {
+          return prevUsers.map(u => u.id === updatedUser.id ? updatedUser : u);
+        }
+        return [...prevUsers, updatedUser];
+      });
       
       // Guardar usuario y token en localStorage para persistencia
       localStorage.setItem('currentUser', JSON.stringify(updatedUser));
@@ -196,9 +223,11 @@ const App: React.FC = () => {
       await loadUserChats(updatedUser.id);
       console.log('✅ [5/5] Chats cargados');
       
-      // Redirigir al dashboard dinámico con ID único
+      // Redirigir al dashboard dinámico con ID único (GARANTIZADO)
       const uniqueId = updatedUser.uniqueId || `USER-${updatedUser.id}`;
       console.log('🚀 Redirigiendo al dashboard dinámico...');
+      
+      // Asegurar redirección al dashboard
       setViewState({ 
         view: View.Dashboard, 
         userId: updatedUser.id,
@@ -206,17 +235,29 @@ const App: React.FC = () => {
       });
       
       console.log(`✅ ¡LOGIN EXITOSO! Usuario: ${updatedUser.name} (ID: ${uniqueId})`);
-    } catch (error) {
+    } catch (error: any) {
       console.error('❌ ERROR EN LOGIN:', error);
-      console.error('❌ Detalles del error:', JSON.stringify(error, null, 2));
-      alert('Error al iniciar sesión. Inténtalo de nuevo.');
+      const errorMessage = error?.message || 'Error al iniciar sesión. Inténtalo de nuevo.';
+      setError(errorMessage);
+      alert(errorMessage);
     }
   }, []);
 
   const handlePhoneVerified = useCallback(async (phoneNumber: string) => {
-    if (!currentUser) return;
+    if (!currentUser) {
+      setError('No hay usuario autenticado');
+      return;
+    }
+    
+    // Validar formato de teléfono
+    if (!phoneNumber || phoneNumber.trim().length < 10) {
+      setError('Número de teléfono inválido');
+      alert('Por favor, ingresa un número de teléfono válido.');
+      return;
+    }
     
     try {
+      setError(null);
       // Verificar teléfono en la base de datos
       const updatedUser = await apiService.verifyUserPhone(currentUser.id, phoneNumber);
       
@@ -227,9 +268,11 @@ const App: React.FC = () => {
       localStorage.setItem('currentUser', JSON.stringify(updatedUser));
       
       alert('¡Teléfono verificado con éxito! Ya puedes crear anuncios.');
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error verificando teléfono:', error);
-      alert('Error al verificar el teléfono. Inténtalo de nuevo.');
+      const errorMessage = error?.message || 'Error al verificar el teléfono. Inténtalo de nuevo.';
+      setError(errorMessage);
+      alert(errorMessage);
     }
   }, [currentUser]);
 
@@ -254,26 +297,53 @@ const App: React.FC = () => {
 
 
   const handleCreateAd = useCallback(async (formData: AdFormData) => {
-    if (!currentUser) return;
+    if (!currentUser) {
+      setError('Debes iniciar sesión para crear anuncios');
+      handleShowLogin();
+      return;
+    }
+    
+    // Validar que el teléfono esté verificado
+    if (!currentUser.phoneVerified) {
+      alert('Por favor, verifica tu número de teléfono en el panel de control para poder publicar anuncios.');
+      const uniqueId = currentUser.uniqueId || `USER-${currentUser.id}`;
+      setViewState({ view: View.Dashboard, userId: currentUser.id, uniqueId: uniqueId });
+      return;
+    }
+    
+    // Validar datos del formulario
+    if (!formData.title || !formData.description || !formData.price || formData.price <= 0) {
+      alert('Por favor, completa todos los campos requeridos con valores válidos.');
+      return;
+    }
+    
+    if (!formData.media || formData.media.length === 0) {
+      alert('Debes agregar al menos una imagen o video al anuncio.');
+      return;
+    }
     
     try {
+      setError(null);
       // Crear anuncio en la base de datos
       const newAd = await apiService.createAd({
-        title: formData.title,
-        description: formData.description,
-        details: formData.details,
-        price: formData.price,
+        title: formData.title.trim(),
+        description: formData.description.trim(),
+        details: formData.details?.trim(),
+        price: Math.round(formData.price * 100) / 100, // Redondear a 2 decimales
         sellerId: currentUser.id,
         media: formData.media
       });
       
       setAds(prevAds => [newAd, ...prevAds]);
       setViewState({ view: View.List });
-    } catch (error) {
+      alert('¡Anuncio publicado exitosamente!');
+    } catch (error: any) {
       console.error('Error creando anuncio:', error);
-      alert('Error al crear el anuncio. Inténtalo de nuevo.');
+      const errorMessage = error?.message || 'Error al crear el anuncio. Inténtalo de nuevo.';
+      setError(errorMessage);
+      alert(errorMessage);
     }
-  }, [currentUser]);
+  }, [currentUser, handleShowLogin]);
 
   const handleStartChat = useCallback((sellerId: number) => {
     if (!currentUser) {
@@ -300,6 +370,20 @@ const App: React.FC = () => {
     
     setViewState({ view: View.Chat, sellerId, buyerId, chatId });
   }, [currentUser, users, chatLogs, handleShowLogin]);
+
+  // Memoizar anuncios del usuario para optimizar rendimiento
+  const userAds = useMemo(() => {
+    if (!currentUser) return [];
+    return ads.filter(ad => ad.sellerId === currentUser.id);
+  }, [ads, currentUser]);
+
+  // Memoizar chats del usuario
+  const userChats = useMemo(() => {
+    if (!currentUser) return [];
+    return Array.from(chatLogs.values()).filter(log => 
+      (log as ChatLog).participantIds.includes(currentUser.id)
+    );
+  }, [chatLogs, currentUser]);
 
   const renderContent = () => {
     switch (viewState.view) {
@@ -431,8 +515,8 @@ const App: React.FC = () => {
         }
         return <Dashboard 
                   currentUser={currentUser} 
-                  userAds={ads.filter(ad => ad.sellerId === currentUser.id)} 
-                  userChats={Array.from(chatLogs.values()).filter(log => (log as ChatLog).participantIds.includes(currentUser.id))}
+                  userAds={userAds}
+                  userChats={userChats}
                   users={users}
                   onPhoneVerified={handlePhoneVerified}
                   onOpenChat={handleOpenChatFromDashboard}
@@ -459,7 +543,7 @@ const App: React.FC = () => {
     return (
       <div className="min-h-screen bg-gray-900 text-gray-100 font-sans flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-brand-primary mx-auto mb-4"></div>
+          <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-yellow-500 mx-auto mb-4"></div>
           <p className="text-xl">Cargando Marketplace IA...</p>
         </div>
       </div>
@@ -469,6 +553,17 @@ const App: React.FC = () => {
   return (
     <GoogleOAuthProvider clientId={OAUTH_CONFIG.GOOGLE_CLIENT_ID}>
       <div className="min-h-screen bg-gray-900 text-gray-100 font-sans">
+        {error && (
+          <div className="fixed top-4 right-4 bg-red-600 text-white px-6 py-3 rounded-lg shadow-lg z-50 flex items-center justify-between max-w-md">
+            <span>{error}</span>
+            <button 
+              onClick={() => setError(null)}
+              className="ml-4 text-white hover:text-gray-200"
+            >
+              ×
+            </button>
+          </div>
+        )}
         {renderContent()}
       </div>
     </GoogleOAuthProvider>

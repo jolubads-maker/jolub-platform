@@ -6,6 +6,7 @@ console.log('🌐 API URL configurada:', API_BASE);
 
 export interface User {
   id: number;
+  uniqueId?: string; // ID único generado para el dashboard dinámico
   name: string;
   avatar: string;
   email?: string;
