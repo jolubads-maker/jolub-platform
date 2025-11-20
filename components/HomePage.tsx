@@ -61,18 +61,18 @@ const HomePage: React.FC<HomePageProps> = ({
     }
 
     setIsSearching(true);
-    
+
     // Simular análisis de base de datos con delay
     const searchTimeout = setTimeout(() => {
       const query = searchQuery.toLowerCase();
-      const filtered = ads.filter(ad => 
+      const filtered = ads.filter(ad =>
         ad.title.toLowerCase().includes(query) ||
         ad.description.toLowerCase().includes(query) ||
         ad.details?.toLowerCase().includes(query) ||
         ad.uniqueCode.toLowerCase().includes(query) ||
         users.find(u => u.id === ad.sellerId)?.name.toLowerCase().includes(query)
       );
-      
+
       setFilteredAds(filtered);
       setIsSearching(false);
     }, 300);
@@ -83,7 +83,7 @@ const HomePage: React.FC<HomePageProps> = ({
   // Guardar búsqueda en historial
   const saveSearchToHistory = (query: string) => {
     if (!query.trim()) return;
-    
+
     const newHistory = [query, ...searchHistory.filter(q => q !== query)].slice(0, 10);
     setSearchHistory(newHistory);
     localStorage.setItem('searchHistory', JSON.stringify(newHistory));
@@ -108,33 +108,33 @@ const HomePage: React.FC<HomePageProps> = ({
       } else {
         // Filtrar localmente si no hay usuario
         let filtered = ads;
-        
+
         if (newFilters.category !== 'Todas') {
           filtered = filtered.filter(ad => ad.category === newFilters.category);
         }
-        
+
         if (newFilters.minPrice > 0) {
           filtered = filtered.filter(ad => ad.price >= newFilters.minPrice);
         }
-        
+
         if (newFilters.maxPrice < 100000) {
           filtered = filtered.filter(ad => ad.price <= newFilters.maxPrice);
         }
-        
+
         if (newFilters.location) {
-          filtered = filtered.filter(ad => 
+          filtered = filtered.filter(ad =>
             ad.location?.toLowerCase().includes(newFilters.location.toLowerCase())
           );
         }
-        
+
         if (searchQuery) {
           const query = searchQuery.toLowerCase();
-          filtered = filtered.filter(ad => 
+          filtered = filtered.filter(ad =>
             ad.title.toLowerCase().includes(query) ||
             ad.description.toLowerCase().includes(query)
           );
         }
-        
+
         setFilteredAds(filtered);
       }
     } catch (error) {
@@ -174,7 +174,7 @@ const HomePage: React.FC<HomePageProps> = ({
       }
 
       // Actualizar el estado local
-      const updatedAds = filteredAds.map(a => 
+      const updatedAds = filteredAds.map(a =>
         a.id === adId ? { ...a, isFavorite: !a.isFavorite } : a
       );
       setFilteredAds(updatedAds);
@@ -191,28 +191,26 @@ const HomePage: React.FC<HomePageProps> = ({
   return (
     // 💡 Fondo principal: blanco con un toque de textura y mínimo degradado
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors duration-500">
-      
+
       {/* 🌟 Header: Modernizado con Glassmorphism (Efecto de desenfoque) */}
-      <header 
+      <header
         className="
-          sticky top-0 z-50 
-          bg-white/90 backdrop-blur-md 
-          shadow-lg shadow-blue-500/5 
-          border-b border-blue-100/50
+          sticky top-4 z-50 mx-4 rounded-2xl
+          bg-white/70 backdrop-blur-xl supports-[backdrop-filter]:bg-white/60
+          shadow-lg shadow-black/5 border border-white/20
+          transition-all duration-300
         "
       >
-        <div className="container mx-auto px-4 py-4">
+        <div className="container mx-auto px-6 py-3">
           <div className="flex justify-between items-center">
             <div className="flex flex-col">
               {/* Logo con fuente más audaz y moderna */}
-              <h1 className="text-4xl font-extrabold text-blue-600 tracking-tighter">
-                JOLUB
+              <h1 className="text-3xl font-black text-gray-900 tracking-tighter flex items-center gap-2">
+                <span className="bg-blue-600 text-white px-2 rounded-lg transform -rotate-3">J</span>
+                <span className="text-blue-600">OLUB</span>
               </h1>
-              <p className="text-xs text-gray-500 mt-1 italic">
-                Donde encuentras y vendes lo que necesitas
-              </p>
             </div>
-            
+
             <div className="flex items-center space-x-3 sm:space-x-4">
               {currentUser ? (
                 <>
@@ -220,66 +218,55 @@ const HomePage: React.FC<HomePageProps> = ({
                   <button
                     onClick={onCreateAd}
                     className="
-                      bg-blue-600 hover:bg-blue-700 text-white font-semibold 
-                      py-2 px-4 sm:px-6 rounded-xl 
-                      shadow-md shadow-blue-500/30 
+                      bg-gray-900 hover:bg-black text-white font-medium 
+                      py-2 px-5 rounded-full text-sm
+                      shadow-lg shadow-gray-900/20 
                       transition duration-300 hidden sm:block 
-                      hover:shadow-lg hover:shadow-blue-500/50 
                       transform hover:-translate-y-0.5
                     "
                   >
-                    Publicar Anuncio
+                    + Publicar
                   </button>
-                  
+
                   {/* Información del usuario: Más compacta y con sombra */}
-                  <div className="flex items-center space-x-2 bg-white rounded-full p-1.5 shadow-lg border border-gray-100">
-                    <div className="relative">
+                  <div className="flex items-center space-x-1 pl-2">
+                    <div className="relative cursor-pointer group" onClick={onShowDashboard}>
                       {/* Avatar */}
                       <img
                         src={currentUser.avatar}
                         alt={currentUser.name}
-                        className="w-8 h-8 rounded-full object-cover border-2 border-white"
+                        className="w-9 h-9 rounded-full object-cover ring-2 ring-white shadow-sm transition-transform group-hover:scale-105"
                       />
                       {/* Indicador de estado en línea con diseño más sutil */}
-                      <div className={`absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border border-white ${
-                        currentUser.isOnline ? 'bg-green-500' : 'bg-gray-400'
-                      }`}></div>
+                      <div className={`absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full border-2 border-white ${currentUser.isOnline ? 'bg-green-500' : 'bg-gray-400'
+                        }`}></div>
                     </div>
-                    
-                    {/* Botones de acción del usuario: Íconos más minimalistas y sutiles */}
-                    <button
-                      onClick={onShowDashboard}
-                      className="p-1.5 rounded-full hover:bg-blue-50 transition-colors text-gray-500 hover:text-blue-600 hidden sm:block"
-                      title="Dashboard"
-                    >
-                      <UserCircleIcon className="w-6 h-6" />
-                    </button>
-                    
+
                     <button
                       onClick={onLogout}
-                      className="p-1.5 rounded-full hover:bg-red-50 transition-colors text-gray-500 hover:text-red-600"
+                      className="p-2 rounded-full hover:bg-gray-100 transition-colors text-gray-400 hover:text-red-500"
                       title="Cerrar sesión"
                     >
                       {/* Ícono de logout */}
-                      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
                       </svg>
                     </button>
                   </div>
                 </>
               ) : (
-                <div className="flex space-x-3">
+                <div className="flex space-x-2">
                   <button
                     onClick={onShowLogin}
-                    className="text-blue-600 hover:text-blue-700 font-semibold py-2 px-4 sm:px-6 rounded-full transition duration-300"
+                    className="text-gray-600 hover:text-gray-900 font-medium py-2 px-4 text-sm transition duration-300"
                   >
                     Acceder
                   </button>
                   <button
                     onClick={onShowRegister}
                     className="
-                      bg-blue-600 hover:bg-blue-700 text-white font-semibold 
-                      py-2 px-4 sm:px-6 rounded-full 
+                      bg-blue-600 hover:bg-blue-700 text-white font-medium 
+                      py-2 px-5 rounded-full text-sm
                       shadow-md shadow-blue-500/30 
                       transition duration-300 transform hover:scale-105
                     "
@@ -297,7 +284,7 @@ const HomePage: React.FC<HomePageProps> = ({
 
       {/* Contenido principal */}
       <main className="container mx-auto px-4 py-10">
-        
+
         {/* Sección de búsqueda: Más prominente y centrada */}
         <div className="mb-14">
           <div className="max-w-4xl mx-auto">
@@ -307,7 +294,7 @@ const HomePage: React.FC<HomePageProps> = ({
             <p className="text-gray-500 text-center mb-8 text-lg">
               Explora miles de productos y servicios cerca de ti.
             </p>
-            
+
             <div className="relative">
               <input
                 type="text"
@@ -327,7 +314,7 @@ const HomePage: React.FC<HomePageProps> = ({
                   shadow-xl shadow-gray-200/50 hover:shadow-2xl transition-all duration-300
                 "
               />
-              
+
               {/* Ícono de búsqueda/Spinner */}
               <div className="absolute left-5 top-1/2 transform -translate-y-1/2">
                 {isSearching ? (
@@ -339,7 +326,7 @@ const HomePage: React.FC<HomePageProps> = ({
                 )}
               </div>
             </div>
-            
+
             {/* Historial de búsquedas */}
             {!searchQuery && searchHistory.length > 0 && (
               <div className="mt-4 p-4 bg-white rounded-xl border border-gray-200 shadow-md">
@@ -369,7 +356,7 @@ const HomePage: React.FC<HomePageProps> = ({
             )}
           </div>
         </div>
-        
+
         {/* --- */}
 
         {/* Botón crear anuncio para móvil */}
@@ -421,7 +408,7 @@ const HomePage: React.FC<HomePageProps> = ({
                 {searchQuery ? '😔 Vaya, no encontramos nada' : '🎉 ¡Sé el primero en publicar!'}
               </h3>
               <p className="text-gray-500 px-4">
-                {searchQuery 
+                {searchQuery
                   ? 'Intenta simplificar los términos de búsqueda o revisa la ortografía.'
                   : 'Aún no hay anuncios. ¡Anímate a crear uno ahora!'
                 }

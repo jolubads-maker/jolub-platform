@@ -1,9 +1,11 @@
 import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import { GoogleOAuthProvider } from '@react-oauth/google';
 import { Routes, Route, useNavigate, useParams, useLocation, Navigate } from 'react-router-dom';
+import { Toaster } from 'sonner';
 import { Ad, User, ViewState, View, AdFormData, ChatLog, ChatMessage } from './types';
 import { apiService } from './services/apiService';
 import { OAUTH_CONFIG } from './config/oauth';
+import { notify } from './services/notificationService';
 import AdList from './components/AdList';
 import AdDetail from './components/AdDetail';
 import AdForm from './components/AdForm';
@@ -124,7 +126,7 @@ const App: React.FC = () => {
         }
       } catch (error) {
         console.error('Error cargando datos iniciales:', error);
-        setError('Error al cargar los datos. Por favor, recarga la página.');
+        notify.error('Error al cargar los datos. Por favor, recarga la página.');
       } finally {
         setLoading(false);
       }
@@ -190,7 +192,7 @@ const App: React.FC = () => {
 
   const handleShowCreateForm = useCallback(() => {
     if (currentUser && !currentUser.phoneVerified) {
-      alert('Por favor, verifica tu número de teléfono en el panel de control para poder publicar anuncios.');
+      notify.warning('Por favor, verifica tu número de teléfono en el panel de control para poder publicar anuncios.');
       navigate(`/dashboard/${currentUser.uniqueId || 'USER-' + currentUser.id}`);
       return;
     }
@@ -211,6 +213,7 @@ const App: React.FC = () => {
     localStorage.removeItem('sessionToken');
     setChatLogs(new Map());
     navigate('/');
+    notify.success('Sesión cerrada correctamente');
   }, [currentUser, navigate]);
 
   const handleLogin = useCallback(async (userInfo: {
@@ -241,11 +244,11 @@ const App: React.FC = () => {
       await loadUserChats(updatedUser.id);
 
       navigate(`/dashboard/${updatedUser.uniqueId || 'USER-' + updatedUser.id}`);
+      notify.success(`Bienvenido, ${user.name}!`);
     } catch (error: any) {
       console.error('❌ ERROR EN LOGIN:', error);
       const errorMessage = error?.message || 'Error al iniciar sesión. Inténtalo de nuevo.';
-      setError(errorMessage);
-      alert(errorMessage);
+      notify.error(errorMessage);
     }
   }, [navigate]);
 
@@ -260,24 +263,23 @@ const App: React.FC = () => {
       setUsers(prevUsers => prevUsers.map(u => u.id === currentUser.id ? updatedUser : u));
       localStorage.setItem('currentUser', JSON.stringify(updatedUser));
 
-      alert('¡Teléfono verificado con éxito! Ya puedes crear anuncios.');
+      notify.success('¡Teléfono verificado con éxito! Ya puedes crear anuncios.');
     } catch (error: any) {
       console.error('Error verificando teléfono:', error);
       const errorMessage = error?.message || 'Error al verificar el teléfono. Inténtalo de nuevo.';
-      setError(errorMessage);
-      alert(errorMessage);
+      notify.error(errorMessage);
     }
   }, [currentUser]);
 
   const handleCreateAd = useCallback(async (formData: AdFormData) => {
     if (!currentUser) {
-      setError('Debes iniciar sesión para crear anuncios');
+      notify.error('Debes iniciar sesión para crear anuncios');
       navigate('/login');
       return;
     }
 
     if (!currentUser.phoneVerified) {
-      alert('Por favor, verifica tu número de teléfono en el panel de control para poder publicar anuncios.');
+      notify.warning('Por favor, verifica tu número de teléfono en el panel de control para poder publicar anuncios.');
       navigate(`/dashboard/${currentUser.uniqueId || 'USER-' + currentUser.id}`);
       return;
     }
@@ -295,12 +297,11 @@ const App: React.FC = () => {
 
       setAds(prevAds => [newAd, ...prevAds]);
       navigate('/');
-      alert('¡Anuncio publicado exitosamente!');
+      notify.success('¡Anuncio publicado exitosamente!');
     } catch (error: any) {
       console.error('Error creando anuncio:', error);
       const errorMessage = error?.message || 'Error al crear el anuncio. Inténtalo de nuevo.';
-      setError(errorMessage);
-      alert(errorMessage);
+      notify.error(errorMessage);
     }
   }, [currentUser, navigate]);
 
@@ -314,7 +315,7 @@ const App: React.FC = () => {
 
     const seller = users.find(u => u.id === sellerId);
     if (!seller || !seller.isOnline) {
-      alert('El vendedor no está en línea en este momento. Inténtalo más tarde.');
+      notify.info('El vendedor no está en línea en este momento. Inténtalo más tarde.');
       return;
     }
 
@@ -357,6 +358,7 @@ const App: React.FC = () => {
   return (
     <GoogleOAuthProvider clientId={OAUTH_CONFIG.GOOGLE_CLIENT_ID}>
       <div className="min-h-screen bg-gray-900 text-gray-100 font-sans">
+        <Toaster position="top-center" richColors />
         {error && (
           <div className="fixed top-4 right-4 bg-red-600 text-white px-6 py-3 rounded-lg shadow-lg z-50 flex items-center justify-between max-w-md">
             <span>{error}</span>
@@ -406,7 +408,7 @@ const App: React.FC = () => {
               <div className="bg-gray-800 rounded-lg p-8 w-full max-w-md">
                 <OAuthLogin
                   onLogin={handleLogin}
-                  onError={(error) => alert(error)}
+                  onError={(error) => notify.error(error)}
                 />
               </div>
             </div>
@@ -416,7 +418,7 @@ const App: React.FC = () => {
             <Register
               onRegister={handleLogin}
               onBackToHome={() => navigate('/')}
-              onError={(error) => alert(error)}
+              onError={(error) => notify.error(error)}
             />
           } />
 
@@ -496,9 +498,10 @@ const ChatRouteWrapper: React.FC<{
             const updated = new Map(prev);
             const currentChat = updated.get(chatId);
             if (currentChat) {
+              const chat = currentChat as ChatLog;
               updated.set(chatId, {
-                ...currentChat,
-                messages: [...currentChat.messages, newMessage],
+                ...chat,
+                messages: [...chat.messages, newMessage],
                 lastMessage: newMessage
               });
             } else {
@@ -512,7 +515,7 @@ const ChatRouteWrapper: React.FC<{
           });
         } catch (error) {
           console.error('Error enviando mensaje:', error);
-          alert('Error al enviar el mensaje.');
+          notify.error('Error al enviar el mensaje.');
         }
       }}
     />
