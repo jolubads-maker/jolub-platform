@@ -167,30 +167,90 @@ const HomePage: React.FC<HomePageProps> = ({
     return users.find(u => u.id === sellerId);
   };
 
+  const [isNavVisible, setIsNavVisible] = useState(true);
+  const [lastScrollY, setLastScrollY] = useState(0);
+
+  useEffect(() => {
+    const handleScroll = () => {
+      const currentScrollY = window.scrollY;
+
+      if (currentScrollY < 10) {
+        setIsNavVisible(true);
+      } else if (currentScrollY > lastScrollY && currentScrollY > 100) {
+        setIsNavVisible(false); // Scrolling down
+      } else if (currentScrollY < lastScrollY) {
+        setIsNavVisible(true); // Scrolling up
+      }
+
+      setLastScrollY(currentScrollY);
+    };
+
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, [lastScrollY]);
+
   return (
-    <div className="min-h-screen bg-background text-gray-100 font-sans selection:bg-primary/30">
-      {/* AURORA BACKGROUND ANIMADO */}
-      <div className="fixed inset-0 z-0 pointer-events-none overflow-hidden">
-        <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-primary/20 rounded-full blur-[120px] animate-pulse" />
-        <div className="absolute top-[20%] right-[-10%] w-[30%] h-[50%] bg-accent/20 rounded-full blur-[120px] animate-pulse delay-1000" />
-        <div className="absolute bottom-[-10%] left-[20%] w-[50%] h-[40%] bg-blue-900/20 rounded-full blur-[120px] animate-pulse delay-2000" />
+    <div className="min-h-screen bg-[#0f172a] text-gray-100 font-sans selection:bg-cyan-500/30 relative overflow-hidden">
+      {/* LIQUID FUTURISTIC BACKGROUND */}
+      {/* LIQUID FUTURISTIC BACKGROUND - OPTIMIZED */}
+      <div className="fixed inset-0 z-0 transform-gpu">
+        <div className="absolute inset-0 bg-gradient-to-br from-blue-900 via-slate-900 to-black opacity-80" />
+
+        {/* CSS Animation Blobs - Lighter than Framer Motion for continuous background loops */}
+        <div className="absolute top-[-20%] left-[-10%] w-[70vw] h-[70vw] bg-blue-600/20 rounded-full blur-[80px] mix-blend-screen animate-blob" />
+        <div className="absolute top-[20%] right-[-20%] w-[60vw] h-[60vw] bg-cyan-500/15 rounded-full blur-[80px] mix-blend-screen animate-blob animation-delay-2000" />
+        <div className="absolute bottom-[-20%] left-[20%] w-[50vw] h-[50vw] bg-indigo-600/15 rounded-full blur-[80px] mix-blend-screen animate-blob animation-delay-4000" />
+
+        <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-10 brightness-100 contrast-150 mix-blend-overlay pointer-events-none"></div>
       </div>
+
+      <style jsx global>{`
+        @keyframes blob {
+          0% { transform: translate(0px, 0px) scale(1); }
+          33% { transform: translate(30px, -50px) scale(1.1); }
+          66% { transform: translate(-20px, 20px) scale(0.9); }
+          100% { transform: translate(0px, 0px) scale(1); }
+        }
+        .animate-blob {
+          animation: blob 10s infinite;
+          will-change: transform;
+        }
+        .animation-delay-2000 {
+          animation-delay: 2s;
+        }
+        .animation-delay-4000 {
+          animation-delay: 4s;
+        }
+      `}</style>
 
       {/* HEADER FLOTANTE */}
       <motion.header
         initial={{ y: -100, opacity: 0 }}
-        animate={{ y: 0, opacity: 1 }}
-        transition={{ duration: 0.6, ease: "easeOut" }}
+        animate={{ y: isNavVisible ? 0 : -100, opacity: isNavVisible ? 1 : 0 }}
+        transition={{ duration: 0.3, ease: "easeInOut" }}
         className="sticky top-4 z-50 mx-4 lg:mx-auto max-w-7xl"
       >
         <div className="
-          bg-surface/60 backdrop-blur-xl border border-white/10 
-          rounded-2xl shadow-2xl shadow-black/20 px-6 py-4
+          bg-white/90 backdrop-blur-md border border-white/20 
+          rounded-2xl shadow-xl shadow-black/5 px-6 py-3
           flex justify-between items-center
         ">
-          <h1 className="text-2xl font-black tracking-tighter flex items-center gap-2">
-            <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary to-accent">JOLUB</span>
-          </h1>
+          {/* LOGO JOLUB */}
+          <div className="flex items-center cursor-pointer select-none">
+            <motion.span
+              className="text-4xl font-black text-blue-600 drop-shadow-sm mr-0.5 inline-block origin-bottom-right"
+            >
+              J
+            </motion.span>
+            <span className="text-xl font-bold text-gray-800 tracking-widest opacity-80 transition-all duration-300">
+              OLU
+            </span>
+            <motion.span
+              className="text-4xl font-black text-blue-600 drop-shadow-sm ml-0.5 inline-block origin-bottom-left"
+            >
+              B
+            </motion.span>
+          </div>
 
           <div className="flex items-center gap-4">
             {currentUser ? (
@@ -200,24 +260,24 @@ const HomePage: React.FC<HomePageProps> = ({
                   whileTap={{ scale: 0.95 }}
                   onClick={onCreateAd}
                   className="
-                    hidden sm:block bg-gradient-to-r from-primary to-accent 
+                    hidden sm:block bg-gray-900 hover:bg-black
                     text-white font-bold py-2 px-6 rounded-full 
-                    shadow-lg shadow-primary/25 border border-white/10
+                    shadow-lg shadow-gray-900/20 transition-all
                   "
                 >
                   + Publicar
                 </motion.button>
 
-                <div className="flex items-center gap-3 pl-4 border-l border-white/10">
+                <div className="flex items-center gap-3 pl-4 border-l border-gray-200">
                   <div className="relative cursor-pointer group" onClick={onShowDashboard}>
                     <img
                       src={currentUser.avatar}
                       alt={currentUser.name}
-                      className="w-10 h-10 rounded-full object-cover ring-2 ring-white/10 transition-all group-hover:ring-primary"
+                      className="w-10 h-10 rounded-full object-cover ring-2 ring-gray-100 transition-all group-hover:ring-blue-500"
                     />
-                    <div className={`absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-surface ${currentUser.isOnline ? 'bg-green-500' : 'bg-gray-500'}`} />
+                    <div className={`absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-white ${currentUser.isOnline ? 'bg-green-500' : 'bg-gray-500'}`} />
                   </div>
-                  <button onClick={onLogout} className="text-gray-400 hover:text-white transition-colors">
+                  <button onClick={onLogout} className="text-gray-400 hover:text-red-500 transition-colors">
                     <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
                     </svg>
@@ -226,10 +286,10 @@ const HomePage: React.FC<HomePageProps> = ({
               </>
             ) : (
               <div className="flex gap-3">
-                <button onClick={onShowLogin} className="text-gray-300 hover:text-white font-medium px-4 py-2">Acceder</button>
+                <button onClick={onShowLogin} className="text-gray-600 hover:text-black font-medium px-4 py-2 transition-colors">Acceder</button>
                 <button
                   onClick={onShowRegister}
-                  className="bg-white/10 hover:bg-white/20 text-white font-medium px-5 py-2 rounded-full backdrop-blur-md border border-white/10 transition-all"
+                  className="bg-gray-900 hover:bg-black text-white font-medium px-5 py-2 rounded-full shadow-lg shadow-gray-900/20 transition-all"
                 >
                   Registrarse
                 </button>
@@ -248,10 +308,12 @@ const HomePage: React.FC<HomePageProps> = ({
             initial={{ opacity: 0, y: 30 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.8, delay: 0.2 }}
-            className="text-5xl md:text-7xl font-black text-transparent bg-clip-text bg-gradient-to-b from-white to-white/60 mb-6 tracking-tight"
+            className="text-5xl md:text-7xl font-black text-transparent bg-clip-text bg-gradient-to-b from-white to-white/70 mb-8 tracking-tighter leading-[1.1]"
           >
-            Descubre lo <br className="hidden md:block" />
-            <span className="bg-clip-text text-transparent bg-gradient-to-r from-primary via-purple-400 to-accent">Extraordinario</span>
+            Donde Encuentras y Vendes <br className="hidden md:block" />
+            <span className="bg-clip-text text-transparent bg-gradient-to-r from-cyan-400 via-blue-400 to-purple-400 animate-gradient-x">
+              lo que Necesitas
+            </span>
           </motion.h2>
 
           <motion.p
@@ -357,7 +419,7 @@ const HomePage: React.FC<HomePageProps> = ({
       <footer className="relative z-10 border-t border-white/5 bg-surface/30 backdrop-blur-lg mt-20 py-12">
         <div className="container mx-auto px-4 text-center">
           <h2 className="text-2xl font-black text-gray-700 dark:text-gray-300 mb-4">JOLUB</h2>
-          <p className="text-gray-500 text-sm">© 2024 JOLUB Marketplace. Designed with Antigravity UI.</p>
+          <p className="text-gray-500 text-sm">© 2026 JOLUB Marketplace. Designed with JE UI.</p>
         </div>
       </footer>
     </div>
