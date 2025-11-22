@@ -292,7 +292,8 @@ const App: React.FC = () => {
         details: formData.details?.trim(),
         price: Math.round(formData.price * 100) / 100,
         sellerId: currentUser.id,
-        media: formData.media
+        media: formData.media,
+        category: formData.category
       });
 
       setAds(prevAds => [newAd, ...prevAds]);

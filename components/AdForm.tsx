@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { AdFormData, Media } from '../types';
+import { AdFormData, Media, AdCategory } from '../types';
 import PaperclipIcon from './icons/PaperclipIcon';
+import { notify } from '../services/notificationService';
 
 interface AdFormProps {
   onCancel: () => void;
@@ -12,11 +13,23 @@ interface AdFormProps {
 const CLOUDINARY_CLOUD_NAME = 'dim5dxlil';
 const CLOUDINARY_UPLOAD_PRESET = 'ml_default';
 
+const CATEGORIES: AdCategory[] = [
+  'Electrónica',
+  'Vehículos',
+  'Hogar',
+  'Moda',
+  'Deportes',
+  'Juguetes',
+  'Libros',
+  'Otros'
+];
+
 const AdForm: React.FC<AdFormProps> = ({ onCancel, onSubmit }) => {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [details, setDetails] = useState('');
   const [price, setPrice] = useState('');
+  const [category, setCategory] = useState<AdCategory>('Otros');
   const [mediaFiles, setMediaFiles] = useState<Media[]>([]);
   const [uploading, setUploading] = useState(false);
 
@@ -54,7 +67,7 @@ const AdForm: React.FC<AdFormProps> = ({ onCancel, onSubmit }) => {
         const newMedia = await Promise.all(uploadPromises);
         setMediaFiles(prev => [...prev, ...newMedia]);
       } catch (error) {
-        alert('Error al subir las imágenes. Verifica tu configuración.');
+        notify.error('Error al subir las imágenes. Verifica tu configuración.');
       } finally {
         setUploading(false);
       }
@@ -67,18 +80,37 @@ const AdForm: React.FC<AdFormProps> = ({ onCancel, onSubmit }) => {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!title || !description || !price || mediaFiles.length === 0) {
-      alert('Por favor, complete todos los campos y suba al menos un archivo.');
+
+    // Validaciones
+    if (!title.trim()) {
+      notify.error('El título es obligatorio');
       return;
     }
+    if (title.length < 3) {
+      notify.error('El título debe tener al menos 3 caracteres');
+      return;
+    }
+    if (!description.trim()) {
+      notify.error('La descripción es obligatoria');
+      return;
+    }
+    if (!price || parseFloat(price) <= 0) {
+      notify.error('El precio debe ser mayor a 0');
+      return;
+    }
+    if (mediaFiles.length === 0) {
+      notify.error('Debes subir al menos una imagen o video');
+      return;
+    }
+
     onSubmit({
       title,
       description,
       details,
       price: parseFloat(price),
       media: mediaFiles,
-      uniqueCode: `AD-${Math.floor(Math.random() * 100000)}`,
-      category: 'Otros',
+      category,
+      location: 'Ubicación desconocida' // Se podría agregar campo de ubicación
     });
   };
 
@@ -104,22 +136,39 @@ const AdForm: React.FC<AdFormProps> = ({ onCancel, onSubmit }) => {
           />
         </div>
 
-        {/* Precio */}
-        <div>
-          <label htmlFor="price" className="block text-sm font-medium text-gray-300 mb-1">Precio ($)</label>
-          <div className="relative">
-            <span className="absolute left-3 top-3 text-gray-400">$</span>
-            <input
-              type="number"
-              id="price"
-              value={price}
-              onChange={(e) => setPrice(e.target.value)}
-              className="w-full bg-gray-700 border border-gray-600 text-white rounded-md p-3 pl-8 focus:ring-2 focus:ring-brand-primary focus:border-transparent transition-all"
-              required
-              min="0"
-              step="0.01"
-              placeholder="0.00"
-            />
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {/* Precio */}
+          <div>
+            <label htmlFor="price" className="block text-sm font-medium text-gray-300 mb-1">Precio ($)</label>
+            <div className="relative">
+              <span className="absolute left-3 top-3 text-gray-400">$</span>
+              <input
+                type="number"
+                id="price"
+                value={price}
+                onChange={(e) => setPrice(e.target.value)}
+                className="w-full bg-gray-700 border border-gray-600 text-white rounded-md p-3 pl-8 focus:ring-2 focus:ring-brand-primary focus:border-transparent transition-all"
+                required
+                min="0"
+                step="0.01"
+                placeholder="0.00"
+              />
+            </div>
+          </div>
+
+          {/* Categoría */}
+          <div>
+            <label htmlFor="category" className="block text-sm font-medium text-gray-300 mb-1">Categoría</label>
+            <select
+              id="category"
+              value={category}
+              onChange={(e) => setCategory(e.target.value as AdCategory)}
+              className="w-full bg-gray-700 border border-gray-600 text-white rounded-md p-3 focus:ring-2 focus:ring-brand-primary focus:border-transparent transition-all"
+            >
+              {CATEGORIES.map(cat => (
+                <option key={cat} value={cat}>{cat}</option>
+              ))}
+            </select>
           </div>
         </div>
 

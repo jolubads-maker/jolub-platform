@@ -21,7 +21,7 @@ export interface Media {
   url: string;
 }
 
-export type AdCategory = 
+export type AdCategory =
   | 'Electrónica'
   | 'Vehículos'
   | 'Hogar'
@@ -46,7 +46,7 @@ export interface Ad {
   isFavorite?: boolean; // Indica si el usuario actual lo marcó como favorito
 }
 
-export type AdFormData = Omit<Ad, 'id' | 'sellerId' | 'views' | 'isFavorite'>;
+export type AdFormData = Omit<Ad, 'id' | 'sellerId' | 'views' | 'isFavorite' | 'uniqueCode'>;
 
 export interface Favorite {
   id: number;
@@ -66,7 +66,7 @@ export enum View {
   Dashboard = 'DASHBOARD',
 }
 
-export type ViewState = 
+export type ViewState =
   | { view: View.List }
   | { view: View.Detail; adId: number }
   | { view: View.Create }
