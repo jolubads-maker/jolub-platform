@@ -1,33 +1,60 @@
 <!DOCTYPE html>
 <html lang="es">
-  <head>
-    <meta charset="UTF--8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>JOLUB - Marketplace</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script>
-      tailwind.config = {
-        theme: {
-          extend: {
-            fontFamily: {
-              sans: ['Inter', 'sans-serif'],
+
+<head>
+  <meta charset="UTF--8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>JOLUB - Marketplace</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'sans-serif'],
+            display: ['Cal Sans', 'Inter', 'sans-serif'],
+          },
+          colors: {
+            background: '#030712',
+            surface: '#111827',
+            primary: '#3b82f6',
+            accent: '#8b5cf6',
+            'brand-primary': '#2563eb', // Keeping existing for compatibility
+            'brand-secondary': '#60a5fa',
+            'brand-light': '#eff6ff',
+            'brand-dark': '#1e40af',
+            'jolub-blue': '#0066ff',
+            'jolub-dark': '#0052cc',
+          },
+          animation: {
+            'float': 'float 6s ease-in-out infinite',
+            'glow': 'glow 2s ease-in-out infinite alternate',
+            'aurora': 'aurora 60s linear infinite',
+          },
+          keyframes: {
+            float: {
+              '0%, 100%': { transform: 'translateY(0)' },
+              '50%': { transform: 'translateY(-10px)' },
             },
-            colors: {
-              'brand-primary': '#2563eb',
-              'brand-secondary': '#60a5fa',
-              'brand-light': '#eff6ff',
-              'brand-dark': '#1e40af',
-              'jolub-blue': '#0066ff',
-              'jolub-dark': '#0052cc',
+            glow: {
+              'from': { boxShadow: '0 0 10px rgba(59, 130, 246, 0.5)' },
+              'to': { boxShadow: '0 0 20px rgba(139, 92, 246, 0.5)' },
             },
-          }
+            aurora: {
+              '0%': { backgroundPosition: '0% 50%' },
+              '50%': { backgroundPosition: '100% 50%' },
+              '100%': { backgroundPosition: '0% 50%' },
+            },
+          },
         }
       }
-    </script>
-    <script src="https://accounts.google.com/gsi/client" async defer></script>
+    }
+  </script>
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
   <script type="importmap">
 {
   "imports": {
@@ -38,10 +65,12 @@
   }
 }
 </script>
-<link rel="stylesheet" href="/index.css">
+  <link rel="stylesheet" href="/index.css">
 </head>
-  <body class="bg-white text-gray-900 font-sans">
-    <div id="root"></div>
+
+<body class="bg-background text-gray-100 font-sans antialiased overflow-x-hidden">
+  <div id="root"></div>
   <script type="module" src="/index.tsx"></script>
 </body>
+
 </html>

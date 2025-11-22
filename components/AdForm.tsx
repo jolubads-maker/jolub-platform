@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { AdFormData, Media, AdCategory } from '../types';
 import PaperclipIcon from './icons/PaperclipIcon';
 import { notify } from '../services/notificationService';
@@ -9,7 +10,6 @@ interface AdFormProps {
 }
 
 // 🔧 CONFIGURACIÓN CLOUDINARY
-// Reemplaza estos valores con los de tu cuenta de Cloudinary
 const CLOUDINARY_CLOUD_NAME = 'dim5dxlil';
 const CLOUDINARY_UPLOAD_PRESET = 'ml_default';
 
@@ -32,6 +32,7 @@ const AdForm: React.FC<AdFormProps> = ({ onCancel, onSubmit }) => {
   const [category, setCategory] = useState<AdCategory>('Otros');
   const [mediaFiles, setMediaFiles] = useState<Media[]>([]);
   const [uploading, setUploading] = useState(false);
+  const [focusedField, setFocusedField] = useState<string | null>(null);
 
   const uploadToCloudinary = async (file: File): Promise<string> => {
     const formData = new FormData();
@@ -57,7 +58,6 @@ const AdForm: React.FC<AdFormProps> = ({ onCancel, onSubmit }) => {
       const files = Array.from(event.target.files);
 
       try {
-        // Subir todas las imágenes en paralelo
         const uploadPromises = files.map(async (file) => {
           const url = await uploadToCloudinary(file);
           const type = (file.type.startsWith('image/') ? 'image' : 'video') as 'image' | 'video';
@@ -81,27 +81,11 @@ const AdForm: React.FC<AdFormProps> = ({ onCancel, onSubmit }) => {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
-    // Validaciones
-    if (!title.trim()) {
-      notify.error('El título es obligatorio');
-      return;
-    }
-    if (title.length < 3) {
-      notify.error('El título debe tener al menos 3 caracteres');
-      return;
-    }
-    if (!description.trim()) {
-      notify.error('La descripción es obligatoria');
-      return;
-    }
-    if (!price || parseFloat(price) <= 0) {
-      notify.error('El precio debe ser mayor a 0');
-      return;
-    }
-    if (mediaFiles.length === 0) {
-      notify.error('Debes subir al menos una imagen o video');
-      return;
-    }
+    if (!title.trim()) { notify.error('El título es obligatorio'); return; }
+    if (title.length < 3) { notify.error('El título debe tener al menos 3 caracteres'); return; }
+    if (!description.trim()) { notify.error('La descripción es obligatoria'); return; }
+    if (!price || parseFloat(price) <= 0) { notify.error('El precio debe ser mayor a 0'); return; }
+    if (mediaFiles.length === 0) { notify.error('Debes subir al menos una imagen o video'); return; }
 
     onSubmit({
       title,
@@ -110,164 +94,227 @@ const AdForm: React.FC<AdFormProps> = ({ onCancel, onSubmit }) => {
       price: parseFloat(price),
       media: mediaFiles,
       category,
-      location: 'Ubicación desconocida' // Se podría agregar campo de ubicación
+      location: 'Ubicación desconocida'
     });
   };
 
+  const inputClasses = (fieldName: string) => `
+    w-full bg-gray-800/50 border 
+    ${focusedField === fieldName ? 'border-primary ring-4 ring-primary/20' : 'border-white/10'} 
+    text-white rounded-xl p-4 
+    transition-all duration-300 ease-out
+    placeholder-gray-500 focus:outline-none
+  `;
+
   return (
-    <div className="max-w-2xl mx-auto bg-gray-800 p-8 rounded-lg shadow-lg animate-fade-in">
-      <div className="flex justify-between items-center mb-6">
-        <h2 className="text-2xl font-bold text-brand-light">Crear Nuevo Anuncio</h2>
-        <button onClick={onCancel} className="text-gray-400 hover:text-white">✕</button>
+    <motion.div
+      initial={{ opacity: 0, scale: 0.95 }}
+      animate={{ opacity: 1, scale: 1 }}
+      exit={{ opacity: 0, scale: 0.95 }}
+      className="max-w-3xl mx-auto bg-surface/60 backdrop-blur-xl border border-white/10 p-8 rounded-3xl shadow-2xl"
+    >
+      <div className="flex justify-between items-center mb-8">
+        <div>
+          <h2 className="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-white to-gray-400">
+            Crear Anuncio
+          </h2>
+          <p className="text-gray-400 text-sm mt-1">Comparte tu producto con el mundo</p>
+        </div>
+        <button
+          onClick={onCancel}
+          className="w-10 h-10 flex items-center justify-center rounded-full bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white transition-colors"
+        >
+          ✕
+        </button>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-6">
         {/* Título */}
-        <div>
-          <label htmlFor="title" className="block text-sm font-medium text-gray-300 mb-1">Título</label>
+        <div className="group">
+          <label className="block text-sm font-bold text-gray-300 mb-2 ml-1">Título del anuncio</label>
           <input
             type="text"
-            id="title"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
-            className="w-full bg-gray-700 border border-gray-600 text-white rounded-md p-3 focus:ring-2 focus:ring-brand-primary focus:border-transparent transition-all"
-            placeholder="Ej: iPhone 13 Pro Max - Como nuevo"
-            required
+            onFocus={() => setFocusedField('title')}
+            onBlur={() => setFocusedField(null)}
+            className={inputClasses('title')}
+            placeholder="Ej: MacBook Pro M1 2021 - Impecable"
           />
+          <AnimatePresence>
+            {title.length > 0 && title.length < 3 && (
+              <motion.p
+                initial={{ opacity: 0, y: -5 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0 }}
+                className="text-red-400 text-xs mt-2 ml-1"
+              >
+                El título es muy corto
+              </motion.p>
+            )}
+          </AnimatePresence>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {/* Precio */}
           <div>
-            <label htmlFor="price" className="block text-sm font-medium text-gray-300 mb-1">Precio ($)</label>
+            <label className="block text-sm font-bold text-gray-300 mb-2 ml-1">Precio</label>
             <div className="relative">
-              <span className="absolute left-3 top-3 text-gray-400">$</span>
+              <span className="absolute left-4 top-4 text-gray-400 font-bold">$</span>
               <input
                 type="number"
-                id="price"
                 value={price}
                 onChange={(e) => setPrice(e.target.value)}
-                className="w-full bg-gray-700 border border-gray-600 text-white rounded-md p-3 pl-8 focus:ring-2 focus:ring-brand-primary focus:border-transparent transition-all"
-                required
+                onFocus={() => setFocusedField('price')}
+                onBlur={() => setFocusedField(null)}
+                className={`${inputClasses('price')} pl-8 font-mono text-lg`}
+                placeholder="0.00"
                 min="0"
                 step="0.01"
-                placeholder="0.00"
               />
             </div>
           </div>
 
           {/* Categoría */}
           <div>
-            <label htmlFor="category" className="block text-sm font-medium text-gray-300 mb-1">Categoría</label>
-            <select
-              id="category"
-              value={category}
-              onChange={(e) => setCategory(e.target.value as AdCategory)}
-              className="w-full bg-gray-700 border border-gray-600 text-white rounded-md p-3 focus:ring-2 focus:ring-brand-primary focus:border-transparent transition-all"
-            >
-              {CATEGORIES.map(cat => (
-                <option key={cat} value={cat}>{cat}</option>
-              ))}
-            </select>
+            <label className="block text-sm font-bold text-gray-300 mb-2 ml-1">Categoría</label>
+            <div className="relative">
+              <select
+                value={category}
+                onChange={(e) => setCategory(e.target.value as AdCategory)}
+                onFocus={() => setFocusedField('category')}
+                onBlur={() => setFocusedField(null)}
+                className={`${inputClasses('category')} appearance-none cursor-pointer`}
+              >
+                {CATEGORIES.map(cat => (
+                  <option key={cat} value={cat} className="bg-gray-900 text-white">{cat}</option>
+                ))}
+              </select>
+              <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
+                ▼
+              </div>
+            </div>
           </div>
         </div>
 
         {/* Descripción */}
         <div>
-          <label htmlFor="description" className="block text-sm font-medium text-gray-300 mb-1">Descripción</label>
+          <label className="block text-sm font-bold text-gray-300 mb-2 ml-1">Descripción</label>
           <textarea
-            id="description"
             value={description}
             onChange={(e) => setDescription(e.target.value)}
+            onFocus={() => setFocusedField('description')}
+            onBlur={() => setFocusedField(null)}
             rows={3}
-            className="w-full bg-gray-700 border border-gray-600 text-white rounded-md p-3 focus:ring-2 focus:ring-brand-primary focus:border-transparent transition-all"
-            placeholder="Describe brevemente tu producto..."
-            required
+            className={inputClasses('description')}
+            placeholder="Describe lo que vendes de forma atractiva..."
           />
         </div>
 
         {/* Detalles */}
         <div>
-          <label htmlFor="details" className="block text-sm font-medium text-gray-300 mb-1">Detalles adicionales</label>
+          <label className="block text-sm font-bold text-gray-300 mb-2 ml-1">Detalles Técnicos (Opcional)</label>
           <textarea
-            id="details"
             value={details}
             onChange={(e) => setDetails(e.target.value)}
+            onFocus={() => setFocusedField('details')}
+            onBlur={() => setFocusedField(null)}
             rows={4}
-            placeholder="Especificaciones técnicas, estado, condiciones de entrega..."
-            className="w-full bg-gray-700 border border-gray-600 text-white rounded-md p-3 focus:ring-2 focus:ring-brand-primary focus:border-transparent transition-all"
+            className={inputClasses('details')}
+            placeholder="Especificaciones, estado, dimensiones, etc."
           />
         </div>
 
         {/* Subida de Imágenes */}
-        <div>
-          <label className="block text-sm font-medium text-gray-300 mb-2">Imágenes y Videos</label>
+        <div className="bg-gray-900/30 rounded-2xl p-6 border border-white/5">
+          <label className="block text-sm font-bold text-gray-300 mb-4">Galería Multimedia</label>
 
-          <div className={`mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-600 border-dashed rounded-md transition-colors ${uploading ? 'bg-gray-700 opacity-50 cursor-wait' : 'hover:border-brand-primary hover:bg-gray-750'}`}>
-            <div className="space-y-1 text-center">
-              {uploading ? (
-                <div className="flex flex-col items-center">
-                  <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-brand-primary mb-2"></div>
-                  <p className="text-sm text-gray-300">Subiendo archivos a la nube...</p>
-                </div>
-              ) : (
-                <>
-                  <PaperclipIcon className="mx-auto h-12 w-12 text-gray-400" />
-                  <div className="flex text-sm text-gray-400 justify-center">
-                    <label htmlFor="file-upload" className="relative cursor-pointer rounded-md font-medium text-brand-secondary hover:text-brand-primary focus-within:outline-none">
-                      <span>Subir archivos</span>
-                      <input id="file-upload" name="file-upload" type="file" className="sr-only" multiple accept="image/*,video/*" onChange={handleFileChange} disabled={uploading} />
-                    </label>
-                  </div>
-                  <p className="text-xs text-gray-500">PNG, JPG, MP4 hasta 10MB</p>
-                </>
-              )}
-            </div>
-          </div>
-
-          {/* Galería de Previsualización */}
-          {mediaFiles.length > 0 && (
-            <div className="mt-4 grid grid-cols-3 sm:grid-cols-4 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-4">
+            <AnimatePresence>
               {mediaFiles.map((media, index) => (
-                <div key={index} className="relative group aspect-square rounded-lg overflow-hidden bg-black border border-gray-600">
+                <motion.div
+                  key={index}
+                  initial={{ opacity: 0, scale: 0.8 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.8 }}
+                  className="relative aspect-square rounded-xl overflow-hidden group border border-white/10"
+                >
                   {media.type === 'image' ? (
-                    <img src={media.url} alt={`preview ${index}`} className="w-full h-full object-cover" />
+                    <img src={media.url} alt="preview" className="w-full h-full object-cover" />
                   ) : (
                     <video src={media.url} className="w-full h-full object-cover" muted />
                   )}
-                  <button
-                    type="button"
-                    onClick={() => handleRemoveMedia(index)}
-                    className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
-                  >
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                      <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
-                    </svg>
-                  </button>
-                </div>
+                  <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveMedia(index)}
+                      className="bg-red-500/80 hover:bg-red-500 text-white p-2 rounded-full backdrop-blur-sm transition-transform hover:scale-110"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                </motion.div>
               ))}
-            </div>
-          )}
+            </AnimatePresence>
+
+            <label className={`
+              relative aspect-square rounded-xl border-2 border-dashed border-white/10 
+              flex flex-col items-center justify-center cursor-pointer
+              hover:border-primary/50 hover:bg-primary/5 transition-all group
+              ${uploading ? 'opacity-50 pointer-events-none' : ''}
+            `}>
+              <div className="p-3 bg-white/5 rounded-full mb-2 group-hover:scale-110 transition-transform">
+                {uploading ? (
+                  <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  <PaperclipIcon className="w-6 h-6 text-gray-400 group-hover:text-primary" />
+                )}
+              </div>
+              <span className="text-xs text-gray-400 font-medium group-hover:text-primary">
+                {uploading ? 'Subiendo...' : 'Añadir'}
+              </span>
+              <input
+                type="file"
+                className="hidden"
+                multiple
+                accept="image/*,video/*"
+                onChange={handleFileChange}
+                disabled={uploading}
+              />
+            </label>
+          </div>
+          <p className="text-xs text-gray-500 text-center">
+            Soporta imágenes (JPG, PNG) y videos (MP4). Máx 10MB.
+          </p>
         </div>
 
-        <div className="flex justify-end space-x-4 pt-4 border-t border-gray-700">
+        {/* Actions */}
+        <div className="flex justify-end gap-4 pt-6 border-t border-white/5">
           <button
             type="button"
             onClick={onCancel}
-            className="px-6 py-2.5 rounded-lg text-gray-300 hover:bg-gray-700 font-medium transition-colors"
+            className="px-6 py-3 rounded-xl text-gray-400 hover:text-white hover:bg-white/5 font-medium transition-all"
           >
             Cancelar
           </button>
-          <button
+          <motion.button
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
             type="submit"
             disabled={uploading}
-            className="bg-brand-primary hover:bg-brand-dark disabled:bg-gray-600 text-white font-bold py-2.5 px-6 rounded-lg shadow-lg shadow-brand-primary/20 transition-all transform hover:scale-105"
+            className="
+              bg-gradient-to-r from-primary to-accent 
+              hover:shadow-lg hover:shadow-primary/25
+              disabled:opacity-50 disabled:cursor-not-allowed
+              text-white font-bold py-3 px-8 rounded-xl 
+              transition-all duration-300
+            "
           >
-            {uploading ? 'Subiendo...' : 'Publicar Anuncio'}
-          </button>
+            {uploading ? 'Procesando...' : 'Publicar Anuncio'}
+          </motion.button>
         </div>
       </form>
-    </div>
+    </motion.div>
   );
 };
 

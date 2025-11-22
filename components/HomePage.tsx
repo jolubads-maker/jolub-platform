@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { Ad, User } from '../types';
 import AdCard from './AdCard';
 import AdFilters, { FilterValues } from './AdFilters';
-import UserCircleIcon from './icons/UserCircleIcon';
 import { apiService } from '../services/apiService';
 
 interface HomePageProps {
@@ -15,12 +15,8 @@ interface HomePageProps {
   onShowRegister: () => void;
   onLogout: () => void;
   onCreateAd: () => void;
-  onAdsUpdate: (ads: Ad[]) => void; // Nueva prop para actualizar ads cuando cambian
+  onAdsUpdate: (ads: Ad[]) => void;
 }
-
-// 🎨 Definición de color para el ejemplo (Asegúrate de tenerlos en tu configuración de Tailwind)
-// const JOLUB_BLUE = 'custom-blue-500'; // usa un color vibrante para JOLUB_BLUE
-// const JOLUB_DARK = 'custom-blue-700';
 
 const HomePage: React.FC<HomePageProps> = ({
   currentUser,
@@ -45,7 +41,6 @@ const HomePage: React.FC<HomePageProps> = ({
   });
   const [searchHistory, setSearchHistory] = useState<string[]>([]);
 
-  // Cargar historial de búsquedas al montar
   useEffect(() => {
     const history = localStorage.getItem('searchHistory');
     if (history) {
@@ -53,7 +48,6 @@ const HomePage: React.FC<HomePageProps> = ({
     }
   }, []);
 
-  // Filtrar anuncios basado en la búsqueda (Lógica inalterada)
   useEffect(() => {
     if (!searchQuery.trim()) {
       setFilteredAds(ads);
@@ -61,8 +55,6 @@ const HomePage: React.FC<HomePageProps> = ({
     }
 
     setIsSearching(true);
-
-    // Simular análisis de base de datos con delay
     const searchTimeout = setTimeout(() => {
       const query = searchQuery.toLowerCase();
       const filtered = ads.filter(ad =>
@@ -80,16 +72,13 @@ const HomePage: React.FC<HomePageProps> = ({
     return () => clearTimeout(searchTimeout);
   }, [searchQuery, ads, users]);
 
-  // Guardar búsqueda en historial
   const saveSearchToHistory = (query: string) => {
     if (!query.trim()) return;
-
     const newHistory = [query, ...searchHistory.filter(q => q !== query)].slice(0, 10);
     setSearchHistory(newHistory);
     localStorage.setItem('searchHistory', JSON.stringify(newHistory));
   };
 
-  // Manejar cambio de filtros
   const handleFilterChange = async (newFilters: FilterValues) => {
     setFilters(newFilters);
     setIsSearching(true);
@@ -106,27 +95,21 @@ const HomePage: React.FC<HomePageProps> = ({
         setFilteredAds(filtered);
         onAdsUpdate(filtered);
       } else {
-        // Filtrar localmente si no hay usuario
         let filtered = ads;
-
         if (newFilters.category !== 'Todas') {
           filtered = filtered.filter(ad => ad.category === newFilters.category);
         }
-
         if (newFilters.minPrice > 0) {
           filtered = filtered.filter(ad => ad.price >= newFilters.minPrice);
         }
-
         if (newFilters.maxPrice < 100000) {
           filtered = filtered.filter(ad => ad.price <= newFilters.maxPrice);
         }
-
         if (newFilters.location) {
           filtered = filtered.filter(ad =>
             ad.location?.toLowerCase().includes(newFilters.location.toLowerCase())
           );
         }
-
         if (searchQuery) {
           const query = searchQuery.toLowerCase();
           filtered = filtered.filter(ad =>
@@ -134,7 +117,6 @@ const HomePage: React.FC<HomePageProps> = ({
             ad.description.toLowerCase().includes(query)
           );
         }
-
         setFilteredAds(filtered);
       }
     } catch (error) {
@@ -144,7 +126,6 @@ const HomePage: React.FC<HomePageProps> = ({
     }
   };
 
-  // Resetear filtros
   const handleResetFilters = () => {
     setFilters({
       category: 'Todas',
@@ -156,7 +137,6 @@ const HomePage: React.FC<HomePageProps> = ({
     setFilteredAds(ads);
   };
 
-  // Toggle favorito
   const handleToggleFavorite = async (adId: number) => {
     if (!currentUser) {
       onShowLogin();
@@ -173,7 +153,6 @@ const HomePage: React.FC<HomePageProps> = ({
         await apiService.addFavorite(currentUser.id, adId);
       }
 
-      // Actualizar el estado local
       const updatedAds = filteredAds.map(a =>
         a.id === adId ? { ...a, isFavorite: !a.isFavorite } : a
       );
@@ -189,246 +168,197 @@ const HomePage: React.FC<HomePageProps> = ({
   };
 
   return (
-    // 💡 Fondo principal: blanco con un toque de textura y mínimo degradado
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors duration-500">
+    <div className="min-h-screen bg-background text-gray-100 font-sans selection:bg-primary/30">
+      {/* AURORA BACKGROUND ANIMADO */}
+      <div className="fixed inset-0 z-0 pointer-events-none overflow-hidden">
+        <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-primary/20 rounded-full blur-[120px] animate-pulse" />
+        <div className="absolute top-[20%] right-[-10%] w-[30%] h-[50%] bg-accent/20 rounded-full blur-[120px] animate-pulse delay-1000" />
+        <div className="absolute bottom-[-10%] left-[20%] w-[50%] h-[40%] bg-blue-900/20 rounded-full blur-[120px] animate-pulse delay-2000" />
+      </div>
 
-      {/* 🌟 Header: Modernizado con Glassmorphism (Efecto de desenfoque) */}
-      <header
-        className="
-          sticky top-4 z-50 mx-4 rounded-2xl
-          bg-white/70 backdrop-blur-xl supports-[backdrop-filter]:bg-white/60
-          shadow-lg shadow-black/5 border border-white/20
-          transition-all duration-300
-        "
+      {/* HEADER FLOTANTE */}
+      <motion.header
+        initial={{ y: -100, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        transition={{ duration: 0.6, ease: "easeOut" }}
+        className="sticky top-4 z-50 mx-4 lg:mx-auto max-w-7xl"
       >
-        <div className="container mx-auto px-6 py-3">
-          <div className="flex justify-between items-center">
-            <div className="flex flex-col">
-              {/* Logo con fuente más audaz y moderna */}
-              <h1 className="text-3xl font-black text-gray-900 tracking-tighter flex items-center gap-2">
-                <span className="bg-blue-600 text-white px-2 rounded-lg transform -rotate-3">J</span>
-                <span className="text-blue-600">OLUB</span>
-              </h1>
-            </div>
+        <div className="
+          bg-surface/60 backdrop-blur-xl border border-white/10 
+          rounded-2xl shadow-2xl shadow-black/20 px-6 py-4
+          flex justify-between items-center
+        ">
+          <h1 className="text-2xl font-black tracking-tighter flex items-center gap-2">
+            <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary to-accent">JOLUB</span>
+          </h1>
 
-            <div className="flex items-center space-x-3 sm:space-x-4">
-              {currentUser ? (
-                <>
-                  {/* Botón crear anuncio: Más elegante */}
-                  <button
-                    onClick={onCreateAd}
-                    className="
-                      bg-gray-900 hover:bg-black text-white font-medium 
-                      py-2 px-5 rounded-full text-sm
-                      shadow-lg shadow-gray-900/20 
-                      transition duration-300 hidden sm:block 
-                      transform hover:-translate-y-0.5
-                    "
-                  >
-                    + Publicar
-                  </button>
+          <div className="flex items-center gap-4">
+            {currentUser ? (
+              <>
+                <motion.button
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={onCreateAd}
+                  className="
+                    hidden sm:block bg-gradient-to-r from-primary to-accent 
+                    text-white font-bold py-2 px-6 rounded-full 
+                    shadow-lg shadow-primary/25 border border-white/10
+                  "
+                >
+                  + Publicar
+                </motion.button>
 
-                  {/* Información del usuario: Más compacta y con sombra */}
-                  <div className="flex items-center space-x-1 pl-2">
-                    <div className="relative cursor-pointer group" onClick={onShowDashboard}>
-                      {/* Avatar */}
-                      <img
-                        src={currentUser.avatar}
-                        alt={currentUser.name}
-                        className="w-9 h-9 rounded-full object-cover ring-2 ring-white shadow-sm transition-transform group-hover:scale-105"
-                      />
-                      {/* Indicador de estado en línea con diseño más sutil */}
-                      <div className={`absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full border-2 border-white ${currentUser.isOnline ? 'bg-green-500' : 'bg-gray-400'
-                        }`}></div>
-                    </div>
-
-                    <button
-                      onClick={onLogout}
-                      className="p-2 rounded-full hover:bg-gray-100 transition-colors text-gray-400 hover:text-red-500"
-                      title="Cerrar sesión"
-                    >
-                      {/* Ícono de logout */}
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-                      </svg>
-                    </button>
+                <div className="flex items-center gap-3 pl-4 border-l border-white/10">
+                  <div className="relative cursor-pointer group" onClick={onShowDashboard}>
+                    <img
+                      src={currentUser.avatar}
+                      alt={currentUser.name}
+                      className="w-10 h-10 rounded-full object-cover ring-2 ring-white/10 transition-all group-hover:ring-primary"
+                    />
+                    <div className={`absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-surface ${currentUser.isOnline ? 'bg-green-500' : 'bg-gray-500'}`} />
                   </div>
-                </>
-              ) : (
-                <div className="flex space-x-2">
-                  <button
-                    onClick={onShowLogin}
-                    className="text-gray-600 hover:text-gray-900 font-medium py-2 px-4 text-sm transition duration-300"
-                  >
-                    Acceder
+                  <button onClick={onLogout} className="text-gray-400 hover:text-white transition-colors">
+                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                    </svg>
                   </button>
-                  <button
-                    onClick={onShowRegister}
-                    className="
-                      bg-blue-600 hover:bg-blue-700 text-white font-medium 
-                      py-2 px-5 rounded-full text-sm
-                      shadow-md shadow-blue-500/30 
-                      transition duration-300 transform hover:scale-105
-                    "
-                  >
-                    Registrarse
-                  </button>
+                </div>
+              </>
+            ) : (
+              <div className="flex gap-3">
+                <button onClick={onShowLogin} className="text-gray-300 hover:text-white font-medium px-4 py-2">Acceder</button>
+                <button
+                  onClick={onShowRegister}
+                  className="bg-white/10 hover:bg-white/20 text-white font-medium px-5 py-2 rounded-full backdrop-blur-md border border-white/10 transition-all"
+                >
+                  Registrarse
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      </motion.header>
+
+      {/* MAIN CONTENT */}
+      <main className="relative z-10 container mx-auto px-4 py-12 max-w-7xl">
+
+        {/* HERO SECTION */}
+        <div className="text-center mb-20">
+          <motion.h2
+            initial={{ opacity: 0, y: 30 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.8, delay: 0.2 }}
+            className="text-5xl md:text-7xl font-black text-transparent bg-clip-text bg-gradient-to-b from-white to-white/60 mb-6 tracking-tight"
+          >
+            Descubre lo <br className="hidden md:block" />
+            <span className="bg-clip-text text-transparent bg-gradient-to-r from-primary via-purple-400 to-accent">Extraordinario</span>
+          </motion.h2>
+
+          <motion.p
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.8, delay: 0.4 }}
+            className="text-lg md:text-xl text-gray-400 max-w-2xl mx-auto mb-10"
+          >
+            El marketplace de nueva generación. Compra, vende e intercambia con una experiencia fluida y segura.
+          </motion.p>
+
+          {/* SEARCH BAR GLASSMORPHISM */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6, delay: 0.6 }}
+            className="max-w-3xl mx-auto relative group"
+          >
+            <div className="absolute -inset-1 bg-gradient-to-r from-primary to-accent rounded-2xl blur opacity-25 group-hover:opacity-50 transition duration-1000 group-hover:duration-200"></div>
+            <div className="relative flex items-center bg-surface/80 backdrop-blur-xl border border-white/10 rounded-2xl p-2 shadow-2xl">
+              <div className="pl-4 text-gray-400">
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+              </div>
+              <input
+                type="text"
+                placeholder="Buscar productos, servicios o códigos..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                onKeyPress={(e) => e.key === 'Enter' && saveSearchToHistory(searchQuery)}
+                className="w-full bg-transparent border-none text-white placeholder-gray-500 focus:ring-0 text-lg py-3 px-4"
+              />
+              {isSearching && (
+                <div className="pr-4">
+                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-primary"></div>
                 </div>
               )}
             </div>
-          </div>
-        </div>
-      </header>
+          </motion.div>
 
-      {/* --- */}
-
-      {/* Contenido principal */}
-      <main className="container mx-auto px-4 py-10">
-
-        {/* Sección de búsqueda: Más prominente y centrada */}
-        <div className="mb-14">
-          <div className="max-w-4xl mx-auto">
-            <h2 className="text-4xl font-extrabold text-gray-900 mb-2 text-center">
-              Encuentra tu próxima gran oportunidad 🔎
-            </h2>
-            <p className="text-gray-500 text-center mb-8 text-lg">
-              Explora miles de productos y servicios cerca de ti.
-            </p>
-
-            <div className="relative">
-              <input
-                type="text"
-                placeholder="Buscar por título, código único, vendedor..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                onKeyPress={(e) => {
-                  if (e.key === 'Enter' && searchQuery.trim()) {
-                    saveSearchToHistory(searchQuery);
-                  }
-                }}
-                className="
-                  w-full px-6 py-4 pl-14 
-                  bg-white border border-gray-200 rounded-2xl 
-                  text-gray-800 placeholder-gray-400 
-                  focus:outline-none focus:ring-4 focus:ring-blue-100 focus:border-blue-500
-                  shadow-xl shadow-gray-200/50 hover:shadow-2xl transition-all duration-300
-                "
-              />
-
-              {/* Ícono de búsqueda/Spinner */}
-              <div className="absolute left-5 top-1/2 transform -translate-y-1/2">
-                {isSearching ? (
-                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600"></div>
-                ) : (
-                  <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                  </svg>
-                )}
-              </div>
-            </div>
-
-            {/* Historial de búsquedas */}
-            {!searchQuery && searchHistory.length > 0 && (
-              <div className="mt-4 p-4 bg-white rounded-xl border border-gray-200 shadow-md">
-                <p className="text-sm font-semibold text-gray-700 mb-2">🕐 Búsquedas recientes:</p>
-                <div className="flex flex-wrap gap-2">
-                  {searchHistory.map((term, index) => (
-                    <button
-                      key={index}
-                      onClick={() => setSearchQuery(term)}
-                      className="px-3 py-1 bg-gray-100 hover:bg-blue-100 text-gray-700 hover:text-blue-700 text-sm rounded-full transition-colors"
-                    >
-                      {term}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {searchQuery && (
-              <div className="mt-4 text-sm text-blue-600 text-center font-medium">
-                {isSearching ? (
-                  '⏳ Buscando anuncios...'
-                ) : (
-                  `🎉 ${filteredAds.length} resultado${filteredAds.length !== 1 ? 's' : ''} encontrado${filteredAds.length !== 1 ? 's' : ''}!`
-                )}
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* --- */}
-
-        {/* Botón crear anuncio para móvil */}
-        {currentUser && (
-          <div className="mb-8 sm:hidden">
-            <button
-              onClick={onCreateAd}
-              className="
-                w-full bg-blue-600 hover:bg-blue-700 text-white font-bold 
-                py-3 px-4 rounded-xl shadow-lg shadow-blue-500/40 
-                transition duration-300 transform hover:scale-[1.01]
-              "
+          {/* SEARCH HISTORY */}
+          {!searchQuery && searchHistory.length > 0 && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className="mt-6 flex flex-wrap justify-center gap-2"
             >
-              ➕ Publicar Anuncio
-            </button>
-          </div>
-        )}
-
-        {/* Filtros */}
-        <AdFilters
-          onFilterChange={handleFilterChange}
-          onReset={handleResetFilters}
-        />
-
-        {/* Lista de anuncios */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-          {filteredAds.length > 0 ? (
-            filteredAds.map((ad) => {
-              const seller = getSellerInfo(ad.sellerId);
-              return (
-                <AdCard
-                  key={ad.id}
-                  ad={ad}
-                  seller={seller}
-                  onSelect={() => onSelectAd(ad.id)}
-                  currentUser={currentUser}
-                  onToggleFavorite={handleToggleFavorite}
-                />
-              );
-            })
-          ) : (
-            <div className="col-span-full text-center py-20 bg-white border border-gray-100 rounded-3xl shadow-xl">
-              <div className="text-gray-300 mb-4">
-                <svg className="w-24 h-24 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M9.172 16.172a4 4 0 015.656 0M9 12h6m-6-4h6m2 5.291A7.962 7.962 0 0112 15c-2.34 0-4.29-1.009-5.824-2.709M15 6.291A7.962 7.962 0 0012 5c-2.34 0-4.29 1.009-5.824 2.709" />
-                </svg>
-              </div>
-              <h3 className="text-2xl font-bold text-gray-700 mb-2">
-                {searchQuery ? '😔 Vaya, no encontramos nada' : '🎉 ¡Sé el primero en publicar!'}
-              </h3>
-              <p className="text-gray-500 px-4">
-                {searchQuery
-                  ? 'Intenta simplificar los términos de búsqueda o revisa la ortografía.'
-                  : 'Aún no hay anuncios. ¡Anímate a crear uno ahora!'
-                }
-              </p>
-            </div>
+              {searchHistory.map((term, index) => (
+                <button
+                  key={index}
+                  onClick={() => setSearchQuery(term)}
+                  className="px-4 py-1.5 bg-surface/50 hover:bg-surface text-gray-400 hover:text-primary text-sm rounded-full border border-white/5 transition-all"
+                >
+                  {term}
+                </button>
+              ))}
+            </motion.div>
           )}
+        </div>
+
+        {/* FILTERS & GRID */}
+        <div className="space-y-8">
+          <AdFilters onFilterChange={handleFilterChange} onReset={handleResetFilters} />
+
+          <motion.div
+            layout
+            className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6"
+          >
+            <AnimatePresence>
+              {filteredAds.length > 0 ? (
+                filteredAds.map((ad) => (
+                  <AdCard
+                    key={ad.id}
+                    ad={ad}
+                    seller={getSellerInfo(ad.sellerId)}
+                    onSelect={() => onSelectAd(ad.id)}
+                    currentUser={currentUser}
+                    onToggleFavorite={handleToggleFavorite}
+                  />
+                ))
+              ) : (
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  className="col-span-full text-center py-20"
+                >
+                  <div className="inline-block p-6 rounded-full bg-surface/50 mb-4">
+                    <svg className="w-12 h-12 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9.172 16.172a4 4 0 015.656 0M9 12h6m-6-4h6m2 5.291A7.962 7.962 0 0112 15c-2.34 0-4.29-1.009-5.824-2.709M15 6.291A7.962 7.962 0 0012 5c-2.34 0-4.29 1.009-5.824 2.709" />
+                    </svg>
+                  </div>
+                  <h3 className="text-xl font-bold text-gray-300">No se encontraron resultados</h3>
+                  <p className="text-gray-500 mt-2">Intenta ajustar tu búsqueda o filtros.</p>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </motion.div>
         </div>
       </main>
 
-      {/* --- */}
-
-      {/* Footer con degradado sutil */}
-      <footer className="bg-gradient-to-r from-gray-50 to-blue-50 text-center py-10 mt-16 border-t border-gray-200">
-        <h2 className="text-3xl font-extrabold text-blue-600 mb-2">JOLUB</h2>
-        <p className="text-gray-600 text-sm mb-4">
-          La plataforma moderna para comprar y vender de forma local y segura.
-        </p>
-        <p className="text-gray-500 text-xs">
-          &copy; 2024 JOLUB. Todos los derechos reservados.
-        </p>
+      {/* FOOTER */}
+      <footer className="relative z-10 border-t border-white/5 bg-surface/30 backdrop-blur-lg mt-20 py-12">
+        <div className="container mx-auto px-4 text-center">
+          <h2 className="text-2xl font-black text-gray-700 dark:text-gray-300 mb-4">JOLUB</h2>
+          <p className="text-gray-500 text-sm">© 2024 JOLUB Marketplace. Designed with Antigravity UI.</p>
+        </div>
       </footer>
     </div>
   );
