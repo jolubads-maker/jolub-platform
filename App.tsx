@@ -199,22 +199,7 @@ const App: React.FC = () => {
     navigate('/publicar');
   }, [currentUser, navigate]);
 
-  const handleLogout = useCallback(async () => {
-    if (currentUser) {
-      try {
-        await apiService.updateUserOnlineStatus(currentUser.id, false);
-      } catch (error) {
-        console.error('Error actualizando estado offline:', error);
-      }
-    }
-
-    setCurrentUser(null);
-    localStorage.removeItem('currentUser');
-    localStorage.removeItem('sessionToken');
-    setChatLogs(new Map());
-    navigate('/');
-    notify.success('Sesión cerrada correctamente');
-  }, [currentUser, navigate]);
+  // Removed duplicate async handleLogout; using simple version below
 
   const handleLogin = useCallback(async (userInfo: {
     name: string;
@@ -252,6 +237,45 @@ const App: React.FC = () => {
     }
   }, [navigate]);
 
+  const handleLogout = useCallback(async () => {
+    try {
+      // Actualizar estado en línea en la base de datos antes de cerrar sesión
+      if (currentUser) {
+        try {
+          await apiService.updateUserOnlineStatus(currentUser.id, false);
+        } catch (error) {
+          console.error('Error actualizando estado offline:', error);
+          // Continuar con el logout aunque falle la actualización
+        }
+      }
+
+      // Limpiar datos de sesión
+      localStorage.removeItem('sessionToken');
+      localStorage.removeItem('currentUser');
+      localStorage.removeItem('phoneVerification'); // Limpiar también datos de verificación
+
+      // Limpiar estado
+      setCurrentUser(null);
+      setChatLogs(new Map());
+
+      // Mostrar notificación
+      notify.success('Sesión cerrada exitosamente');
+
+      // Redirigir al home
+      navigate('/');
+    } catch (error) {
+      console.error('Error en logout:', error);
+      // Aún así, limpiar datos locales y redirigir
+      localStorage.removeItem('sessionToken');
+      localStorage.removeItem('currentUser');
+      localStorage.removeItem('phoneVerification');
+      setCurrentUser(null);
+      setChatLogs(new Map());
+      navigate('/');
+      notify.error('Error al cerrar sesión, pero se limpiaron los datos locales');
+    }
+  }, [navigate, currentUser]);
+
   const handlePhoneVerified = useCallback(async (phoneNumber: string) => {
     if (!currentUser) return;
 
@@ -260,7 +284,7 @@ const App: React.FC = () => {
       const updatedUser = await apiService.verifyUserPhone(currentUser.id, phoneNumber);
 
       setCurrentUser(updatedUser);
-      setUsers(prevUsers => prevUsers.map(u => u.id === currentUser.id ? updatedUser : u));
+      setUsers(prevUsers => prevUsers.map(u => (u.id === currentUser.id ? updatedUser : u)));
       localStorage.setItem('currentUser', JSON.stringify(updatedUser));
 
       notify.success('¡Teléfono verificado con éxito! Ya puedes crear anuncios.');
@@ -284,6 +308,17 @@ const App: React.FC = () => {
       return;
     }
 
+    // Validar datos del formulario
+    if (!formData.title || !formData.description || !formData.price || formData.price <= 0) {
+      notify.error('Por favor, completa todos los campos requeridos con valores válidos.');
+      return;
+    }
+
+    if (!formData.media || formData.media.length === 0) {
+      notify.error('Debes agregar al menos una imagen o video al anuncio.');
+      return;
+    }
+
     try {
       setError(null);
       const newAd = await apiService.createAd({
@@ -292,8 +327,7 @@ const App: React.FC = () => {
         details: formData.details?.trim(),
         price: Math.round(formData.price * 100) / 100,
         sellerId: currentUser.id,
-        media: formData.media,
-        category: formData.category
+        media: formData.media
       });
 
       setAds(prevAds => [newAd, ...prevAds]);
@@ -398,21 +432,18 @@ const App: React.FC = () => {
           } />
 
           <Route path="/publicar" element={
-            <AdForm
-              onCancel={() => navigate('/')}
-              onSubmit={handleCreateAd}
-            />
+            currentUser ? (
+              <AdForm
+                onCancel={() => navigate('/')}
+                onSubmit={handleCreateAd}
+              />
+            ) : (
+              <Navigate to="/login" />
+            )
           } />
 
           <Route path="/login" element={
-            <div className="min-h-screen bg-gray-900 flex items-center justify-center">
-              <div className="bg-gray-800 rounded-lg p-8 w-full max-w-md">
-                <OAuthLogin
-                  onLogin={handleLogin}
-                  onError={(error) => notify.error(error)}
-                />
-              </div>
-            </div>
+            <Login onLogin={handleLogin} />
           } />
 
           <Route path="/register" element={
@@ -432,6 +463,7 @@ const App: React.FC = () => {
                 users={users}
                 onPhoneVerified={handlePhoneVerified}
                 onOpenChat={(otherUserId) => handleStartChat(otherUserId)}
+                onLogout={handleLogout}
               />
             ) : (
               <Navigate to="/login" />

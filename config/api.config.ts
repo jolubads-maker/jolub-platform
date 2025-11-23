@@ -8,6 +8,11 @@ export const API_CONFIG = {
 
 // Determinar la URL correcta según el entorno
 export const getApiUrl = () => {
+  // TEMPORAL: Forzar localhost para desarrollo
+  console.log('🔧 FORZADO - Usando localhost:', API_CONFIG.DEV_API_URL);
+  return API_CONFIG.DEV_API_URL;
+
+  /* CÓDIGO ORIGINAL - Descomentar cuando funcione
   // PRIORIDAD 1: Variable de entorno (si existe y está configurada)
   if (import.meta.env.VITE_API_URL && import.meta.env.VITE_API_URL !== '') {
     console.log('🔧 Usando VITE_API_URL:', import.meta.env.VITE_API_URL);
@@ -26,5 +31,5 @@ export const getApiUrl = () => {
   // PRIORIDAD 3: Cualquier otro dominio = producción
   console.log('🔧 Detectado producción - Usando:', API_CONFIG.PRODUCTION_API_URL);
   return API_CONFIG.PRODUCTION_API_URL;
+  */
 };
-

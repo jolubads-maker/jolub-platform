@@ -60,12 +60,35 @@ class ApiService {
     return response.json();
   }
 
-  async createOrUpdateUser(userData: { 
-    name: string; 
-    avatar: string; 
+  async checkUsernameAvailability(username: string): Promise<boolean> {
+    const response = await fetch(`${API_BASE}/check-username?username=${encodeURIComponent(username)}`);
+    if (!response.ok) throw new Error('Error verificando username');
+    const data = await response.json();
+    return data.available;
+  }
+
+  async checkEmailAvailability(email: string): Promise<boolean> {
+    const response = await fetch(`${API_BASE}/check-email?email=${encodeURIComponent(email)}`);
+    if (!response.ok) throw new Error('Error verificando email');
+    const data = await response.json();
+    return data.available;
+  }
+
+  async getIpInfo(): Promise<{ ip: string; country: string; city?: string; region?: string }> {
+    const response = await fetch(`${API_BASE}/get-ip-info`);
+    if (!response.ok) throw new Error('Error obteniendo información de IP');
+    return response.json();
+  }
+
+  async createOrUpdateUser(userData: {
+    name: string;
+    avatar: string;
     email?: string;
     provider?: 'google' | 'apple' | 'manual';
     providerId?: string;
+    username?: string;
+    ip?: string;
+    country?: string;
   }): Promise<User> {
     console.log('📡 POST /api/users', userData);
     const response = await fetch(`${API_BASE}/users`, {
@@ -263,7 +286,7 @@ class ApiService {
     search?: string;
   }): Promise<Ad[]> {
     const params = new URLSearchParams({ userId: userId.toString() });
-    
+
     if (filters) {
       if (filters.category) params.append('category', filters.category);
       if (filters.minPrice !== undefined) params.append('minPrice', filters.minPrice.toString());

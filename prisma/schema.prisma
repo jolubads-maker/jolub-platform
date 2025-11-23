@@ -14,9 +14,10 @@ datasource db {
 model User {
   id            Int      @id @default(autoincrement())
   uniqueId      String?  @unique // ID único para dashboard dinámico (ej: "USER-123456789")
+  username      String?  @unique // Nombre de usuario único
   name          String
   avatar        String
-  email         String?  // Email para autenticación OAuth
+  email         String?  @unique // Email para autenticación OAuth
   provider      String?  // 'google' | 'apple' | 'manual'
   providerId    String?  // ID del proveedor OAuth
   sessionToken  String?  @unique // Token de sesión para detección automática
@@ -25,6 +26,8 @@ model User {
   phoneVerified Boolean  @default(false)
   isOnline      Boolean  @default(true)
   lastSeen      DateTime @default(now())
+  ip            String?  // IP del usuario al registrarse
+  country       String?  // País del usuario
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
@@ -47,6 +50,8 @@ model Ad {
   category    String   @default("Otros") // Categoría del producto
   location    String?  // Ubicación del vendedor
   views       Int      @default(0)
+  isFeatured  Boolean  @default(false)
+  featuredExpiresAt DateTime?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 

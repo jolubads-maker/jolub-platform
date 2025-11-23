@@ -37,55 +37,105 @@ export default prisma;
 
 // Funciones de utilidad para la base de datos
 export const dbUtils = {
+  // Verificar disponibilidad de nombre de usuario
+  async checkUsernameAvailability(username) {
+    if (!username || username.trim().length === 0) {
+      return false; // No disponible si está vacío
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { username: username.toLowerCase().trim() }
+    });
+
+    console.log(`🔍 Checking username "${username}":`, user ? 'OCUPADO' : 'DISPONIBLE');
+    return !user; // true si está disponible
+  },
+
+  // Verificar disponibilidad de email
+  async checkEmailAvailability(email) {
+    if (!email || email.trim().length === 0 || !email.includes('@')) {
+      return false; // No disponible si está vacío o inválido
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { email: email.toLowerCase().trim() }
+    });
+
+    console.log(`🔍 Checking email "${email}":`, user ? 'OCUPADO' : 'DISPONIBLE');
+    return !user; // true si está disponible
+  },
+
   // Crear o encontrar un usuario
   async findOrCreateUser(userData) {
     // Buscar por providerId si está disponible, sino por nombre
     let user = null;
     if (userData.providerId) {
       user = await prisma.user.findFirst({
-        where: { 
+        where: {
           providerId: userData.providerId,
           provider: userData.provider
         }
       });
     }
-    
-    if (!user) {
+
+    // Buscar por email si existe
+    if (!user && userData.email) {
       user = await prisma.user.findFirst({
-        where: { name: userData.name }
+        where: { email: userData.email }
+      });
+    }
+
+    // Buscar por username si existe
+    if (!user && userData.username) {
+      user = await prisma.user.findFirst({
+        where: { username: userData.username }
       });
     }
 
     if (!user) {
       // Generar ID único para el usuario (ej: "USER-1234567890")
       const uniqueId = `USER-${Date.now()}${Math.floor(Math.random() * 1000)}`;
-      
+
+      // Generar avatar por defecto si no viene uno
+      const defaultAvatar = userData.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${userData.email || uniqueId}`;
+
       user = await prisma.user.create({
         data: {
           uniqueId: uniqueId,
+          username: userData.username || null,
           name: userData.name,
-          avatar: userData.avatar,
-          email: userData.email,
+          avatar: defaultAvatar,
+          email: userData.email || null,
           provider: userData.provider || 'manual',
-          providerId: userData.providerId,
+          providerId: userData.providerId || null,
           points: 0,
           phoneVerified: false,
           isOnline: true,
-          lastSeen: new Date()
+          lastSeen: new Date(),
+          ip: userData.ip || null,
+          country: userData.country || null
         }
       });
     } else {
       // Actualizar datos existentes
+      const updateData = {
+        email: userData.email || user.email,
+        provider: userData.provider || user.provider,
+        providerId: userData.providerId || user.providerId,
+        isOnline: true,
+        lastSeen: new Date(),
+        ip: userData.ip || user.ip,
+        country: userData.country || user.country
+      };
+
+      // Solo actualizar avatar si viene uno nuevo (no vacío)
+      if (userData.avatar) {
+        updateData.avatar = userData.avatar;
+      }
+
       user = await prisma.user.update({
         where: { id: user.id },
-        data: {
-          avatar: userData.avatar,
-          email: userData.email,
-          provider: userData.provider || user.provider,
-          providerId: userData.providerId || user.providerId,
-          isOnline: true,
-          lastSeen: new Date()
-        }
+        data: updateData
       });
     }
 
@@ -96,7 +146,7 @@ export const dbUtils = {
   async createAd(adData) {
     // Generar código único para el anuncio
     const uniqueCode = `AD-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-    
+
     return await prisma.ad.create({
       data: {
         uniqueCode: uniqueCode,
@@ -122,13 +172,13 @@ export const dbUtils = {
   // Obtener todos los anuncios con sus vendedores (con filtros opcionales)
   async getAllAds(filters = {}) {
     const { category, minPrice, maxPrice, location, search, userId } = filters;
-    
+
     const where = {};
-    
+
     if (category && category !== 'Todas') {
       where.category = category;
     }
-    
+
     if (minPrice !== undefined || maxPrice !== undefined) {
       where.price = {};
       if (minPrice !== undefined) {
@@ -138,11 +188,11 @@ export const dbUtils = {
         where.price.lte = maxPrice;
       }
     }
-    
+
     if (location) {
       where.location = { contains: location, mode: 'insensitive' };
     }
-    
+
     if (search) {
       where.OR = [
         { title: { contains: search, mode: 'insensitive' } },
@@ -150,7 +200,7 @@ export const dbUtils = {
         { uniqueCode: { contains: search, mode: 'insensitive' } }
       ];
     }
-    
+
     // Optimizar query: solo incluir lo necesario
     const ads = await prisma.ad.findMany({
       where,
@@ -167,7 +217,7 @@ export const dbUtils = {
             phoneVerified: true
           }
         },
-        favorites: userId ? { 
+        favorites: userId ? {
           where: { userId },
           select: { id: true }
         } : false
@@ -175,7 +225,7 @@ export const dbUtils = {
       orderBy: { createdAt: 'desc' },
       take: 100 // Limitar resultados para mejor rendimiento
     });
-    
+
     // Agregar flag isFavorite si hay userId
     if (userId) {
       return ads.map(ad => ({
@@ -184,7 +234,7 @@ export const dbUtils = {
         favorites: undefined // Remover el array de favoritos del resultado
       }));
     }
-    
+
     return ads;
   },
 
@@ -275,7 +325,7 @@ export const dbUtils = {
         chat: {
           include: {
             participants: {
-              include: { 
+              include: {
                 user: {
                   select: {
                     id: true,
@@ -325,6 +375,14 @@ export const dbUtils = {
         isOnline: isOnline,
         lastSeen: new Date()
       }
+    });
+  },
+
+  // Actualizar avatar de usuario
+  async updateUserAvatar(userId, avatarUrl) {
+    return await prisma.user.update({
+      where: { id: userId },
+      data: { avatar: avatarUrl }
     });
   },
 
@@ -383,7 +441,7 @@ export const dbUtils = {
   // Generar token de sesión
   async generateSessionToken(userId) {
     const sessionToken = crypto.randomBytes(32).toString('hex');
-    
+
     await prisma.user.update({
       where: { id: userId },
       data: { sessionToken: sessionToken }
@@ -405,7 +463,7 @@ export const dbUtils = {
     // Actualizar último acceso
     await prisma.user.update({
       where: { id: user.id },
-      data: { 
+      data: {
         isOnline: true,
         lastSeen: new Date()
       }
@@ -417,7 +475,7 @@ export const dbUtils = {
   // Búsqueda de anuncios
   async searchAds(query) {
     const searchTerm = `%${query}%`;
-    
+
     return await prisma.ad.findMany({
       where: {
         OR: [
@@ -474,7 +532,7 @@ export const dbUtils = {
       },
       orderBy: { createdAt: 'desc' }
     });
-    
+
     return favorites.map(fav => ({
       ...fav.ad,
       isFavorite: true
@@ -489,8 +547,22 @@ export const dbUtils = {
         adId
       }
     });
-    
+
     return !!favorite;
+  },
+
+  // Destacar un anuncio
+  async featureAd(adId, durationDays) {
+    const expiresAt = new Date();
+    expiresAt.setDate(expiresAt.getDate() + parseInt(durationDays));
+
+    return await prisma.ad.update({
+      where: { id: adId },
+      data: {
+        isFeatured: true,
+        featuredExpiresAt: expiresAt
+      }
+    });
   }
 };
 
