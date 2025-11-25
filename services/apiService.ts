@@ -1,56 +1,8 @@
-// Servicio para manejar todas las llamadas a la API
 import { getApiUrl } from '../config/api.config';
+import { User, Ad, ChatLog, ChatMessage } from '../types';
 
 const API_BASE = getApiUrl();
 console.log('🌐 API URL configurada:', API_BASE);
-
-export interface User {
-  id: number;
-  uniqueId?: string; // ID único generado para el dashboard dinámico
-  name: string;
-  avatar: string;
-  email?: string;
-  provider?: 'google' | 'apple' | 'manual';
-  providerId?: string;
-  sessionToken?: string;
-  points: number;
-  phone?: string;
-  phoneVerified?: boolean;
-  isOnline?: boolean;
-  lastSeen?: Date;
-}
-
-export interface Ad {
-  id: number;
-  uniqueCode: string;
-  title: string;
-  description: string;
-  details?: string;
-  price: number;
-  sellerId: number;
-  views: number;
-  media: Array<{ type: 'image' | 'video'; url: string }>;
-  seller?: User;
-}
-
-export interface ChatMessage {
-  id: string;
-  text: string;
-  sender: 'user' | 'seller' | 'buyer';
-  userId: number;
-  timestamp: Date;
-  user?: User;
-}
-
-export interface ChatLog {
-  id: string;
-  participants: Array<{
-    userId: number;
-    user: User;
-  }>;
-  messages: ChatMessage[];
-  lastMessage?: ChatMessage;
-}
 
 class ApiService {
   // Usuarios
@@ -302,5 +254,4 @@ class ApiService {
 }
 
 export const apiService = new ApiService();
-export type { User, Ad, ChatLog, ChatMessage };
 

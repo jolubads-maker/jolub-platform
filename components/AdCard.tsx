@@ -1,6 +1,7 @@
 import React, { memo } from 'react';
 import { motion } from 'framer-motion';
 import { Ad, User } from '../types';
+import UserStatusBadge from './UserStatusBadge';
 
 interface AdCardProps {
   ad: Ad;
@@ -137,24 +138,18 @@ const AdCard: React.FC<AdCardProps> = memo(({ ad, seller, onSelect, currentUser,
             {/* Información del Vendedor */}
             {seller && (
               <div className="mt-3 flex items-center gap-2 pt-2 border-t border-gray-100">
-                <div className="relative">
-                  <img
-                    src={seller.avatar}
-                    alt={seller.name}
-                    className="w-8 h-8 rounded-full object-cover border border-gray-100"
-                  />
-                  <span
-                    className={`absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 border-white ${seller.isOnline ? 'bg-green-500' : 'bg-gray-300'
-                      }`}
-                    title={seller.isOnline ? 'En línea' : 'Desconectado'}
-                  />
-                </div>
+                <UserStatusBadge
+                  avatar={seller.avatar}
+                  name={seller.name}
+                  isOnline={seller.isOnline}
+                  size="sm"
+                />
                 <div className="flex flex-col">
                   <span className="text-xs font-bold text-slate-700 leading-none mb-1">
                     {seller.name}
                   </span>
                   <div className="flex items-center gap-1.5">
-                    <span className="text-[10px] font-bold text-purple-600">
+                    <span className="text-xs font-bold text-purple-600">
                       {seller.points} Puntos
                     </span>
                     {seller.points > 5 && (

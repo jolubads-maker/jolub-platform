@@ -1,37 +1,24 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Ad, User } from '../types';
+import { useNavigate } from 'react-router-dom';
+import { Ad } from '../types';
 import AdCard from './AdCard';
 import AdFilters, { FilterValues } from './AdFilters';
 import { apiService } from '../services/apiService';
+import { useAuthStore } from '../store/useAuthStore';
+import { useAdStore } from '../store/useAdStore';
+import UserStatusBadge from './UserStatusBadge';
 
-interface HomePageProps {
-  currentUser: User | null;
-  ads: Ad[];
-  users: User[];
-  onSelectAd: (adId: number) => void;
-  onShowDashboard: () => void;
-  onShowLogin: () => void;
-  onShowRegister: () => void;
-  onLogout: () => void;
-  onCreateAd: () => void;
-  onAdsUpdate: (ads: Ad[]) => void;
-}
+const HomePage: React.FC = () => {
+  const navigate = useNavigate();
 
-const HomePage: React.FC<HomePageProps> = ({
-  currentUser,
-  ads,
-  users,
-  onSelectAd,
-  onShowDashboard,
-  onShowLogin,
-  onShowRegister,
-  onLogout,
-  onCreateAd,
-  onAdsUpdate
-}) => {
+  // Global State
+  const { currentUser, logout, users } = useAuthStore();
+  const { ads, incrementViews } = useAdStore();
+
+  // Local State
   const [searchQuery, setSearchQuery] = useState('');
-  const [filteredAds, setFilteredAds] = useState<Ad[]>(ads);
+  const [filteredAds, setFilteredAds] = useState<Ad[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [filters, setFilters] = useState<FilterValues>({
     category: 'Todas',
@@ -40,6 +27,11 @@ const HomePage: React.FC<HomePageProps> = ({
     location: ''
   });
   const [searchHistory, setSearchHistory] = useState<string[]>([]);
+
+  // Initialize filteredAds with all ads when ads change
+  useEffect(() => {
+    setFilteredAds(ads);
+  }, [ads]);
 
   useEffect(() => {
     const history = localStorage.getItem('searchHistory');
@@ -50,22 +42,14 @@ const HomePage: React.FC<HomePageProps> = ({
 
   useEffect(() => {
     if (!searchQuery.trim()) {
-      setFilteredAds(ads);
+      // Re-apply filters if search is cleared
+      applyFilters(filters, '');
       return;
     }
 
     setIsSearching(true);
     const searchTimeout = setTimeout(() => {
-      const query = searchQuery.toLowerCase();
-      const filtered = ads.filter(ad =>
-        ad.title.toLowerCase().includes(query) ||
-        ad.description.toLowerCase().includes(query) ||
-        ad.details?.toLowerCase().includes(query) ||
-        ad.uniqueCode.toLowerCase().includes(query) ||
-        users.find(u => u.id === ad.sellerId)?.name.toLowerCase().includes(query)
-      );
-
-      setFilteredAds(filtered);
+      applyFilters(filters, searchQuery);
       setIsSearching(false);
     }, 300);
 
@@ -79,67 +63,96 @@ const HomePage: React.FC<HomePageProps> = ({
     localStorage.setItem('searchHistory', JSON.stringify(newHistory));
   };
 
+  const applyFilters = async (currentFilters: FilterValues, query: string) => {
+    // We can filter locally since we have all ads in store
+    // Or we can use the API if we want server-side filtering (better for large datasets)
+    // For now, let's stick to the existing logic which seemed to mix both?
+    // The original code called apiService.getAdsWithFavorites if currentUser existed, 
+    // or filtered locally if not.
+    // To keep it simple and consistent with the store, let's filter locally for now, 
+    // unless we want to implement server-side filtering in the store.
+    // Given the "Refactoring" goal, let's try to use the store data.
+
+    let result = ads;
+
+    // 1. Category
+    if (currentFilters.category !== 'Todas') {
+      result = result.filter(ad => ad.category === currentFilters.category);
+    }
+
+    // 2. Price
+    if (currentFilters.minPrice > 0) {
+      result = result.filter(ad => ad.price >= currentFilters.minPrice);
+    }
+    if (currentFilters.maxPrice < 100000) {
+      result = result.filter(ad => ad.price <= currentFilters.maxPrice);
+    }
+
+    // 3. Location
+    if (currentFilters.location) {
+      result = result.filter(ad =>
+        ad.location?.toLowerCase().includes(currentFilters.location.toLowerCase())
+      );
+    }
+
+    // 4. Search Query
+    if (query) {
+      const lowerQuery = query.toLowerCase();
+      result = result.filter(ad =>
+        ad.title.toLowerCase().includes(lowerQuery) ||
+        ad.description.toLowerCase().includes(lowerQuery) ||
+        ad.details?.toLowerCase().includes(lowerQuery) ||
+        ad.uniqueCode.toLowerCase().includes(lowerQuery) ||
+        users.find(u => u.id === ad.sellerId)?.name.toLowerCase().includes(lowerQuery)
+      );
+    }
+
+    // 5. Favorites (if logged in, we might want to fetch this status? 
+    // The store ads might not have 'isFavorite' property set for the current user 
+    // unless we fetched it specifically for them.
+    // The original code used apiService.getAdsWithFavorites.
+    // We should probably update the store to handle favorites or fetch them separately.
+    // For now, let's assume the store ads are "raw" and we might miss the favorite status 
+    // unless we merge it.
+    // Let's check if we can fetch favorites and merge.
+    if (currentUser) {
+      try {
+        const favorites = await apiService.getUserFavorites(currentUser.id);
+        const favoriteIds = new Set(favorites.map(f => f.id));
+        result = result.map(ad => ({
+          ...ad,
+          isFavorite: favoriteIds.has(ad.id)
+        }));
+      } catch (e) {
+        console.error('Error fetching favorites', e);
+      }
+    }
+
+    setFilteredAds(result);
+  };
+
   const handleFilterChange = async (newFilters: FilterValues) => {
     setFilters(newFilters);
     setIsSearching(true);
-
-    try {
-      if (currentUser) {
-        const filtered = await apiService.getAdsWithFavorites(currentUser.id, {
-          category: newFilters.category !== 'Todas' ? newFilters.category : undefined,
-          minPrice: newFilters.minPrice > 0 ? newFilters.minPrice : undefined,
-          maxPrice: newFilters.maxPrice < 100000 ? newFilters.maxPrice : undefined,
-          location: newFilters.location || undefined,
-          search: searchQuery || undefined
-        });
-        setFilteredAds(filtered);
-        onAdsUpdate(filtered);
-      } else {
-        let filtered = ads;
-        if (newFilters.category !== 'Todas') {
-          filtered = filtered.filter(ad => ad.category === newFilters.category);
-        }
-        if (newFilters.minPrice > 0) {
-          filtered = filtered.filter(ad => ad.price >= newFilters.minPrice);
-        }
-        if (newFilters.maxPrice < 100000) {
-          filtered = filtered.filter(ad => ad.price <= newFilters.maxPrice);
-        }
-        if (newFilters.location) {
-          filtered = filtered.filter(ad =>
-            ad.location?.toLowerCase().includes(newFilters.location.toLowerCase())
-          );
-        }
-        if (searchQuery) {
-          const query = searchQuery.toLowerCase();
-          filtered = filtered.filter(ad =>
-            ad.title.toLowerCase().includes(query) ||
-            ad.description.toLowerCase().includes(query)
-          );
-        }
-        setFilteredAds(filtered);
-      }
-    } catch (error) {
-      console.error('Error aplicando filtros:', error);
-    } finally {
-      setIsSearching(false);
-    }
+    await applyFilters(newFilters, searchQuery);
+    setIsSearching(false);
   };
 
   const handleResetFilters = () => {
-    setFilters({
+    const defaultFilters = {
       category: 'Todas',
       minPrice: 0,
       maxPrice: 100000,
       location: ''
-    });
+    } as FilterValues;
+    setFilters(defaultFilters);
     setSearchQuery('');
     setFilteredAds(ads);
   };
 
   const handleToggleFavorite = async (adId: number) => {
     if (!currentUser) {
-      onShowLogin();
+      navigate('/login');
       return;
     }
 
@@ -153,11 +166,14 @@ const HomePage: React.FC<HomePageProps> = ({
         await apiService.addFavorite(currentUser.id, adId);
       }
 
+      // Update local state
       const updatedAds = filteredAds.map(a =>
         a.id === adId ? { ...a, isFavorite: !a.isFavorite } : a
       );
       setFilteredAds(updatedAds);
-      onAdsUpdate(updatedAds);
+
+      // We should also update the store if possible, but store ads don't strictly track favorites per user globally
+      // So local update is fine for now.
     } catch (error) {
       console.error('Error toggling favorito:', error);
     }
@@ -165,6 +181,19 @@ const HomePage: React.FC<HomePageProps> = ({
 
   const getSellerInfo = (sellerId: number) => {
     return users.find(u => u.id === sellerId);
+  };
+
+  const handleSelectAd = async (adId: number) => {
+    await incrementViews(adId);
+    const ad = ads.find(a => a.id === adId);
+    if (ad) {
+      navigate(`/anuncio/${ad.uniqueCode}`);
+    }
+  };
+
+  const handleLogout = async () => {
+    await logout();
+    navigate('/');
   };
 
   const [isNavVisible, setIsNavVisible] = useState(true);
@@ -227,24 +256,21 @@ const HomePage: React.FC<HomePageProps> = ({
           <div className="flex items-center gap-6 text-white font-semibold">
             {currentUser ? (
               <>
-                <button onClick={onShowDashboard} className="hover:text-gray-200 transition-colors hidden sm:block">
+                <button onClick={() => navigate(`/dashboard/${currentUser.uniqueId || 'USER-' + currentUser.id}`)} className="hover:text-gray-200 transition-colors hidden sm:block">
                   Mis Anuncios
                 </button>
 
-                <div className="flex items-center gap-3 cursor-pointer group relative" onClick={onShowDashboard}>
-                  <span className="hidden lg:block truncate max-w-[100px]">{currentUser.name}</span>
-                  <div className="relative">
-                    <img
-                      src={currentUser.avatar}
-                      alt={currentUser.name}
-                      className="w-10 h-10 rounded-full object-cover border-2 border-white/20 group-hover:border-white transition-all"
-                    />
-                    <div className={`absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-olx-purple ${currentUser.isOnline ? 'bg-green-400' : 'bg-gray-400'}`} />
-                  </div>
-                </div>
+                <UserStatusBadge
+                  avatar={currentUser.avatar}
+                  name={currentUser.name}
+                  isOnline={currentUser.isOnline}
+                  showName
+                  onClick={() => navigate(`/dashboard/${currentUser.uniqueId || 'USER-' + currentUser.id}`)}
+                  className="text-white"
+                />
 
                 <button
-                  onClick={onCreateAd}
+                  onClick={() => navigate('/publicar')}
                   className="bg-olx-orange hover:bg-orange-600 text-white px-8 py-2.5 rounded-full font-bold shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-0.5"
                 >
                   Vender
@@ -252,11 +278,11 @@ const HomePage: React.FC<HomePageProps> = ({
               </>
             ) : (
               <>
-                <button onClick={onShowLogin} className="hover:text-gray-200 transition-colors">
+                <button onClick={() => navigate('/login')} className="hover:text-gray-200 transition-colors">
                   Entrar
                 </button>
                 <button
-                  onClick={onShowLogin} // Redirect to login if trying to sell without auth
+                  onClick={() => navigate('/login')}
                   className="bg-olx-orange hover:bg-orange-600 text-white px-8 py-2.5 rounded-full font-bold shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-0.5"
                 >
                   Vender
@@ -304,7 +330,7 @@ const HomePage: React.FC<HomePageProps> = ({
             <div className="text-center text-white z-10 px-4">
               <h3 className="text-3xl md:text-4xl font-bold mb-2">¡Vende lo que ya no usas!</h3>
               <p className="text-lg opacity-90">Es fácil, rápido y seguro.</p>
-              <button onClick={currentUser ? onCreateAd : onShowLogin} className="mt-6 bg-olx-orange hover:bg-orange-600 text-white px-8 py-3 rounded-full font-bold shadow-md transition-transform transform hover:scale-105">
+              <button onClick={() => currentUser ? navigate('/publicar') : navigate('/login')} className="mt-6 bg-olx-orange hover:bg-orange-600 text-white px-8 py-3 rounded-full font-bold shadow-md transition-transform transform hover:scale-105">
                 Publicar Anuncio Gratis
               </button>
             </div>
@@ -346,7 +372,7 @@ const HomePage: React.FC<HomePageProps> = ({
                       key={ad.id}
                       ad={ad}
                       seller={getSellerInfo(ad.sellerId)}
-                      onSelect={() => onSelectAd(ad.id)}
+                      onSelect={() => handleSelectAd(ad.id)}
                       currentUser={currentUser}
                       onToggleFavorite={handleToggleFavorite}
                     />
@@ -384,4 +410,5 @@ const HomePage: React.FC<HomePageProps> = ({
 };
 
 export default HomePage;
+
 
