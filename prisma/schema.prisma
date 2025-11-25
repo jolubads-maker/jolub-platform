@@ -24,6 +24,7 @@ model User {
   points        Int      @default(0)
   phone         String?
   phoneVerified Boolean  @default(false)
+  emailVerified Boolean  @default(false)
   isOnline      Boolean  @default(true)
   lastSeen      DateTime @default(now())
   ip            String?  // IP del usuario al registrarse
@@ -125,11 +126,13 @@ model Message {
 
 model VerificationCode {
   id          Int      @id @default(autoincrement())
-  phoneNumber String   @unique
+  contact     String
+  type        String   // 'email' | 'phone'
   code        String
   expiresAt   DateTime
   createdAt   DateTime @default(now())
 
+  @@unique([contact, type])
   @@map("verification_codes")
 }
 

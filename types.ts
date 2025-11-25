@@ -12,6 +12,7 @@ export interface User {
   points: number;
   phone?: string;
   phoneVerified?: boolean;
+  emailVerified?: boolean;
   isOnline?: boolean;
   lastSeen?: Date;
 }

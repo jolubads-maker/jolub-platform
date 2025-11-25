@@ -192,7 +192,7 @@ const App: React.FC = () => {
 
   const handleShowCreateForm = useCallback(() => {
     if (currentUser && !currentUser.phoneVerified) {
-      notify.warning('Por favor, verifica tu número de teléfono en el panel de control para poder publicar anuncios.');
+      notify.warning('Verifica tu celular para publicar anuncios');
       navigate(`/dashboard/${currentUser.uniqueId || 'USER-' + currentUser.id}`);
       return;
     }
@@ -295,6 +295,23 @@ const App: React.FC = () => {
     }
   }, [currentUser]);
 
+  const handleEmailVerified = useCallback(async () => {
+    if (!currentUser) return;
+
+    try {
+      // Recargar usuario del servidor para obtener el estado actualizado
+      const updatedUser = await apiService.authenticateWithToken(localStorage.getItem('sessionToken') || '');
+      if (updatedUser) {
+        setCurrentUser(updatedUser);
+        setUsers(prevUsers => prevUsers.map(u => (u.id === updatedUser.id ? updatedUser : u)));
+        localStorage.setItem('currentUser', JSON.stringify(updatedUser));
+        notify.success('¡Correo verificado con éxito!');
+      }
+    } catch (error) {
+      console.error('Error actualizando estado de usuario:', error);
+    }
+  }, [currentUser]);
+
   const handleCreateAd = useCallback(async (formData: AdFormData) => {
     if (!currentUser) {
       notify.error('Debes iniciar sesión para crear anuncios');
@@ -303,7 +320,7 @@ const App: React.FC = () => {
     }
 
     if (!currentUser.phoneVerified) {
-      notify.warning('Por favor, verifica tu número de teléfono en el panel de control para poder publicar anuncios.');
+      notify.warning('Verifica tu celular para publicar anuncios');
       navigate(`/dashboard/${currentUser.uniqueId || 'USER-' + currentUser.id}`);
       return;
     }
@@ -343,6 +360,12 @@ const App: React.FC = () => {
   const handleStartChat = useCallback((sellerId: number) => {
     if (!currentUser) {
       navigate('/login');
+      return;
+    }
+
+    if (!currentUser.emailVerified) {
+      notify.error('Confirma tu correo para contactar al vendedor');
+      navigate(`/dashboard/${currentUser.uniqueId || 'USER-' + currentUser.id}`);
       return;
     }
     const buyerId = currentUser.id;
@@ -462,6 +485,7 @@ const App: React.FC = () => {
                 userChats={userChats}
                 users={users}
                 onPhoneVerified={handlePhoneVerified}
+                onEmailVerified={handleEmailVerified}
                 onOpenChat={(otherUserId) => handleStartChat(otherUserId)}
                 onLogout={handleLogout}
               />

@@ -15,6 +15,7 @@ interface DashboardProps {
   userChats: ChatLog[];
   users: User[];
   onPhoneVerified: (phoneNumber: string) => void;
+  onEmailVerified: () => void;
   onOpenChat?: (otherUserId: number) => void;
   onLogout?: () => void;
 }
@@ -63,7 +64,7 @@ const PhoneVerification: React.FC<{ onPhoneVerified: (phoneNumber: string) => vo
     try {
       setLoading(true);
       const phoneNumber = buildE164();
-      const res = await fetch('/api/send-code', {
+      const res = await fetch('/api/send-phone-code', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ phoneNumber })
@@ -80,7 +81,7 @@ const PhoneVerification: React.FC<{ onPhoneVerified: (phoneNumber: string) => vo
         return;
       }
 
-      setSuccess('Código enviado por SMS');
+      setSuccess(`Código enviado por SMS a ${phoneNumber}`);
       setStep('enterCode');
       saveToStorage({ countryCode, phone, step: 'enterCode' });
 
@@ -103,7 +104,7 @@ const PhoneVerification: React.FC<{ onPhoneVerified: (phoneNumber: string) => vo
 
     try {
       setLoading(true);
-      const res = await fetch('/api/verify-code', {
+      const res = await fetch('/api/verify-phone-code', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ phoneNumber: buildE164(), code })
@@ -131,25 +132,25 @@ const PhoneVerification: React.FC<{ onPhoneVerified: (phoneNumber: string) => vo
     <motion.div
       initial={{ opacity: 0, scale: 0.95 }}
       animate={{ opacity: 1, scale: 1 }}
-      className="bg-[#6e0ad6] border border-white/10 rounded-3xl p-6 shadow-2xl max-w-md w-full mx-auto"
+      className="bg-white border border-gray-200 rounded-3xl p-6 shadow-xl max-w-md w-full mx-auto"
     >
       <div className="flex items-center mb-4">
-        <div className="p-2 bg-orange-500 rounded-xl mr-3 border border-orange-400/30">
-          <LockIcon className="w-5 h-5 text-white" />
+        <div className="p-2 bg-[#6e0ad6] rounded-xl mr-3 shadow-lg shadow-[#6e0ad6]/30">
+          <span className="text-xl">📱</span>
         </div>
-        <h2 className="text-lg font-bold text-white">Verificación por SMS</h2>
+        <h2 className="text-lg font-bold text-gray-800">Verifica tu teléfono</h2>
       </div>
 
       {/* Mensajes de estado */}
       <AnimatePresence>
         {error && (
-          <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="mb-4 p-3 bg-red-500/20 border border-red-500/30 rounded-xl">
-            <p className="text-white text-sm font-medium">{error}</p>
+          <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="mb-4 p-3 bg-red-50 border border-red-100 rounded-xl">
+            <p className="text-red-600 text-sm font-medium">{error}</p>
           </motion.div>
         )}
         {success && (
-          <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="mb-4 p-3 bg-green-500/20 border border-green-500/30 rounded-xl">
-            <p className="text-white text-sm font-medium">{success}</p>
+          <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="mb-4 p-3 bg-green-50 border border-green-100 rounded-xl">
+            <p className="text-green-600 text-sm font-medium">{success}</p>
           </motion.div>
         )}
       </AnimatePresence>
@@ -162,7 +163,7 @@ const PhoneVerification: React.FC<{ onPhoneVerified: (phoneNumber: string) => vo
               placeholder="Código (52)"
               value={countryCode}
               onChange={e => setCountryCode(e.target.value)}
-              className="w-24 bg-orange-500 border border-white/20 text-white placeholder-white/70 rounded-xl p-3 focus:ring-2 focus:ring-white/50 focus:border-white transition-all outline-none"
+              className="w-24 bg-gray-50 border border-gray-200 text-gray-800 placeholder-gray-400 rounded-xl p-3 focus:ring-2 focus:ring-[#6e0ad6]/50 focus:border-[#6e0ad6] transition-all outline-none"
               required
             />
             <input
@@ -170,14 +171,14 @@ const PhoneVerification: React.FC<{ onPhoneVerified: (phoneNumber: string) => vo
               placeholder="Número de teléfono"
               value={phone}
               onChange={e => setPhone(e.target.value)}
-              className="flex-1 bg-orange-500 border border-white/20 text-white placeholder-white/70 rounded-xl p-3 focus:ring-2 focus:ring-white/50 focus:border-white transition-all outline-none"
+              className="flex-1 bg-gray-50 border border-gray-200 text-gray-800 placeholder-gray-400 rounded-xl p-3 focus:ring-2 focus:ring-[#6e0ad6]/50 focus:border-[#6e0ad6] transition-all outline-none"
               required
             />
           </div>
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-orange-500 hover:bg-orange-600 disabled:bg-gray-400 text-white font-bold py-3 px-4 rounded-xl transition-all shadow-lg shadow-orange-500/20"
+            className="w-full bg-[#6e0ad6] hover:bg-[#5b00b3] disabled:bg-gray-300 text-white font-bold py-3 px-4 rounded-xl transition-all shadow-lg shadow-[#6e0ad6]/20"
           >
             {loading ? 'Enviando...' : 'Enviar Código'}
           </button>
@@ -191,7 +192,7 @@ const PhoneVerification: React.FC<{ onPhoneVerified: (phoneNumber: string) => vo
             placeholder="Código de 6 dígitos"
             value={code}
             onChange={e => setCode(e.target.value)}
-            className="w-full bg-orange-500 border border-white/20 text-white placeholder-white/70 rounded-xl p-3 text-center tracking-[0.5em] text-xl font-mono focus:ring-2 focus:ring-white/50 focus:border-white transition-all outline-none"
+            className="w-full bg-gray-50 border border-gray-200 text-gray-800 placeholder-gray-400 rounded-xl p-3 text-center tracking-[0.5em] text-xl font-mono focus:ring-2 focus:ring-[#6e0ad6]/50 focus:border-[#6e0ad6] transition-all outline-none"
             required
           />
           <button
@@ -208,7 +209,7 @@ const PhoneVerification: React.FC<{ onPhoneVerified: (phoneNumber: string) => vo
               setError('');
               setSuccess('');
             }}
-            className="w-full text-white/70 hover:text-white text-sm font-medium transition-colors"
+            className="w-full text-gray-500 hover:text-[#6e0ad6] text-sm font-medium transition-colors"
           >
             Cambiar número
           </button>
@@ -219,7 +220,175 @@ const PhoneVerification: React.FC<{ onPhoneVerified: (phoneNumber: string) => vo
 };
 
 
-const Dashboard: React.FC<DashboardProps> = ({ currentUser, userAds, userChats, users, onPhoneVerified, onOpenChat, onLogout }) => {
+const EmailVerificationModal: React.FC<{ currentUser: User, onEmailVerified: () => void, onClose: () => void }> = ({ currentUser, onEmailVerified, onClose }) => {
+  const [step, setStep] = useState<'initial' | 'enterCode'>('initial');
+  const [email, setEmail] = useState(currentUser.email || '');
+  const [code, setCode] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
+
+  const handleSendCode = async () => {
+    setError('');
+    setSuccess('');
+    setLoading(true);
+
+    try {
+      const res = await fetch('/api/send-email-code', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email })
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        setError(data.error || 'No se pudo enviar el correo');
+        return;
+      }
+
+      setSuccess(`Código enviado por correo a ${email}`);
+      setStep('enterCode');
+    } catch (err: any) {
+      setError('Error de conexión. Verifica tu internet.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleVerifyCode = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    setSuccess('');
+
+    if (!code.trim()) {
+      setError('Ingresa el código de verificación');
+      return;
+    }
+
+    try {
+      setLoading(true);
+      const res = await fetch('/api/verify-email-code', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, code })
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        setError(data.error || 'Código inválido');
+        return;
+      }
+
+      setSuccess('¡Correo verificado! Ya puedes chatear con el vendedor');
+      setTimeout(() => {
+        onEmailVerified();
+        onClose();
+      }, 2000);
+
+    } catch (err: any) {
+      setError('Error de conexión. Verifica tu internet.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60 backdrop-blur-md"
+    >
+      <motion.div
+        initial={{ scale: 0.9, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        exit={{ scale: 0.9, opacity: 0 }}
+        className="bg-white rounded-3xl shadow-2xl max-w-md w-full overflow-hidden relative"
+      >
+        <button
+          onClick={onClose}
+          className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 transition-colors z-10"
+        >
+          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+        </button>
+
+        <div className="p-8">
+          <div className="flex flex-col items-center mb-6">
+            <div className="w-16 h-16 bg-[#6e0ad6]/10 rounded-full flex items-center justify-center mb-4 text-3xl">
+              ✉️
+            </div>
+            <h2 className="text-2xl font-black text-gray-800 text-center">Verificación de Correo</h2>
+            <p className="text-gray-500 text-center text-sm mt-2">
+              {step === 'initial' ? 'Confirma tu correo para activar todas las funciones.' : `Ingresa el código enviado a ${email}`}
+            </p>
+          </div>
+
+          <AnimatePresence>
+            {error && (
+              <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="mb-4 p-3 bg-red-50 border border-red-100 rounded-xl text-center">
+                <p className="text-red-600 text-sm font-bold">{error}</p>
+              </motion.div>
+            )}
+            {success && (
+              <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="mb-4 p-3 bg-green-50 border border-green-100 rounded-xl text-center">
+                <p className="text-green-600 text-sm font-bold">{success}</p>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {step === 'initial' ? (
+            <div className="space-y-4">
+              <button
+                onClick={handleSendCode}
+                disabled={loading}
+                className="w-full bg-[#6e0ad6] hover:bg-[#5b00b3] disabled:bg-gray-300 text-white font-bold py-4 px-6 rounded-xl transition-all shadow-lg shadow-[#6e0ad6]/30 transform hover:-translate-y-1"
+              >
+                {loading ? 'Enviando...' : 'Enviar Código de Verificación'}
+              </button>
+              <button
+                onClick={onClose}
+                className="w-full text-gray-500 hover:text-gray-700 font-medium py-2"
+              >
+                Cancelar
+              </button>
+            </div>
+          ) : (
+            <form onSubmit={handleVerifyCode} className="space-y-4">
+              <input
+                type="text"
+                placeholder="A1B2C3"
+                value={code}
+                onChange={e => setCode(e.target.value)}
+                className="w-full bg-gray-50 border-2 border-gray-200 focus:border-[#6e0ad6] text-gray-800 placeholder-gray-300 rounded-xl p-4 text-center tracking-[0.5em] text-2xl font-black outline-none transition-colors uppercase"
+                required
+                autoFocus
+              />
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full bg-green-500 hover:bg-green-600 disabled:bg-gray-300 text-white font-bold py-4 px-6 rounded-xl transition-all shadow-lg shadow-green-500/30 transform hover:-translate-y-1"
+              >
+                {loading ? 'Verificando...' : 'Confirmar Código'}
+              </button>
+              <button
+                type="button"
+                onClick={() => { setStep('initial'); setError(''); }}
+                className="w-full text-[#6e0ad6] hover:underline font-bold text-sm text-center"
+              >
+                ¿No recibiste el código? Reintentar
+              </button>
+            </form>
+          )}
+        </div>
+      </motion.div>
+    </motion.div>
+  );
+};
+
+
+const Dashboard: React.FC<DashboardProps> = ({ currentUser, userAds, userChats, users, onPhoneVerified, onEmailVerified, onOpenChat, onLogout }) => {
 
   const [selectedAd, setSelectedAd] = useState<Ad | null>(null);
   const [selectedMediaIndex, setSelectedMediaIndex] = useState<number>(0);
@@ -241,6 +410,10 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, userAds, userChats, 
     setHighlightTermsAccepted(false);
   };
   // --------------------------
+
+  // --- Email Verification Modal State ---
+  const [showEmailVerifyModal, setShowEmailVerifyModal] = useState(false);
+  // --------------------------------------
 
   const goPrevMedia = () => {
     if (!selectedAd) return;
@@ -442,17 +615,27 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, userAds, userChats, 
                 <h1 className="text-3xl font-black text-white mb-1 tracking-tight drop-shadow-lg">{currentUser.name}</h1>
 
                 {/* Verification Status */}
-                {currentUser.phoneVerified ? (
-                  <div className="flex items-center gap-1.5 text-green-400 mt-1">
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
-                    <span className="text-sm font-bold tracking-wide shadow-green-500/50 drop-shadow-sm">Cuenta Verificada</span>
-                  </div>
-                ) : (
-                  <div className="flex items-center gap-1.5 text-yellow-300 mt-1">
-                    <LockIcon className="w-4 h-4" />
-                    <span className="text-sm font-bold">Verificación Pendiente</span>
-                  </div>
-                )}
+                <div className="flex flex-col gap-1 mt-2">
+                  {currentUser.emailVerified ? (
+                    <div className="flex items-center gap-1.5 text-green-400">
+                      <span className="text-sm font-bold tracking-wide drop-shadow-sm">✉️ Email Verificado</span>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-1.5 text-yellow-300">
+                      <span className="text-sm font-bold">✉️ Email Pendiente</span>
+                    </div>
+                  )}
+
+                  {currentUser.phoneVerified ? (
+                    <div className="flex items-center gap-1.5 text-green-400">
+                      <span className="text-sm font-bold tracking-wide drop-shadow-sm">📱 Teléfono Verificado</span>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-1.5 text-yellow-300">
+                      <span className="text-sm font-bold">📱 Teléfono Pendiente</span>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           </motion.div>
@@ -496,15 +679,37 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, userAds, userChats, 
             </div>
           </motion.div>
 
-          {/* 4. VERIFICACIÓN TELEFÓNICA (Floating/Overlay) */}
-          {!currentUser.phoneVerified && (
-            <div className="col-span-1 md:col-span-4 flex justify-center my-4 relative z-20">
+          {/* 4. VERIFICACIONES (Floating/Overlay) */}
+          <div className="col-span-1 md:col-span-4 flex flex-col md:flex-row justify-center gap-6 my-4 relative z-20">
+            {!currentUser.emailVerified && (
+              <motion.div
+                whileHover={{ scale: 1.02 }}
+                onClick={() => setShowEmailVerifyModal(true)}
+                className="w-full max-w-md bg-white border-l-4 border-yellow-400 rounded-2xl p-6 shadow-lg cursor-pointer flex items-center justify-between group relative overflow-hidden"
+              >
+                <div className="absolute right-0 top-0 w-24 h-24 bg-yellow-100 rounded-full blur-2xl -mr-10 -mt-10 opacity-50" />
+                <div className="flex items-center gap-4 relative z-10">
+                  <div className="p-3 bg-yellow-100 text-yellow-600 rounded-full group-hover:bg-yellow-200 transition-colors">
+                    <span className="text-2xl">✉️</span>
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-gray-800">Verificar Correo</h3>
+                    <p className="text-sm text-gray-500">Necesario para chatear</p>
+                  </div>
+                </div>
+                <div className="relative z-10 text-yellow-500 font-bold text-sm group-hover:translate-x-1 transition-transform">
+                  Verificar →
+                </div>
+              </motion.div>
+            )}
+
+            {!currentUser.phoneVerified && (
               <div className="w-full max-w-md transform hover:scale-105 transition-transform duration-300">
                 <div className="absolute inset-0 bg-[#6e0ad6]/20 blur-3xl rounded-full -z-10"></div>
                 <PhoneVerification onPhoneVerified={onPhoneVerified} />
               </div>
-            </div>
-          )}
+            )}
+          </div>
 
           {/* 5. MIS ANUNCIOS (Grid Layout) */}
           <div className="col-span-1 md:col-span-2 bg-white rounded-[2rem] p-8 flex flex-col shadow-[0_20px_60px_-15px_rgba(0,0,0,0.1)] border-2 border-[#6e0ad6] min-h-[400px]">
@@ -816,6 +1021,17 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, userAds, userChats, 
               </div>
             </motion.div>
           </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* EMAIL VERIFICATION MODAL */}
+      <AnimatePresence>
+        {showEmailVerifyModal && (
+          <EmailVerificationModal
+            currentUser={currentUser}
+            onEmailVerified={onEmailVerified}
+            onClose={() => setShowEmailVerifyModal(false)}
+          />
         )}
       </AnimatePresence>
     </div>

@@ -397,26 +397,32 @@ export const dbUtils = {
     });
   },
 
-  // Crear código de verificación
-  async createVerificationCode(phoneNumber, code) {
-    // Eliminar códigos existentes para este número
+  // Crear verificación de teléfono
+  async createPhoneVerification(phone, code) {
+    // Eliminar códigos existentes
     await prisma.verificationCode.deleteMany({
-      where: { phoneNumber: phoneNumber }
+      where: { contact: phone, type: 'phone' }
     });
 
     return await prisma.verificationCode.create({
       data: {
-        phoneNumber: phoneNumber,
+        contact: phone,
+        type: 'phone',
         code: code,
-        expiresAt: new Date(Date.now() + 5 * 60 * 1000) // 5 minutos
+        expiresAt: new Date(Date.now() + 5 * 60 * 1000)
       }
     });
   },
 
-  // Verificar código
-  async verifyCode(phoneNumber, code) {
+  // Verificar teléfono
+  async verifyPhone(phone, code) {
     const verificationCode = await prisma.verificationCode.findUnique({
-      where: { phoneNumber: phoneNumber }
+      where: {
+        contact_type: {
+          contact: phone,
+          type: 'phone'
+        }
+      }
     });
 
     if (!verificationCode || verificationCode.code !== code) {
@@ -425,17 +431,95 @@ export const dbUtils = {
 
     if (verificationCode.expiresAt < new Date()) {
       await prisma.verificationCode.delete({
-        where: { phoneNumber: phoneNumber }
+        where: { id: verificationCode.id }
       });
       return { valid: false, error: 'Código expirado' };
     }
 
-    // Eliminar el código después de verificar
+    // Código válido: Eliminarlo
     await prisma.verificationCode.delete({
-      where: { phoneNumber: phoneNumber }
+      where: { id: verificationCode.id }
+    });
+
+    // Actualizar usuario(s) con este teléfono
+    await prisma.user.updateMany({
+      where: { phone: phone },
+      data: { phoneVerified: true }
     });
 
     return { valid: true };
+  },
+
+  // Crear verificación de email
+  async createEmailVerification(email, code) {
+    // Eliminar códigos existentes
+    await prisma.verificationCode.deleteMany({
+      where: { contact: email, type: 'email' }
+    });
+
+    return await prisma.verificationCode.create({
+      data: {
+        contact: email,
+        type: 'email',
+        code: code,
+        expiresAt: new Date(Date.now() + 5 * 60 * 1000)
+      }
+    });
+  },
+
+  // Verificar email
+  async verifyEmail(email, code) {
+    const verificationCode = await prisma.verificationCode.findUnique({
+      where: {
+        contact_type: {
+          contact: email,
+          type: 'email'
+        }
+      }
+    });
+
+    if (!verificationCode || verificationCode.code !== code) {
+      return { valid: false, error: 'Código incorrecto' };
+    }
+
+    if (verificationCode.expiresAt < new Date()) {
+      await prisma.verificationCode.delete({
+        where: { id: verificationCode.id }
+      });
+      return { valid: false, error: 'Código expirado' };
+    }
+
+    // Código válido: Eliminarlo
+    await prisma.verificationCode.delete({
+      where: { id: verificationCode.id }
+    });
+
+    // Actualizar usuario(s) con este email
+    await prisma.user.updateMany({
+      where: { email: email },
+      data: { emailVerified: true }
+    });
+
+    return { valid: true };
+  },
+
+  // Verificar email de un usuario
+  async verifyUserEmail(email) {
+    // Buscar usuario por email
+    const user = await prisma.user.findUnique({
+      where: { email: email }
+    });
+
+    if (!user) {
+      return null;
+    }
+
+    return await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        emailVerified: true
+      }
+    });
   },
 
   // Generar token de sesión

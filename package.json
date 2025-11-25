@@ -29,6 +29,7 @@
     "dotenv": "^16.6.1",
     "express": "^4.19.2",
     "framer-motion": "^12.23.24",
+    "nodemailer": "^7.0.10",
     "prisma": "^5.22.0",
     "react": "^19.1.1",
     "react-apple-signin-auth": "^1.1.2",
