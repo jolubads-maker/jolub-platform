@@ -3,9 +3,11 @@ import { Chat } from '@google/genai';
 export interface User {
   id: number;
   uniqueId?: string; // ID único generado para el dashboard dinámico (ej: "USER-123456789")
+  username?: string;
   name: string;
   avatar: string;
   email?: string;
+  password?: string;
   provider?: 'google' | 'apple' | 'manual';
   providerId?: string;
   sessionToken?: string;
@@ -17,6 +19,10 @@ export interface User {
   showPhone?: boolean;
   isOnline?: boolean;
   lastSeen?: Date;
+  ip?: string;
+  country?: string;
+  createdAt?: Date | string;
+  updatedAt?: Date | string;
 }
 
 export interface Media {
@@ -47,6 +53,11 @@ export interface Ad {
   views: number;
   media: Media[];
   isFavorite?: boolean; // Indica si el usuario actual lo marcó como favorito
+  isFeatured?: boolean;
+  featuredExpiresAt?: Date | string;
+  expiresAt?: Date | string;
+  createdAt?: Date | string;
+  updatedAt?: Date | string;
 }
 
 export type AdFormData = Omit<Ad, 'id' | 'sellerId' | 'views' | 'isFavorite' | 'uniqueCode'>;

@@ -1,18 +1,30 @@
-import React, { useEffect, useMemo } from 'react';
+import React, { useEffect, useMemo, Suspense, lazy } from 'react';
 import { GoogleOAuthProvider } from '@react-oauth/google';
 import { Routes, Route, useNavigate, useParams, useLocation, Navigate } from 'react-router-dom';
 import { Toaster } from 'sonner';
 import { Ad, User, ChatLog } from './types';
 import { OAUTH_CONFIG } from './config/oauth';
 import { notify } from './services/notificationService';
-import AdDetail from './components/AdDetail';
-import AdForm from './components/AdForm';
-import ChatView from './components/ChatView';
-import Login from './components/Login';
-import Register from './components/Register';
-import ResetPassword from './components/ResetPassword';
-import HomePage from './components/HomePage';
-import Dashboard from './components/Dashboard';
+
+// Lazy load components
+const AdDetail = lazy(() => import('./components/AdDetail'));
+const AdForm = lazy(() => import('./components/AdForm'));
+const ChatView = lazy(() => import('./components/ChatView'));
+const Login = lazy(() => import('./components/Login'));
+const Register = lazy(() => import('./components/Register'));
+const ResetPassword = lazy(() => import('./components/ResetPassword'));
+const HomePage = lazy(() => import('./components/HomePage'));
+const Dashboard = lazy(() => import('./components/Dashboard'));
+
+// Loading Component
+const LoadingScreen = () => (
+  <div className="min-h-screen bg-[#6e0ad6] text-white font-sans flex items-center justify-center">
+    <div className="text-center">
+      <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-white mx-auto mb-4"></div>
+      <p className="text-xl font-bold tracking-widest">Cargando JOLUB...</p>
+    </div>
+  </div>
+);
 
 // Stores
 import { useAuthStore } from './store/useAuthStore';
@@ -140,50 +152,36 @@ const App: React.FC = () => {
           </div>
         )}
 
-        <Routes>
-          <Route path="/" element={<HomePage />} />
-          <Route path="/reset-password" element={<ResetPassword />} />
-          <Route path="/anuncio/:uniqueCode" element={<AdDetailWrapper />} />
+        <Suspense fallback={<LoadingScreen />}>
+          <Routes>
+            <Route path="/" element={<HomePage />} />
+            <Route path="/reset-password" element={<ResetPassword />} />
+            <Route path="/anuncio/:uniqueCode" element={<AdDetailWrapper />} />
 
-          <Route path="/publicar" element={
-            currentUser ? (
-              <AdForm
-                onCancel={() => navigate('/')}
-                onSubmit={async (data) => {
-                  try {
-                    await useAdStore.getState().createAd({
-                      ...data,
-                      sellerId: currentUser.id
-                    });
-                    navigate('/');
-                    notify.success('¡Anuncio publicado exitosamente!');
-                  } catch (e: any) {
-                    notify.error(e.message || 'Error al crear anuncio');
-                  }
-                }}
-              />
-            ) : (
-              <Navigate to="/login" />
-            )
-          } />
+            <Route path="/publicar" element={
+              currentUser ? (
+                <AdForm
+                  onCancel={() => navigate('/')}
+                  onSubmit={async (data) => {
+                    try {
+                      await useAdStore.getState().createAd({
+                        ...data,
+                        sellerId: currentUser.id
+                      });
+                      navigate('/');
+                      notify.success('¡Anuncio publicado exitosamente!');
+                    } catch (e: any) {
+                      notify.error(e.message || 'Error al crear anuncio');
+                    }
+                  }}
+                />
+              ) : (
+                <Navigate to="/login" />
+              )
+            } />
 
-          <Route path="/login" element={
-            <Login onLogin={async (data) => {
-              try {
-                const user = await useAuthStore.getState().login(data);
-                if (user) {
-                  navigate(`/dashboard/${user.uniqueId || 'USER-' + user.id}`);
-                  notify.success(`Bienvenido, ${user.name}!`);
-                }
-              } catch (e: any) {
-                notify.error(e.message || 'Error al iniciar sesión');
-              }
-            }} />
-          } />
-
-          <Route path="/register" element={
-            <Register
-              onRegister={async (data) => {
+            <Route path="/login" element={
+              <Login onLogin={async (data) => {
                 try {
                   const user = await useAuthStore.getState().login(data);
                   if (user) {
@@ -191,20 +189,36 @@ const App: React.FC = () => {
                     notify.success(`Bienvenido, ${user.name}!`);
                   }
                 } catch (e: any) {
-                  notify.error(e.message || 'Error al registrarse');
+                  notify.error(e.message || 'Error al iniciar sesión');
                 }
-              }}
-              onBackToHome={() => navigate('/')}
-              onError={(error) => notify.error(error)}
-            />
-          } />
+              }} />
+            } />
 
-          <Route path="/dashboard/:uniqueId" element={
-            currentUser ? <Dashboard /> : <Navigate to="/login" />
-          } />
+            <Route path="/register" element={
+              <Register
+                onRegister={async (data) => {
+                  try {
+                    const user = await useAuthStore.getState().login(data);
+                    if (user) {
+                      navigate(`/dashboard/${user.uniqueId || 'USER-' + user.id}`);
+                      notify.success(`Bienvenido, ${user.name}!`);
+                    }
+                  } catch (e: any) {
+                    notify.error(e.message || 'Error al registrarse');
+                  }
+                }}
+                onBackToHome={() => navigate('/')}
+                onError={(error) => notify.error(error)}
+              />
+            } />
 
-          <Route path="/chat/:chatId" element={<ChatRouteWrapper />} />
-        </Routes>
+            <Route path="/dashboard/:uniqueId" element={
+              currentUser ? <Dashboard /> : <Navigate to="/login" />
+            } />
+
+            <Route path="/chat/:chatId" element={<ChatRouteWrapper />} />
+          </Routes>
+        </Suspense>
       </div>
     </GoogleOAuthProvider>
   );

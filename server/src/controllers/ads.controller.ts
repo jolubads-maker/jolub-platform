@@ -30,24 +30,15 @@ export const getAds = async (req: Request, res: Response) => {
         }
 
         if (userId) {
-            // If filtering by userId (e.g. "My Ads")
-            // Note: The original code used userId in query to check favorites, 
-            // but also seemed to support filtering by sellerId? 
-            // Let's clarify: original code had `if (userId) filters.userId = parseInt(userId);` 
-            // and then `favorites: userId ? ...` in include.
-            // But it didn't seem to filter *by* userId in the `where` clause for the main query unless I missed it.
-            // Wait, looking at original `getAllAds`:
-            // `if (userId) filters.userId = parseInt(userId);` -> passed to `getAllAds`
-            // Inside `getAllAds`: `const { ... userId } = filters;`
-            // But `userId` was ONLY used for the `favorites` include, NOT for `where`.
-            // HOWEVER, there was a separate `getUserAds` function in `dbUtils`.
-            // Let's stick to the main `getAds` logic for now.
+            // Filter by sellerId if specifically requested via query param "userId"
+            // Note: If the intention is "My Ads", the frontend sends userId.
+            where.sellerId = Number(userId);
         }
 
         const ads = await prisma.ad.findMany({
             where,
             include: {
-                media: { take: 10 },
+                media: { take: 1 }, // Optimize: only fetch 1 image for list view
                 seller: {
                     select: {
                         id: true,

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { Ad } from '../types';
@@ -64,81 +64,39 @@ const HomePage: React.FC = () => {
   };
 
   const applyFilters = async (currentFilters: FilterValues, query: string) => {
-    // We can filter locally since we have all ads in store
-    // Or we can use the API if we want server-side filtering (better for large datasets)
-    // For now, let's stick to the existing logic which seemed to mix both?
-    // The original code called apiService.getAdsWithFavorites if currentUser existed, 
-    // or filtered locally if not.
-    // To keep it simple and consistent with the store, let's filter locally for now, 
-    // unless we want to implement server-side filtering in the store.
-    // Given the "Refactoring" goal, let's try to use the store data.
+    setIsSearching(true);
+    try {
+      const params = new URLSearchParams();
+      if (currentFilters.category !== 'Todas') params.append('category', currentFilters.category);
+      if (currentFilters.minPrice > 0) params.append('minPrice', currentFilters.minPrice.toString());
+      if (currentFilters.maxPrice < 100000) params.append('maxPrice', currentFilters.maxPrice.toString());
+      if (currentFilters.location) params.append('location', currentFilters.location);
+      if (query) params.append('search', query);
+      if (currentUser) params.append('userId', currentUser.id.toString()); // For favorites check
 
-    let result = ads;
+      // Use the API service to fetch filtered ads
+      // We need to ensure apiService has a method for this or use fetch directly
+      const response = await fetch(`/api/ads?${params.toString()}`);
+      if (!response.ok) throw new Error('Error fetching ads');
 
-    // 1. Category
-    if (currentFilters.category !== 'Todas') {
-      result = result.filter(ad => ad.category === currentFilters.category);
+      const data = await response.json();
+      setFilteredAds(data);
+    } catch (error) {
+      console.error('Error filtering ads:', error);
+      // Fallback to local filtering if API fails? Or just show error?
+    } finally {
+      setIsSearching(false);
     }
-
-    // 2. Price
-    if (currentFilters.minPrice > 0) {
-      result = result.filter(ad => ad.price >= currentFilters.minPrice);
-    }
-    if (currentFilters.maxPrice < 100000) {
-      result = result.filter(ad => ad.price <= currentFilters.maxPrice);
-    }
-
-    // 3. Location
-    if (currentFilters.location) {
-      result = result.filter(ad =>
-        ad.location?.toLowerCase().includes(currentFilters.location.toLowerCase())
-      );
-    }
-
-    // 4. Search Query
-    if (query) {
-      const lowerQuery = query.toLowerCase();
-      result = result.filter(ad =>
-        ad.title.toLowerCase().includes(lowerQuery) ||
-        ad.description.toLowerCase().includes(lowerQuery) ||
-        ad.details?.toLowerCase().includes(lowerQuery) ||
-        ad.uniqueCode.toLowerCase().includes(lowerQuery) ||
-        users.find(u => u.id === ad.sellerId)?.name.toLowerCase().includes(lowerQuery)
-      );
-    }
-
-    // 5. Favorites (if logged in, we might want to fetch this status? 
-    // The store ads might not have 'isFavorite' property set for the current user 
-    // unless we fetched it specifically for them.
-    // The original code used apiService.getAdsWithFavorites.
-    // We should probably update the store to handle favorites or fetch them separately.
-    // For now, let's assume the store ads are "raw" and we might miss the favorite status 
-    // unless we merge it.
-    // Let's check if we can fetch favorites and merge.
-    if (currentUser) {
-      try {
-        const favorites = await apiService.getUserFavorites(currentUser.id);
-        const favoriteIds = new Set(favorites.map(f => f.id));
-        result = result.map(ad => ({
-          ...ad,
-          isFavorite: favoriteIds.has(ad.id)
-        }));
-      } catch (e) {
-        console.error('Error fetching favorites', e);
-      }
-    }
-
-    setFilteredAds(result);
   };
 
-  const handleFilterChange = async (newFilters: FilterValues) => {
+  const handleFilterChange = useCallback(async (newFilters: FilterValues) => {
     setFilters(newFilters);
     setIsSearching(true);
     await applyFilters(newFilters, searchQuery);
     setIsSearching(false);
-  };
+  }, [searchQuery]);
 
-  const handleResetFilters = () => {
+  const handleResetFilters = useCallback(() => {
     const defaultFilters = {
       category: 'Todas',
       minPrice: 0,
@@ -148,9 +106,9 @@ const HomePage: React.FC = () => {
     setFilters(defaultFilters);
     setSearchQuery('');
     setFilteredAds(ads);
-  };
+  }, [ads]);
 
-  const handleToggleFavorite = async (adId: number) => {
+  const handleToggleFavorite = useCallback(async (adId: number) => {
     if (!currentUser) {
       navigate('/login');
       return;
@@ -171,25 +129,22 @@ const HomePage: React.FC = () => {
         a.id === adId ? { ...a, isFavorite: !a.isFavorite } : a
       );
       setFilteredAds(updatedAds);
-
-      // We should also update the store if possible, but store ads don't strictly track favorites per user globally
-      // So local update is fine for now.
     } catch (error) {
       console.error('Error toggling favorito:', error);
     }
-  };
+  }, [currentUser, filteredAds, navigate]);
 
-  const getSellerInfo = (sellerId: number) => {
+  const getSellerInfo = useCallback((sellerId: number) => {
     return users.find(u => u.id === sellerId);
-  };
+  }, [users]);
 
-  const handleSelectAd = async (adId: number) => {
+  const handleSelectAd = useCallback(async (adId: number) => {
     await incrementViews(adId);
     const ad = ads.find(a => a.id === adId);
     if (ad) {
       navigate(`/anuncio/${ad.uniqueCode}`);
     }
-  };
+  }, [ads, incrementViews, navigate]);
 
   const handleLogout = async () => {
     await logout();

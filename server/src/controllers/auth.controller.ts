@@ -4,6 +4,7 @@ import crypto from 'crypto';
 import nodemailer from 'nodemailer';
 import twilio from 'twilio';
 import bcrypt from 'bcryptjs';
+import logger from '../utils/logger';
 
 // Rate limiting map
 const RATE_LIMIT_WINDOW = 60 * 60 * 1000; // 1 hour
@@ -29,9 +30,21 @@ const emailTransporter = nodemailer.createTransport({
     }
 });
 
+interface SyncUserBody {
+    name: string;
+    avatar?: string;
+    email?: string;
+    provider?: string;
+    providerId?: string;
+    username?: string;
+    ip?: string;
+    country?: string;
+    password?: string;
+}
+
 export const syncUser = async (req: Request, res: Response) => {
     try {
-        const { name, avatar, email, provider, providerId, username, ip, country, password } = req.body;
+        const { name, avatar, email, provider, providerId, username, ip, country, password } = req.body as SyncUserBody;
 
         if (!name || typeof name !== 'string' || name.trim().length < 2) {
             return res.status(400).json({ error: 'El nombre debe tener al menos 2 caracteres' });
@@ -46,7 +59,7 @@ export const syncUser = async (req: Request, res: Response) => {
         const sanitizedUsername = username ? username.trim().toLowerCase().substring(0, 50) : null;
 
         // Hash password if manual provider
-        let hashedPassword = null;
+        let hashedPassword: string | null = null;
         if (provider === 'manual' && password) {
             hashedPassword = await bcrypt.hash(password, 10);
         }
@@ -111,7 +124,7 @@ export const syncUser = async (req: Request, res: Response) => {
 
         res.json(user);
     } catch (err) {
-        console.error('Error creating user:', err);
+        logger.error(`Error creating user: ${err}`);
         res.status(500).json({ error: 'Error creando usuario' });
     }
 };
@@ -130,14 +143,14 @@ export const generateSessionToken = async (req: Request, res: Response) => {
 
         res.json({ sessionToken });
     } catch (err) {
-        console.error('Error generating token:', err);
+        logger.error(`Error generating token: ${err}`);
         res.status(500).json({ error: 'Error generando token' });
     }
 };
 
 export const authenticateWithToken = async (req: Request, res: Response) => {
     try {
-        const { sessionToken } = req.body;
+        const { sessionToken } = req.body as { sessionToken?: string };
         if (!sessionToken) {
             return res.status(400).json({ error: 'Token de sesión requerido' });
         }
@@ -157,14 +170,14 @@ export const authenticateWithToken = async (req: Request, res: Response) => {
 
         res.json(user);
     } catch (err) {
-        console.error('Error authenticating with token:', err);
+        logger.error(`Error authenticating with token: ${err}`);
         res.status(500).json({ error: 'Error de autenticación' });
     }
 };
 
 export const sendPhoneCode = async (req: Request, res: Response) => {
     try {
-        const { phoneNumber } = req.body;
+        const { phoneNumber } = req.body as { phoneNumber?: string };
         if (!phoneNumber) return res.status(400).json({ error: 'phoneNumber es requerido' });
 
         // Rate limiting
@@ -214,14 +227,14 @@ export const sendPhoneCode = async (req: Request, res: Response) => {
 
         res.json({ ok: true, message: `Código enviado por SMS a ${phoneNumber}` });
     } catch (err: any) {
-        console.error('Error sending SMS:', err);
+        logger.error(`Error sending SMS: ${err}`);
         res.status(500).json({ error: err.message || 'Error enviando SMS' });
     }
 };
 
 export const verifyPhoneCode = async (req: Request, res: Response) => {
     try {
-        const { phoneNumber, code } = req.body;
+        const { phoneNumber, code } = req.body as { phoneNumber?: string; code?: string };
         if (!phoneNumber || !code) return res.status(400).json({ error: 'Parámetros inválidos' });
 
         const verificationCode = await prisma.verificationCode.findUnique({
@@ -251,14 +264,14 @@ export const verifyPhoneCode = async (req: Request, res: Response) => {
 
         res.json({ ok: true, message: 'Teléfono verificado exitosamente' });
     } catch (err) {
-        console.error('Error verifying phone code:', err);
+        logger.error(`Error verifying phone code: ${err}`);
         res.status(500).json({ error: 'Error verificando código' });
     }
 };
 
 export const sendEmailCode = async (req: Request, res: Response) => {
     try {
-        const { email } = req.body;
+        const { email } = req.body as { email?: string };
         if (!email) return res.status(400).json({ error: 'Email es requerido' });
 
         // Rate limiting
@@ -315,14 +328,14 @@ export const sendEmailCode = async (req: Request, res: Response) => {
 
         res.json({ ok: true, message: `Código enviado por correo a ${email}` });
     } catch (err: any) {
-        console.error('Error sending email:', err);
+        logger.error(`Error sending email: ${err}`);
         res.status(500).json({ error: err.message || 'Error enviando email' });
     }
 };
 
 export const verifyEmailCode = async (req: Request, res: Response) => {
     try {
-        const { email, code } = req.body;
+        const { email, code } = req.body as { email?: string; code?: string };
         if (!email || !code) return res.status(400).json({ error: 'Parámetros inválidos' });
 
         const verificationCode = await prisma.verificationCode.findUnique({
@@ -352,7 +365,7 @@ export const verifyEmailCode = async (req: Request, res: Response) => {
 
         res.json({ ok: true, message: 'Email verificado exitosamente' });
     } catch (err) {
-        console.error('Error verifying email code:', err);
+        logger.error(`Error verifying email code: ${err}`);
         res.status(500).json({ error: 'Error verificando código' });
     }
 };
@@ -368,7 +381,7 @@ export const getIpInfo = async (req: Request, res: Response) => {
         if (isLocalhost) {
             try {
                 const ipResponse = await fetch('https://api.ipify.org?format=json');
-                const ipData = await ipResponse.json();
+                const ipData = await ipResponse.json() as { ip: string };
                 ip = ipData.ip;
             } catch (ipError) {
                 ip = 'Unknown';
@@ -382,7 +395,7 @@ export const getIpInfo = async (req: Request, res: Response) => {
         if (ip !== 'Unknown') {
             try {
                 const response = await fetch(`http://ip-api.com/json/${ip}`);
-                const data = await response.json();
+                const data = await response.json() as { status: string; country: string; city: string; regionName: string };
                 if (data.status === 'success') {
                     country = data.country || 'Unknown';
                     city = data.city || 'Unknown';
@@ -395,14 +408,14 @@ export const getIpInfo = async (req: Request, res: Response) => {
 
         res.json({ ip, country, city, region });
     } catch (err) {
-        console.error('Error getting IP info:', err);
+        logger.error(`Error getting IP info: ${err}`);
         res.status(500).json({ error: 'Error obteniendo información de IP' });
     }
 };
 
 export const forgotPassword = async (req: Request, res: Response) => {
     try {
-        const { email } = req.body;
+        const { email } = req.body as { email?: string };
         if (!email) return res.status(400).json({ error: 'Email requerido' });
 
         const user = await prisma.user.findFirst({ where: { email } });
@@ -445,14 +458,14 @@ export const forgotPassword = async (req: Request, res: Response) => {
 
         res.json({ ok: true, message: 'Correo enviado' });
     } catch (err) {
-        console.error(err);
+        logger.error(`Error in forgotPassword: ${err}`);
         res.status(500).json({ error: 'Error en el servidor' });
     }
 };
 
 export const resetPassword = async (req: Request, res: Response) => {
     try {
-        const { token, password } = req.body;
+        const { token, password } = req.body as { token?: string; password?: string };
         if (!token || !password) return res.status(400).json({ error: 'Faltan datos' });
 
         const verification = await prisma.verificationCode.findFirst({
@@ -465,10 +478,10 @@ export const resetPassword = async (req: Request, res: Response) => {
         const user = await prisma.user.findFirst({ where: { email: verification.contact } });
         if (!user) return res.status(404).json({ error: 'Usuario no encontrado' });
 
-        console.log(`[RESET PASSWORD] Updating password for user: ${user.email}`);
+        logger.info(`[RESET PASSWORD] Updating password for user: ${user.email}`);
 
         // Hash password
-        const hashedPassword = await bcrypt.hash(password, 10);
+        const hashedPassword = await bcrypt.hash(password as string, 10);
 
         // Update password
         await prisma.user.update({
@@ -481,37 +494,37 @@ export const resetPassword = async (req: Request, res: Response) => {
 
         res.json({ ok: true, message: 'Contraseña actualizada' });
     } catch (err) {
-        console.error(err);
+        logger.error(`Error in resetPassword: ${err}`);
         res.status(500).json({ error: 'Error en el servidor' });
     }
 };
 
 export const login = async (req: Request, res: Response) => {
     try {
-        const { email, password } = req.body;
+        const { email, password } = req.body as { email?: string; password?: string };
 
         if (!email || !password) {
             return res.status(400).json({ error: 'Email y contraseña requeridos' });
         }
 
-        console.log(`[LOGIN] Attempting login for: ${email}`);
+        logger.info(`[LOGIN] Attempting login for: ${email}`);
 
         const user = await prisma.user.findFirst({ where: { email } });
 
         if (!user) {
-            console.log(`[LOGIN] User not found: ${email}`);
+            logger.warn(`[LOGIN] User not found: ${email}`);
             return res.status(401).json({ error: 'Credenciales inválidas' });
         }
 
-        console.log(`[LOGIN] User found: ${user.email}, Provider: ${user.provider}`);
+        logger.info(`[LOGIN] User found: ${user.email}, Provider: ${user.provider}`);
 
         if (user.provider !== 'manual' || !user.password) {
-            console.log(`[LOGIN] Invalid provider or no password for: ${email}`);
+            logger.warn(`[LOGIN] Invalid provider or no password for: ${email}`);
             return res.status(401).json({ error: 'Por favor inicia sesión con tu proveedor social' });
         }
 
-        const isMatch = await bcrypt.compare(password, user.password);
-        console.log(`[LOGIN] Password match result: ${isMatch}`);
+        const isMatch = await bcrypt.compare(password as string, user.password as string);
+        logger.info(`[LOGIN] Password match result: ${isMatch}`);
 
         if (!isMatch) {
             return res.status(401).json({ error: 'Credenciales inválidas' });
@@ -525,20 +538,20 @@ export const login = async (req: Request, res: Response) => {
 
         res.json(user);
     } catch (err) {
-        console.error('Error logging in:', err);
+        logger.error(`Error logging in: ${err}`);
         res.status(500).json({ error: 'Error al iniciar sesión' });
     }
 };
 
 export const checkEmail = async (req: Request, res: Response) => {
     try {
-        const { email } = req.body;
+        const { email } = req.body as { email?: string };
         if (!email) return res.status(400).json({ error: 'Email requerido' });
 
         const user = await prisma.user.findFirst({ where: { email } });
         res.json({ exists: !!user });
     } catch (err) {
-        console.error(err);
+        logger.error(`Error in checkEmail: ${err}`);
         res.status(500).json({ error: 'Error en el servidor' });
     }
 };
