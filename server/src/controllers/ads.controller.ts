@@ -35,6 +35,11 @@ export const getAds = async (req: Request, res: Response) => {
             where.sellerId = Number(userId);
         }
 
+        // Pagination
+        const page = parseInt(req.query.page as string) || 1;
+        const limit = parseInt(req.query.limit as string) || 20;
+        const skip = (page - 1) * limit;
+
         const ads = await prisma.ad.findMany({
             where,
             include: {
@@ -54,7 +59,8 @@ export const getAds = async (req: Request, res: Response) => {
                 } : false
             },
             orderBy: { createdAt: 'desc' },
-            take: 100
+            take: limit,
+            skip
         });
 
         const formattedAds = ads.map(ad => ({

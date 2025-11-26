@@ -1,5 +1,5 @@
 import { getApiUrl } from '../config/api.config';
-import { User, Ad, ChatLog, ChatMessage } from '../types';
+import { User, Ad, ChatLog, ChatMessage } from '../src/types';
 
 const API_BASE = getApiUrl();
 console.log('🌐 API URL configurada:', API_BASE);

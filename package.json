@@ -13,11 +13,11 @@
     "db:generate": "prisma generate",
     "db:push": "prisma db push",
     "db:studio": "prisma studio",
-    "db:seed": "node server/seed.js",
+    "db:seed": "tsx server/src/scripts/seed.ts",
     "db:migrate": "prisma migrate deploy",
-    "start": "node server/index.js",
+    "start": "tsx server/src/index.ts",
     "postinstall": "prisma generate",
-    "deploy": "prisma migrate deploy && node server/seed.js && node server/index.js"
+    "deploy": "prisma migrate deploy && tsx server/src/index.ts"
   },
   "dependencies": {
     "@google/genai": "^1.21.0",

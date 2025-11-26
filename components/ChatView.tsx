@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { User, ChatMessage, ChatLog } from '../types';
+import { User, ChatMessage, ChatLog } from '../src/types';
 import ArrowLeftIcon from './icons/ArrowLeftIcon';
 import SendIcon from './icons/SendIcon';
 import { io, Socket } from 'socket.io-client';

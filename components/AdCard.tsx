@@ -1,6 +1,6 @@
 import React, { memo } from 'react';
 import { motion } from 'framer-motion';
-import { Ad, User } from '../types';
+import { Ad, User } from '../src/types';
 import UserStatusBadge from './UserStatusBadge';
 
 interface AdCardProps {

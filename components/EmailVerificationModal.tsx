@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { User } from '../types';
+import { User } from '../src/types';
 
 interface EmailVerificationModalProps {
     currentUser: User;

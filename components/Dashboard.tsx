@@ -3,7 +3,7 @@ import React, { useState, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { PayPalScriptProvider, PayPalButtons } from "@paypal/react-paypal-js";
-import { Ad, ChatLog } from '../types';
+import { Ad, ChatLog } from '../src/types';
 import AdCard from './AdCard';
 import StarIcon from './icons/StarIcon';
 import MessageIcon from './icons/MessageIcon';

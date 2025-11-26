@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { AdFormData, Media, AdCategory } from '../types';
+import { AdFormData, Media, AdCategory } from '../src/types';
 import PaperclipIcon from './icons/PaperclipIcon';
 import { notify } from '../services/notificationService';
 

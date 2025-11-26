@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { AdCategory } from '../types';
+import { AdCategory } from '../src/types';
 
 interface AdFiltersProps {
   onFilterChange: (filters: FilterValues) => void;

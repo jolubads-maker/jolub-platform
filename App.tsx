@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, Suspense, lazy } from 'react';
 import { GoogleOAuthProvider } from '@react-oauth/google';
 import { Routes, Route, useNavigate, useParams, useLocation, Navigate } from 'react-router-dom';
 import { Toaster } from 'sonner';
-import { Ad, User, ChatLog } from './types';
+import { Ad, User, ChatLog } from './src/types';
 import { OAUTH_CONFIG } from './config/oauth';
 import { notify } from './services/notificationService';
 

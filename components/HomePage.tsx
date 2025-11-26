@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import { Ad } from '../types';
+import { Ad } from '../src/types';
 import AdCard from './AdCard';
 import AdFilters, { FilterValues } from './AdFilters';
 import { apiService } from '../services/apiService';

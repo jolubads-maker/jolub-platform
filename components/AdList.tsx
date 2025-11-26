@@ -1,5 +1,5 @@
 import React from 'react';
-import { Ad } from '../types';
+import { Ad } from '../src/types';
 import AdCard from './AdCard';
 
 interface AdListProps {

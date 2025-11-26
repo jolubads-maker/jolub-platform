@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Ad, User, Media } from '../types';
+import { Ad, User, Media } from '../src/types';
 import ArrowLeftIcon from './icons/ArrowLeftIcon';
 import ChatIcon from './icons/ChatIcon';
 import EyeIcon from './icons/EyeIcon';

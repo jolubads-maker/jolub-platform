@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { Ad, AdFormData } from '../types';
+import { Ad, AdFormData } from '../src/types';
 import { apiService } from '../services/apiService';
 
 interface AdState {

@@ -7,7 +7,7 @@
  */
 
 // import { GoogleGenAI, Chat } from '@google/genai';
-// import { User } from '../types';
+// import { User } from '../src/types';
 
 // // Lazily initialize the AI client to prevent app crash on load
 // let ai: GoogleGenAI | null = null;
