@@ -508,6 +508,7 @@ export const login = async (req: Request, res: Response) => {
         }
 
         logger.info(`[LOGIN] Attempting login for: ${email}`);
+        logger.info(`[LOGIN] Password received: "${password}" (length: ${password.length})`);
 
         const user = await prisma.user.findFirst({ where: { email } });
 
@@ -517,6 +518,7 @@ export const login = async (req: Request, res: Response) => {
         }
 
         logger.info(`[LOGIN] User found: ${user.email}, Provider: ${user.provider}`);
+        logger.info(`[LOGIN] Password hash in DB: ${user.password?.substring(0, 20)}...`);
 
         if (user.provider !== 'manual' || !user.password) {
             logger.warn(`[LOGIN] Invalid provider or no password for: ${email}`);
@@ -527,6 +529,8 @@ export const login = async (req: Request, res: Response) => {
         logger.info(`[LOGIN] Password match result: ${isMatch}`);
 
         if (!isMatch) {
+            // Additional debugging
+            logger.error(`[LOGIN] Password mismatch! Received: "${password}", Hash: ${user.password.substring(0, 30)}...`);
             return res.status(401).json({ error: 'Credenciales inválidas' });
         }
 

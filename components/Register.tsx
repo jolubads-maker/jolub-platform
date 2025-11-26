@@ -127,6 +127,7 @@ const Register: React.FC<RegisterProps> = ({ onRegister, onBackToHome }) => {
         username: username.trim(),
         name: username.trim(),
         email: email.trim(),
+        password: password, // ✅ Add password field
         avatar: avatarUrl,
         provider: 'manual' as const,
         providerId: email,

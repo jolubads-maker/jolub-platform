@@ -16,13 +16,6 @@ interface AdCardProps {
 const AdCard: React.FC<AdCardProps> = memo(({ ad, seller, onSelect, currentUser, onToggleFavorite, variant = 'default', onHighlight }) => {
   const firstMedia = ad.media[0];
 
-  const optimizeCloudinaryUrl = (url: string) => {
-    if (url.includes('cloudinary.com') && url.includes('/upload/') && !url.includes('f_auto,q_auto')) {
-      return url.replace('/upload/', '/upload/f_auto,q_auto/');
-    }
-    return url;
-  };
-
   const handleFavoriteClick = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (onToggleFavorite) {
