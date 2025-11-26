@@ -172,3 +172,23 @@ export const removeFavorite = async (req: Request, res: Response) => {
         res.status(500).json({ error: 'Error removing favorite' });
     }
 };
+
+export const updatePrivacy = async (req: Request, res: Response) => {
+    try {
+        const { id } = req.params;
+        const { showEmail, showPhone } = req.body;
+
+        const dataToUpdate: any = {};
+        if (typeof showEmail === 'boolean') dataToUpdate.showEmail = showEmail;
+        if (typeof showPhone === 'boolean') dataToUpdate.showPhone = showPhone;
+
+        const user = await prisma.user.update({
+            where: { id: Number(id) },
+            data: dataToUpdate
+        });
+        res.json(user);
+    } catch (err) {
+        console.error('Error updating privacy:', err);
+        res.status(500).json({ error: 'Error updating privacy settings' });
+    }
+};

@@ -13,6 +13,8 @@ export interface User {
   phone?: string;
   phoneVerified?: boolean;
   emailVerified?: boolean;
+  showEmail?: boolean;
+  showPhone?: boolean;
   isOnline?: boolean;
   lastSeen?: Date;
 }

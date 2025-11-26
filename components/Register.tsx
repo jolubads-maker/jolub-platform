@@ -108,7 +108,6 @@ const Register: React.FC<RegisterProps> = ({ onRegister, onBackToHome }) => {
     if (!isFormValid) return;
 
     if (password !== confirmPassword) {
-      alert('Las contraseñas no coinciden');
       return;
     }
 
@@ -119,11 +118,8 @@ const Register: React.FC<RegisterProps> = ({ onRegister, onBackToHome }) => {
       let avatarUrl = `https://api.dicebear.com/9.x/adventurer-neutral/svg?seed=${username}`;
 
       if (gender === 'male') {
-        // Masculino: Sin personalización extra, solo el seed
         avatarUrl += '';
       } else if (gender === 'female') {
-        // Femenino: Intentar poner labios rojos (si la API lo soporta) y rasgos más femeninos si es posible
-        // Nota: adventurer-neutral a veces no soporta colores, pero intentamos pasar el parámetro o usar una variante específica
         avatarUrl += '&mouthColor=9e0101';
       }
 
@@ -148,7 +144,35 @@ const Register: React.FC<RegisterProps> = ({ onRegister, onBackToHome }) => {
   };
 
   return (
-    <div className="min-h-screen bg-[#6e0ad6] flex items-center justify-center p-4 font-sans">
+    <div className="min-h-screen bg-[#6e0ad6] flex flex-col items-center justify-center p-4 font-sans relative">
+
+      {/* Botón Regresar */}
+      <button
+        onClick={onBackToHome}
+        className="absolute top-6 left-6 text-white hover:text-gray-200 flex items-center gap-2 font-bold transition-colors z-10"
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="w-5 h-5">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" />
+        </svg>
+        Regresar al Inicio
+      </button>
+
+      {/* Logo fuera del formulario */}
+      <div className="flex items-center justify-center gap-1 mb-8">
+        {/* J */}
+        <div className="w-12 h-12 bg-[#ea580c] rounded-xl flex items-center justify-center shadow-md">
+          <span className="text-3xl font-black text-white">J</span>
+        </div>
+
+        {/* OLU */}
+        <span className="text-2xl font-bold text-white tracking-widest px-1">OLU</span>
+
+        {/* B */}
+        <div className="w-12 h-12 bg-[#ea580c] rounded-xl flex items-center justify-center shadow-md">
+          <span className="text-3xl font-black text-white">B</span>
+        </div>
+      </div>
+
       <motion.div
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
@@ -157,11 +181,8 @@ const Register: React.FC<RegisterProps> = ({ onRegister, onBackToHome }) => {
       >
         <div className="p-8 md:p-10">
           {/* Header */}
-          <div className="text-center mb-8">
-            <h1 className="text-4xl font-black text-[#6e0ad6] tracking-tighter mb-2">
-              JoluB
-            </h1>
-            <p className="text-gray-500 font-medium text-sm uppercase tracking-wide">Crear nueva cuenta</p>
+          <div className="text-center mb-6">
+            <p className="text-gray-800 font-black text-xl tracking-wide">Crear nueva cuenta</p>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-5">
@@ -170,72 +191,74 @@ const Register: React.FC<RegisterProps> = ({ onRegister, onBackToHome }) => {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {/* Username */}
               <div className="space-y-1">
-                <label className="text-xs font-bold text-gray-500 uppercase ml-1">Usuario</label>
+                <label className="text-xs font-black text-gray-700 uppercase ml-1">Usuario</label>
                 <div className="relative">
                   <input
                     type="text"
                     value={username}
                     onChange={(e) => setUsername(e.target.value.toLowerCase())}
-                    className={`w-full bg-gray-50 border-2 ${usernameAvailable === false ? 'border-red-300 bg-red-50' : usernameAvailable === true ? 'border-green-300 bg-green-50' : 'border-gray-200'} rounded-xl px-4 py-3 text-gray-800 font-semibold focus:outline-none focus:border-[#6e0ad6] focus:ring-0 transition-all`}
+                    className={`w-full bg-gray-50 border-2 ${usernameAvailable === false ? 'border-red-300 bg-red-50' : usernameAvailable === true ? 'border-green-300 bg-green-50' : 'border-gray-200'} rounded-xl px-4 py-2 text-gray-800 font-bold focus:outline-none focus:border-[#6e0ad6] focus:ring-0 transition-all text-sm`}
                     placeholder="usuario123"
                   />
                   <div className="absolute right-3 top-1/2 -translate-y-1/2">
                     {checkingUsername ? (
-                      <div className="w-4 h-4 border-2 border-[#6e0ad6] border-t-transparent rounded-full animate-spin" />
+                      <div className="w-3 h-3 border-2 border-[#6e0ad6] border-t-transparent rounded-full animate-spin" />
                     ) : usernameAvailable === true ? (
                       <div className="w-2 h-2 bg-green-500 rounded-full" />
                     ) : null}
                   </div>
                 </div>
-                {usernameAvailable === false && <p className="text-xs text-red-500 font-bold ml-1">Ocupado</p>}
+                {usernameAvailable === false && <p className="text-[10px] text-red-500 font-bold ml-1">Ocupado</p>}
               </div>
 
               {/* Email */}
               <div className="space-y-1">
-                <label className="text-xs font-bold text-gray-500 uppercase ml-1">Email</label>
+                <label className="text-xs font-black text-gray-700 uppercase ml-1">Email</label>
                 <div className="relative">
                   <input
                     type="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    className={`w-full bg-gray-50 border-2 ${emailAvailable === false ? 'border-red-300 bg-red-50' : emailAvailable === true ? 'border-green-300 bg-green-50' : 'border-gray-200'} rounded-xl px-4 py-3 text-gray-800 font-semibold focus:outline-none focus:border-[#6e0ad6] focus:ring-0 transition-all`}
+                    className={`w-full bg-gray-50 border-2 ${emailAvailable === false ? 'border-red-300 bg-red-50' : emailAvailable === true ? 'border-green-300 bg-green-50' : 'border-gray-200'} rounded-xl px-4 py-2 text-gray-800 font-bold focus:outline-none focus:border-[#6e0ad6] focus:ring-0 transition-all text-sm`}
                     placeholder="hola@ejemplo.com"
                   />
                   <div className="absolute right-3 top-1/2 -translate-y-1/2">
                     {checkingEmail ? (
-                      <div className="w-4 h-4 border-2 border-[#6e0ad6] border-t-transparent rounded-full animate-spin" />
+                      <div className="w-3 h-3 border-2 border-[#6e0ad6] border-t-transparent rounded-full animate-spin" />
                     ) : emailAvailable === true ? (
                       <div className="w-2 h-2 bg-green-500 rounded-full" />
                     ) : null}
                   </div>
                 </div>
-                {emailAvailable === false && <p className="text-xs text-red-500 font-bold ml-1">Registrado</p>}
+                {emailAvailable === false && <p className="text-[10px] text-red-500 font-bold ml-1">Registrado</p>}
               </div>
             </div>
 
-            {/* Gender Selection */}
+            {/* Gender Selection - Icons Only */}
             <div className="space-y-1">
-              <label className="text-xs font-bold text-gray-500 uppercase ml-1">Sexo</label>
-              <div className="grid grid-cols-2 gap-4">
+              <label className="text-xs font-black text-gray-700 uppercase ml-1">Sexo</label>
+              <div className="flex gap-4 justify-center">
                 <button
                   type="button"
                   onClick={() => setGender('male')}
-                  className={`py-3 px-4 rounded-xl border-2 font-bold text-sm transition-all flex items-center justify-center gap-2 ${gender === 'male'
-                    ? 'border-[#6e0ad6] bg-[#6e0ad6]/10 text-[#6e0ad6]'
-                    : 'border-gray-200 text-gray-400 hover:border-gray-300'
+                  className={`w-12 h-12 rounded-full border-2 font-bold text-2xl transition-all flex items-center justify-center ${gender === 'male'
+                    ? 'border-[#6e0ad6] bg-[#6e0ad6] text-white shadow-lg shadow-purple-500/30 scale-110'
+                    : 'border-gray-200 text-gray-400 hover:border-gray-300 hover:scale-105'
                     }`}
+                  title="Masculino"
                 >
-                  <span className="text-lg">👨</span> Masculino
+                  👨
                 </button>
                 <button
                   type="button"
                   onClick={() => setGender('female')}
-                  className={`py-3 px-4 rounded-xl border-2 font-bold text-sm transition-all flex items-center justify-center gap-2 ${gender === 'female'
-                    ? 'border-[#f28000] bg-[#f28000]/10 text-[#f28000]'
-                    : 'border-gray-200 text-gray-400 hover:border-gray-300'
+                  className={`w-12 h-12 rounded-full border-2 font-bold text-2xl transition-all flex items-center justify-center ${gender === 'female'
+                    ? 'border-[#f28000] bg-[#f28000] text-white shadow-lg shadow-orange-500/30 scale-110'
+                    : 'border-gray-200 text-gray-400 hover:border-gray-300 hover:scale-105'
                     }`}
+                  title="Femenino"
                 >
-                  <span className="text-lg">👩</span> Femenino
+                  👩
                 </button>
               </div>
             </div>
@@ -243,43 +266,52 @@ const Register: React.FC<RegisterProps> = ({ onRegister, onBackToHome }) => {
             {/* Password Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-1">
-                <label className="text-xs font-bold text-gray-500 uppercase ml-1">Contraseña</label>
+                <label className="text-xs font-black text-gray-700 uppercase ml-1">Contraseña</label>
                 <input
                   type="password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full bg-gray-50 border-2 border-gray-200 rounded-xl px-4 py-3 text-gray-800 font-semibold focus:outline-none focus:border-[#6e0ad6] focus:ring-0 transition-all"
+                  className="w-full bg-gray-50 border-2 border-gray-200 rounded-xl px-4 py-2 text-gray-800 font-bold focus:outline-none focus:border-[#6e0ad6] focus:ring-0 transition-all text-sm"
                   placeholder="••••••"
                 />
               </div>
               <div className="space-y-1">
-                <label className="text-xs font-bold text-gray-500 uppercase ml-1">Confirmar</label>
+                <label className="text-xs font-black text-gray-700 uppercase ml-1">Confirmar</label>
                 <input
                   type="password"
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
-                  className={`w-full bg-gray-50 border-2 ${confirmPassword && password !== confirmPassword ? 'border-red-300' : 'border-gray-200'} rounded-xl px-4 py-3 text-gray-800 font-semibold focus:outline-none focus:border-[#6e0ad6] focus:ring-0 transition-all`}
+                  className={`w-full bg-gray-50 border-2 ${confirmPassword && password !== confirmPassword ? 'border-red-300' : 'border-gray-200'} rounded-xl px-4 py-2 text-gray-800 font-bold focus:outline-none focus:border-[#6e0ad6] focus:ring-0 transition-all text-sm`}
                   placeholder="••••••"
                 />
               </div>
             </div>
 
             {/* Submit Button */}
-            <button
-              type="submit"
-              disabled={isLoading || !isFormValid}
-              className="w-full bg-[#f28000] hover:bg-[#d97200] text-white font-bold py-4 rounded-xl shadow-lg shadow-orange-500/20 transform active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed mt-4"
-            >
-              {isLoading ? 'Creando cuenta...' : 'Completar Registro'}
-            </button>
+            <div className="pt-2">
+              <button
+                type="submit"
+                disabled={isLoading || !isFormValid}
+                className="w-full bg-[#f28000] hover:bg-[#d97200] text-white font-black py-3 rounded-xl shadow-lg shadow-orange-500/20 transform active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isLoading ? 'Creando cuenta...' : 'Completar Registro'}
+              </button>
+
+              {/* Error Message for Password Mismatch */}
+              {password && confirmPassword && password !== confirmPassword && (
+                <p className="text-red-500 text-xs font-bold text-center mt-2 animate-pulse">
+                  Las contraseñas no coinciden
+                </p>
+              )}
+            </div>
 
           </form>
 
           {/* Footer */}
-          <div className="mt-8 text-center">
-            <p className="text-gray-500 text-sm font-medium">
+          <div className="mt-6 text-center">
+            <p className="text-gray-500 text-xs font-bold">
               ¿Ya tienes cuenta?{' '}
-              <button onClick={() => navigate('/login')} className="text-[#6e0ad6] font-bold hover:underline">
+              <button onClick={() => navigate('/login')} className="text-[#6e0ad6] font-black hover:underline">
                 Iniciar Sesión
               </button>
             </p>

@@ -10,6 +10,7 @@ import AdForm from './components/AdForm';
 import ChatView from './components/ChatView';
 import Login from './components/Login';
 import Register from './components/Register';
+import ResetPassword from './components/ResetPassword';
 import HomePage from './components/HomePage';
 import Dashboard from './components/Dashboard';
 
@@ -81,6 +82,7 @@ const AdDetailWrapper: React.FC = () => {
 const App: React.FC = () => {
   const currentUser = useAuthStore(state => state.currentUser);
   const authLoading = useAuthStore(state => state.loading);
+  const isCheckingSession = useAuthStore(state => state.isCheckingSession);
   const verifySession = useAuthStore(state => state.verifySession);
   const fetchUsers = useAuthStore(state => state.fetchUsers);
   const authError = useAuthStore(state => state.error);
@@ -110,14 +112,13 @@ const App: React.FC = () => {
     }
   }, [currentUser]);
 
-  const loading = authLoading || adsLoading;
-
-  if (loading && !currentUser && !useAdStore.getState().ads.length) {
+  // Show loader while checking session OR while initial data loads
+  if (isCheckingSession || (authLoading && !currentUser)) {
     return (
-      <div className="min-h-screen bg-gray-900 text-gray-100 font-sans flex items-center justify-center">
+      <div className="min-h-screen bg-[#6e0ad6] text-white font-sans flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-yellow-500 mx-auto mb-4"></div>
-          <p className="text-xl">Cargando Marketplace IA...</p>
+          <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-white mx-auto mb-4"></div>
+          <p className="text-xl font-bold tracking-widest">Cargando JOLUB......</p>
         </div>
       </div>
     );
@@ -141,6 +142,7 @@ const App: React.FC = () => {
 
         <Routes>
           <Route path="/" element={<HomePage />} />
+          <Route path="/reset-password" element={<ResetPassword />} />
           <Route path="/anuncio/:uniqueCode" element={<AdDetailWrapper />} />
 
           <Route path="/publicar" element={

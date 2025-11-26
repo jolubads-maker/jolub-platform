@@ -7,6 +7,7 @@ interface AuthState {
     users: User[];
     loading: boolean;
     error: string | null;
+    isCheckingSession: boolean;
 
     // Actions
     setError: (error: string | null) => void;
@@ -19,6 +20,7 @@ interface AuthState {
     updateUserStatus: (userId: number, isOnline: boolean) => Promise<void>;
     updateUserPhone: (phoneNumber: string) => Promise<void>;
     updateUserEmail: () => Promise<void>;
+    togglePrivacy: (field: 'showEmail' | 'showPhone') => Promise<void>;
 }
 
 export const useAuthStore = create<AuthState>((set, get) => ({
@@ -26,6 +28,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     users: [],
     loading: false,
     error: null,
+    isCheckingSession: true,
 
     setError: (error) => set({ error }),
     setCurrentUser: (user) => set({ currentUser: user }),
@@ -96,28 +99,35 @@ export const useAuthStore = create<AuthState>((set, get) => ({
                     set({ currentUser: user });
                     // Also refresh users list to ensure we have latest data
                     get().fetchUsers();
+                } else {
+                    // Invalid token
+                    localStorage.removeItem('sessionToken');
+                    localStorage.removeItem('currentUser');
+                    set({ currentUser: null });
                 }
             } catch (error) {
                 console.error('Session verification failed:', error);
                 localStorage.removeItem('sessionToken');
                 localStorage.removeItem('currentUser');
                 set({ currentUser: null });
+            } finally {
+                set({ isCheckingSession: false });
             }
         } else {
             // Fallback to legacy local storage if needed, or just clear
             const savedUser = localStorage.getItem('currentUser');
             if (savedUser) {
                 try {
-                    const parsed = JSON.parse(savedUser);
-                    // We should verify this against API but for now just load it if no token
-                    // Ideally we rely on token.
-                    // Let's try to find in users list if already fetched
-                    // But we can't trust local storage fully without token.
-                    // For now, let's assume token is the way.
+                    // We don't trust local storage without token validation for security
+                    // But for UX we might keep it briefly. 
+                    // Ideally, we clear it if no token.
+                    // For this fix, we will clear it to enforce token auth.
+                    localStorage.removeItem('currentUser');
                 } catch (e) {
                     localStorage.removeItem('currentUser');
                 }
             }
+            set({ currentUser: null, isCheckingSession: false });
         }
     },
 
@@ -177,6 +187,35 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         } catch (error) {
             console.error('Error syncing user status after email verification:', error);
             // We don't revert here because the verification *did* succeed (this function is called on success)
+        }
+    },
+
+    togglePrivacy: async (field) => {
+        const { currentUser } = get();
+        if (!currentUser) return;
+
+        // 1. Optimistic Update
+        const newValue = !currentUser[field];
+        const optimisticUser = { ...currentUser, [field]: newValue };
+
+        set(state => ({
+            currentUser: optimisticUser,
+            users: state.users.map(u => u.id === optimisticUser.id ? optimisticUser : u)
+        }));
+        localStorage.setItem('currentUser', JSON.stringify(optimisticUser));
+
+        try {
+            // 2. API Call
+            await apiService.updatePrivacy(currentUser.id, { [field]: newValue });
+        } catch (error) {
+            console.error(`Error updating privacy for ${field}:`, error);
+            // Revert on error
+            const revertedUser = { ...currentUser, [field]: !newValue };
+            set(state => ({
+                currentUser: revertedUser,
+                users: state.users.map(u => u.id === revertedUser.id ? revertedUser : u)
+            }));
+            localStorage.setItem('currentUser', JSON.stringify(revertedUser));
         }
     }
 }));

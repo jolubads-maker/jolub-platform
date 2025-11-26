@@ -226,8 +226,14 @@ const HomePage: React.FC = () => {
         <div className="container mx-auto px-4 h-20 flex items-center justify-between gap-8">
 
           {/* LOGO */}
-          <div className="flex-shrink-0 cursor-pointer" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}>
-            <h1 className="text-4xl font-black text-white tracking-tighter">JOLUB</h1>
+          <div className="flex-shrink-0 cursor-pointer flex items-center gap-1" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}>
+            <div className="w-12 h-12 bg-[#ea580c] rounded-lg flex items-center justify-center shadow-lg">
+              <span className="text-white font-black text-3xl">J</span>
+            </div>
+            <span className="text-white font-black text-2xl tracking-widest mx-1">OLU</span>
+            <div className="w-12 h-12 bg-[#ea580c] rounded-lg flex items-center justify-center shadow-lg">
+              <span className="text-white font-black text-3xl">B</span>
+            </div>
           </div>
 
           {/* SEARCH BAR */}

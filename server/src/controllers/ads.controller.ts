@@ -198,14 +198,39 @@ export const featureAd = async (req: Request, res: Response) => {
             return res.status(400).json({ error: 'Duration days is required' });
         }
 
-        const expiresAt = new Date();
-        expiresAt.setDate(expiresAt.getDate() + parseInt(durationDays));
+        const adId = Number(id);
+        const daysToAdd = parseInt(durationDays);
 
+        // 1. Get current ad state
+        const currentAd = await prisma.ad.findUnique({
+            where: { id: adId },
+            select: { createdAt: true, expiresAt: true }
+        });
+
+        if (!currentAd) {
+            return res.status(404).json({ error: 'Ad not found' });
+        }
+
+        // 2. Calculate current expiration date
+        // Default expiration is 7 days from creation if not set
+        let currentExpiration = currentAd.expiresAt
+            ? new Date(currentAd.expiresAt)
+            : new Date(new Date(currentAd.createdAt).getTime() + 7 * 24 * 60 * 60 * 1000);
+
+        // 3. Add purchased days to the current expiration
+        const newExpiration = new Date(currentExpiration.getTime() + daysToAdd * 24 * 60 * 60 * 1000);
+
+        // Calculate featured expiration (from now)
+        const featuredExpiresAt = new Date();
+        featuredExpiresAt.setDate(featuredExpiresAt.getDate() + daysToAdd);
+
+        // 4. Update ad
         const ad = await prisma.ad.update({
-            where: { id: Number(id) },
+            where: { id: adId },
             data: {
                 isFeatured: true,
-                featuredExpiresAt: expiresAt
+                featuredExpiresAt: featuredExpiresAt,
+                expiresAt: newExpiration
             }
         });
         res.json(ad);

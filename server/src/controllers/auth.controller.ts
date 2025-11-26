@@ -3,6 +3,7 @@ import prisma from '../database';
 import crypto from 'crypto';
 import nodemailer from 'nodemailer';
 import twilio from 'twilio';
+import bcrypt from 'bcryptjs';
 
 // Rate limiting map
 const RATE_LIMIT_WINDOW = 60 * 60 * 1000; // 1 hour
@@ -30,7 +31,7 @@ const emailTransporter = nodemailer.createTransport({
 
 export const syncUser = async (req: Request, res: Response) => {
     try {
-        const { name, avatar, email, provider, providerId, username, ip, country } = req.body;
+        const { name, avatar, email, provider, providerId, username, ip, country, password } = req.body;
 
         if (!name || typeof name !== 'string' || name.trim().length < 2) {
             return res.status(400).json({ error: 'El nombre debe tener al menos 2 caracteres' });
@@ -43,6 +44,12 @@ export const syncUser = async (req: Request, res: Response) => {
         const sanitizedName = name.trim().substring(0, 100);
         const sanitizedEmail = email ? email.trim().toLowerCase().substring(0, 255) : null;
         const sanitizedUsername = username ? username.trim().toLowerCase().substring(0, 50) : null;
+
+        // Hash password if manual provider
+        let hashedPassword = null;
+        if (provider === 'manual' && password) {
+            hashedPassword = await bcrypt.hash(password, 10);
+        }
 
         // Find or create user logic
         let user = null;
@@ -71,6 +78,7 @@ export const syncUser = async (req: Request, res: Response) => {
                     name: sanitizedName,
                     avatar: defaultAvatar,
                     email: sanitizedEmail,
+                    password: hashedPassword, // Save hashed password
                     provider: provider || 'manual',
                     providerId,
                     points: 0,
@@ -93,6 +101,7 @@ export const syncUser = async (req: Request, res: Response) => {
             };
 
             if (avatar) updateData.avatar = avatar;
+            if (hashedPassword) updateData.password = hashedPassword; // Update password if provided
 
             user = await prisma.user.update({
                 where: { id: user.id },
@@ -106,6 +115,8 @@ export const syncUser = async (req: Request, res: Response) => {
         res.status(500).json({ error: 'Error creando usuario' });
     }
 };
+
+
 
 export const generateSessionToken = async (req: Request, res: Response) => {
     try {
@@ -386,5 +397,148 @@ export const getIpInfo = async (req: Request, res: Response) => {
     } catch (err) {
         console.error('Error getting IP info:', err);
         res.status(500).json({ error: 'Error obteniendo información de IP' });
+    }
+};
+
+export const forgotPassword = async (req: Request, res: Response) => {
+    try {
+        const { email } = req.body;
+        if (!email) return res.status(400).json({ error: 'Email requerido' });
+
+        const user = await prisma.user.findFirst({ where: { email } });
+        if (!user) return res.status(404).json({ error: 'Usuario no encontrado' });
+
+        const token = crypto.randomBytes(32).toString('hex');
+
+        // Delete old tokens
+        await prisma.verificationCode.deleteMany({
+            where: { contact: email, type: 'password_reset' }
+        });
+
+        // Save new token
+        await prisma.verificationCode.create({
+            data: {
+                contact: email,
+                type: 'password_reset',
+                code: token,
+                expiresAt: new Date(Date.now() + 15 * 60 * 1000) // 15 mins
+            }
+        });
+
+        const resetLink = `http://localhost:5173/reset-password?token=${token}`;
+
+        if (!process.env.EMAIL_USER) {
+            return res.json({ ok: true, message: 'Modo demo', link: resetLink });
+        }
+
+        await emailTransporter.sendMail({
+            from: `"JOLUB Marketplace" <${process.env.EMAIL_USER}>`,
+            to: email,
+            subject: 'Restablecer Contraseña - JOLUB',
+            html: `
+                <h1>Restablecer Contraseña</h1>
+                <p>Haz clic en el siguiente enlace para restablecer tu contraseña:</p>
+                <a href="${resetLink}">${resetLink}</a>
+                <p>Este enlace expira en 15 minutos.</p>
+            `
+        });
+
+        res.json({ ok: true, message: 'Correo enviado' });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: 'Error en el servidor' });
+    }
+};
+
+export const resetPassword = async (req: Request, res: Response) => {
+    try {
+        const { token, password } = req.body;
+        if (!token || !password) return res.status(400).json({ error: 'Faltan datos' });
+
+        const verification = await prisma.verificationCode.findFirst({
+            where: { code: token, type: 'password_reset' }
+        });
+
+        if (!verification) return res.status(400).json({ error: 'Token inválido' });
+        if (verification.expiresAt < new Date()) return res.status(400).json({ error: 'Token expirado' });
+
+        const user = await prisma.user.findFirst({ where: { email: verification.contact } });
+        if (!user) return res.status(404).json({ error: 'Usuario no encontrado' });
+
+        console.log(`[RESET PASSWORD] Updating password for user: ${user.email}`);
+
+        // Hash password
+        const hashedPassword = await bcrypt.hash(password, 10);
+
+        // Update password
+        await prisma.user.update({
+            where: { id: user.id },
+            data: { password: hashedPassword }
+        });
+
+        // Delete token
+        await prisma.verificationCode.delete({ where: { id: verification.id } });
+
+        res.json({ ok: true, message: 'Contraseña actualizada' });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: 'Error en el servidor' });
+    }
+};
+
+export const login = async (req: Request, res: Response) => {
+    try {
+        const { email, password } = req.body;
+
+        if (!email || !password) {
+            return res.status(400).json({ error: 'Email y contraseña requeridos' });
+        }
+
+        console.log(`[LOGIN] Attempting login for: ${email}`);
+
+        const user = await prisma.user.findFirst({ where: { email } });
+
+        if (!user) {
+            console.log(`[LOGIN] User not found: ${email}`);
+            return res.status(401).json({ error: 'Credenciales inválidas' });
+        }
+
+        console.log(`[LOGIN] User found: ${user.email}, Provider: ${user.provider}`);
+
+        if (user.provider !== 'manual' || !user.password) {
+            console.log(`[LOGIN] Invalid provider or no password for: ${email}`);
+            return res.status(401).json({ error: 'Por favor inicia sesión con tu proveedor social' });
+        }
+
+        const isMatch = await bcrypt.compare(password, user.password);
+        console.log(`[LOGIN] Password match result: ${isMatch}`);
+
+        if (!isMatch) {
+            return res.status(401).json({ error: 'Credenciales inválidas' });
+        }
+
+        // Update online status
+        await prisma.user.update({
+            where: { id: user.id },
+            data: { isOnline: true, lastSeen: new Date() }
+        });
+
+        res.json(user);
+    } catch (err) {
+        console.error('Error logging in:', err);
+        res.status(500).json({ error: 'Error al iniciar sesión' });
+    }
+};
+
+export const checkEmail = async (req: Request, res: Response) => {
+    try {
+        const { email } = req.body;
+        if (!email) return res.status(400).json({ error: 'Email requerido' });
+
+        const user = await prisma.user.findFirst({ where: { email } });
+        res.json({ exists: !!user });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: 'Error en el servidor' });
     }
 };

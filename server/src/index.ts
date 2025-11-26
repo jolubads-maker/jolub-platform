@@ -2,6 +2,7 @@ import 'dotenv/config';
 import express from 'express';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
+import cors from 'cors';
 import prisma from './database';
 
 // Routes
@@ -11,7 +12,7 @@ import adsRoutes from './routes/ads.routes';
 import chatRoutes from './routes/chat.routes';
 import favoritesRoutes from './routes/favorites.routes';
 import uploadRoutes from './routes/upload.routes';
-import { sendMessage } from './controllers/chat.controller';
+import { errorHandler } from './middleware/errorHandler';
 
 const app = express();
 
@@ -19,16 +20,28 @@ const app = express();
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// CORS
-app.use((req, res, next) => {
-    res.header('Access-Control-Allow-Origin', '*');
-    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-    res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
-    if (req.method === 'OPTIONS') {
-        return res.sendStatus(200);
-    }
-    next();
-});
+// CORS Security
+const allowedOrigins = [
+    'http://localhost:3000',
+    'http://localhost:5173',
+    'http://127.0.0.1:3000',
+    process.env.CLIENT_URL // Production URL
+].filter(Boolean);
+
+app.use(cors({
+    origin: (origin, callback) => {
+        // Allow requests with no origin (like mobile apps or curl requests)
+        if (!origin) return callback(null, true);
+        if (allowedOrigins.indexOf(origin) !== -1 || origin.startsWith('http://192.168.')) {
+            callback(null, true);
+        } else {
+            callback(new Error('Not allowed by CORS'));
+        }
+    },
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization']
+}));
 
 // Routes Mounting
 app.use('/api', authRoutes);
@@ -38,31 +51,69 @@ app.use('/api', chatRoutes);
 app.use('/api/favorites', favoritesRoutes);
 app.use('/api', uploadRoutes);
 
+// Error Handling Middleware (Must be last)
+app.use(errorHandler);
+
 // Socket.io Setup
 const httpServer = createServer(app);
 const io = new Server(httpServer, {
     cors: {
-        origin: '*',
-        methods: ['GET', 'POST']
+        origin: (origin, callback) => {
+            if (!origin) return callback(null, true);
+            if (allowedOrigins.indexOf(origin) !== -1 || origin.startsWith('http://192.168.')) {
+                callback(null, true);
+            } else {
+                callback(new Error('Not allowed by CORS'));
+            }
+        },
+        methods: ['GET', 'POST'],
+        credentials: true
+    }
+});
+
+// Socket.io Security Middleware
+io.use(async (socket, next) => {
+    try {
+        const token = socket.handshake.auth.token;
+        if (!token) {
+            return next(new Error('Authentication error: No token provided'));
+        }
+
+        const user = await prisma.user.findUnique({
+            where: { sessionToken: token }
+        });
+
+        if (!user) {
+            return next(new Error('Authentication error: Invalid token'));
+        }
+
+        // Attach user to socket
+        socket.data.user = user;
+        next();
+    } catch (err) {
+        next(new Error('Authentication error: Server error'));
     }
 });
 
 io.on('connection', (socket) => {
-    console.log('🔌 Cliente conectado:', socket.id);
+    const user = socket.data.user;
+    console.log(`🔌 Cliente conectado: ${socket.id} (User: ${user?.username || 'Unknown'})`);
 
     socket.on('join_chat', (chatId) => {
         socket.join(chatId);
-        console.log(`👤 Usuario ${socket.id} se unió al chat: ${chatId}`);
+        console.log(`👤 Usuario ${user?.username} se unió al chat: ${chatId}`);
     });
 
     socket.on('send_message', async (data) => {
         const { chatId, userId, text, sender } = data;
-        try {
-            // We need to manually call the logic here since it's not an HTTP request
-            // But we can reuse the prisma call directly or extract logic to a service
-            // For now, let's duplicate the simple prisma call or import it
-            // I'll use prisma directly here as in the original code
 
+        // Validate sender identity
+        if (user && user.id !== Number(userId)) {
+            console.warn(`⚠️ Intento de suplantación: SocketUser ${user.id} intentó enviar como ${userId}`);
+            return;
+        }
+
+        try {
             const message = await prisma.message.create({
                 data: {
                     chatId,
@@ -87,7 +138,7 @@ io.on('connection', (socket) => {
     });
 
     socket.on('disconnect', () => {
-        console.log('❌ Cliente desconectado:', socket.id);
+        console.log(`❌ Cliente desconectado: ${socket.id}`);
     });
 });
 
@@ -95,7 +146,7 @@ const PORT = process.env.PORT || 4000;
 const server = httpServer.listen(PORT, () => {
     console.log(`API server on http://localhost:${PORT}`);
     console.log(`📊 Base de datos SQLite conectada (Prisma)`);
-    console.log(`🚀 Socket.io listo`);
+    console.log(`🚀 Socket.io listo (Secure Mode)`);
 });
 
 server.on('error', (e: any) => {

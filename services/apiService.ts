@@ -41,9 +41,10 @@ class ApiService {
     username?: string;
     ip?: string;
     country?: string;
+    password?: string;
   }): Promise<User> {
-    console.log('📡 POST /api/users', userData);
-    const response = await fetch(`${API_BASE}/users`, {
+    console.log('📡 POST /api/auth/sync', userData);
+    const response = await fetch(`${API_BASE}/auth/sync`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(userData)
@@ -76,6 +77,16 @@ class ApiService {
       body: JSON.stringify({ phoneNumber })
     });
     if (!response.ok) throw new Error('Error verificando teléfono');
+    return response.json();
+  }
+
+  async updatePrivacy(userId: number, settings: { showEmail?: boolean; showPhone?: boolean }): Promise<User> {
+    const response = await fetch(`${API_BASE}/users/${userId}/privacy`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(settings)
+    });
+    if (!response.ok) throw new Error('Error actualizando privacidad');
     return response.json();
   }
 

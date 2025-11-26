@@ -68,7 +68,7 @@ const AdCard: React.FC<AdCardProps> = memo(({ ad, seller, onSelect, currentUser,
         {/* Featured Star Icon */}
         {ad.isFeatured && (
           <div className="absolute top-2 left-2 z-10">
-            <div className="bg-yellow-400 text-white p-1.5 rounded-full shadow-lg border-2 border-white animate-pulse">
+            <div className="bg-[#ea580c] text-white p-1.5 rounded-full shadow-lg border-2 border-white animate-pulse">
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4">
                 <path fillRule="evenodd" d="M10.788 3.21c.448-1.077 1.976-1.077 2.424 0l2.082 5.007 5.404.433c1.164.093 1.636 1.545.749 2.305l-4.117 3.527 1.257 5.273c.271 1.136-.964 2.033-1.96 1.425L12 18.354 7.373 21.18c-.996.608-2.231-.29-1.96-1.425l1.257-5.273-4.117-3.527c-.887-.76-.415-2.212.749-2.305l5.404-.433 2.082-5.006z" clipRule="evenodd" />
               </svg>
@@ -110,20 +110,44 @@ const AdCard: React.FC<AdCardProps> = memo(({ ad, seller, onSelect, currentUser,
 
         {/* VARIANT: DASHBOARD */}
         {variant === 'dashboard' ? (
-          <div className="mt-2 flex items-center justify-between border-t border-gray-50 pt-2">
-            <div className="flex items-center gap-1.5">
-              <svg className="w-6 h-6 text-[#6e0ad6]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-              </svg>
-              <span className="text-black text-lg font-bold">{ad.views}</span>
+          <div className="flex flex-col gap-2 mt-1">
+            {/* Expiration Logic */}
+            {(() => {
+              const expirationDate = ad.expiresAt
+                ? new Date(ad.expiresAt)
+                : new Date(new Date(ad.createdAt || Date.now()).getTime() + 7 * 24 * 60 * 60 * 1000);
+
+              const now = new Date();
+              const daysRemaining = Math.ceil((expirationDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+
+              return (
+                <div className="text-sm font-bold">
+                  {daysRemaining > 0 ? (
+                    <span className="text-orange-600">Caduca en {daysRemaining} días</span>
+                  ) : (
+                    <span className="text-red-600 font-bold">Caducado</span>
+                  )}
+                </div>
+              );
+            })()}
+
+            <div className="flex items-center justify-between border-t border-gray-50 pt-2">
+              <div className="flex items-center gap-1.5">
+                <svg className="w-6 h-6 text-[#6e0ad6]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                </svg>
+                <span className="text-black text-lg font-bold">{ad.views}</span>
+              </div>
+              {!ad.isFeatured && (
+                <button
+                  onClick={handleHighlightClick}
+                  className="bg-orange-500 hover:bg-orange-600 text-white text-xs font-bold px-3 py-1.5 rounded-lg transition-colors shadow-sm"
+                >
+                  Destacar
+                </button>
+              )}
             </div>
-            <button
-              onClick={handleHighlightClick}
-              className="bg-orange-500 hover:bg-orange-600 text-white text-xs font-bold px-3 py-1.5 rounded-lg transition-colors shadow-sm"
-            >
-              Destacar
-            </button>
           </div>
         ) : (
           /* VARIANT: DEFAULT */

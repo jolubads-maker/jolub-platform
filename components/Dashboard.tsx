@@ -20,7 +20,7 @@ const Dashboard: React.FC = () => {
   const navigate = useNavigate();
 
   // Global State
-  const { currentUser, logout, updateUserStatus, updateUserPhone, updateUserEmail } = useAuthStore();
+  const { currentUser, logout, updateUserStatus, updateUserPhone, updateUserEmail, togglePrivacy } = useAuthStore();
   const { ads, incrementViews } = useAdStore();
   const { chatLogs } = useChatStore();
   const { users } = useAuthStore();
@@ -167,6 +167,24 @@ const Dashboard: React.FC = () => {
     }
   };
 
+  const carouselRef = useRef<HTMLDivElement>(null);
+
+  const scrollCarousel = (direction: 'left' | 'right') => {
+    if (carouselRef.current) {
+      const cardWidth = 240;
+      const gap = 24; // gap-6
+      const scrollAmount = (cardWidth + gap) * 4; // Scroll 4 items
+      const newScrollLeft = direction === 'left'
+        ? carouselRef.current.scrollLeft - scrollAmount
+        : carouselRef.current.scrollLeft + scrollAmount;
+
+      carouselRef.current.scrollTo({
+        left: newScrollLeft,
+        behavior: 'smooth'
+      });
+    }
+  };
+
   return (
     <div className="min-h-screen bg-white text-gray-800 font-sans relative overflow-hidden">
       <input
@@ -180,8 +198,14 @@ const Dashboard: React.FC = () => {
       {/* HEADER */}
       <header className="sticky top-0 z-50 w-full bg-[#6e0ad6] shadow-lg mb-8">
         <div className="container mx-auto px-4 h-20 flex items-center justify-between gap-8">
-          <div className="flex-shrink-0 cursor-pointer" onClick={() => navigate('/')}>
-            <h1 className="text-4xl font-black text-white tracking-tighter">JOLUB</h1>
+          <div className="flex-shrink-0 cursor-pointer flex items-center gap-1" onClick={() => navigate('/')}>
+            <div className="w-12 h-12 bg-[#ea580c] rounded-lg flex items-center justify-center shadow-lg">
+              <span className="text-white font-black text-3xl">J</span>
+            </div>
+            <span className="text-white font-black text-2xl tracking-widest mx-1">OLU</span>
+            <div className="w-12 h-12 bg-[#ea580c] rounded-lg flex items-center justify-center shadow-lg">
+              <span className="text-white font-black text-3xl">B</span>
+            </div>
           </div>
           <div className="flex items-center gap-6 text-white font-semibold ml-auto">
             <button onClick={() => navigate('/')} className="hover:text-gray-200 transition-colors">
@@ -209,77 +233,115 @@ const Dashboard: React.FC = () => {
       </header>
 
       <div className="container mx-auto px-4 pb-12 relative">
-        <div className="max-w-7xl mx-auto mb-8 flex items-center gap-4">
+        <div className="max-w-7xl mx-auto mb-8 flex flex-col md:flex-row justify-between items-center gap-4">
           <h2 className="text-3xl md:text-4xl font-black text-gray-800 tracking-tight drop-shadow-sm">
             Bienvenido a tu centro de control
           </h2>
+
+          {/* ID Badge */}
+          <div className="py-1.5 px-4 rounded-lg bg-[#ea580c] text-xs font-bold text-white shadow-lg cursor-pointer hover:bg-[#d9520b] transition-colors flex items-center gap-2"
+            onClick={() => navigator.clipboard.writeText(currentUser.uniqueId || `USER-${currentUser.id}`)}>
+            <span>ID: {currentUser.uniqueId || `USER-${currentUser.id}`}</span>
+          </div>
         </div>
 
         <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-4 gap-6">
-          {/* 1. PERFIL */}
+          {/* 1. PERFIL (Purple & Bento) */}
           <motion.div
             layoutId="profile-card"
-            className="col-span-1 md:col-span-2 bg-gradient-to-br from-[#6e0ad6] to-[#4a0099] rounded-[2rem] p-6 relative overflow-hidden group shadow-[0_20px_50px_-12px_rgba(110,10,214,0.5)] hover:shadow-[0_20px_60px_-12px_rgba(110,10,214,0.7)] transition-all duration-500 flex items-center"
+            className="col-span-1 md:col-span-2 bg-[#6e0ad6] rounded-[2rem] p-6 relative overflow-hidden group shadow-2xl min-h-[200px] flex flex-col justify-center"
           >
-            <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full blur-[80px] -translate-y-1/2 translate-x-1/2 group-hover:bg-white/20 transition-colors duration-700" />
-            <div className="absolute top-6 right-6 inline-flex items-center px-3 py-1 rounded-full bg-white/10 border border-white/20 text-xs font-bold text-white/80 backdrop-blur-md">
-              ID: {currentUser.uniqueId || `USER-${currentUser.id}`}
-            </div>
-            <div className="relative z-10 flex flex-row items-center gap-6 w-full">
-              <div className="relative flex-shrink-0 cursor-pointer group/avatar" onClick={handleAvatarClick}>
-                <div className="absolute inset-0 bg-white/20 rounded-full blur-lg opacity-50" />
+            {/* Background Effects */}
+            <div className="absolute top-0 right-0 w-80 h-80 bg-white/10 rounded-full blur-[100px] -translate-y-1/2 translate-x-1/2 pointer-events-none" />
+            <div className="absolute bottom-0 left-0 w-64 h-64 bg-orange-500/20 rounded-full blur-[80px] translate-y-1/2 -translate-x-1/2 pointer-events-none" />
+
+            <div className="relative z-10 flex flex-col md:flex-row items-center md:items-start gap-6 pl-4">
+
+              {/* Avatar (Left) */}
+              <div className="relative group/avatar cursor-pointer flex-shrink-0" onClick={handleAvatarClick}>
+                <div className="absolute inset-0 bg-white/20 rounded-full blur-md opacity-50 group-hover/avatar:opacity-80 transition-opacity" />
                 <img
-                  src={currentUser.avatar}
+                  src={currentUser.avatar || "https://ui-avatars.com/api/?name=" + encodeURIComponent(currentUser.name) + "&background=random"}
                   alt={currentUser.name}
-                  className={`relative w-24 h-24 rounded-full border-4 border-white/20 object-cover shadow-2xl transition-all duration-300 group-hover/avatar:border-white/50 group-hover/avatar:scale-105 ${isUploadingAvatar ? 'opacity-50 grayscale' : ''}`}
+                  className="relative w-32 h-32 rounded-full border-4 border-white/20 object-cover shadow-2xl transition-transform duration-300 group-hover/avatar:scale-105 bg-gray-800"
+                  onError={(e) => {
+                    const target = e.target as HTMLImageElement;
+                    target.src = "https://ui-avatars.com/api/?name=" + encodeURIComponent(currentUser.name) + "&background=random";
+                  }}
                 />
                 {isUploadingAvatar && (
-                  <div className="absolute inset-0 flex items-center justify-center z-20">
+                  <div className="absolute inset-0 flex items-center justify-center z-20 bg-black/50 rounded-full">
                     <div className="w-8 h-8 border-2 border-white border-t-transparent rounded-full animate-spin" />
                   </div>
                 )}
-                {!isUploadingAvatar && (
-                  <div className="absolute inset-0 flex items-center justify-center z-20 opacity-0 group-hover/avatar:opacity-100 transition-opacity bg-black/30 rounded-full">
-                    <span className="text-white text-xs font-bold">Cambiar</span>
-                  </div>
-                )}
-                <div className={`absolute bottom-1 right-1 w-5 h-5 rounded-full border-4 border-[#5b00b3] ${currentUser.isOnline ? 'bg-green-400' : 'bg-gray-400'} z-30`} />
+                <div className="absolute bottom-1 right-1 w-6 h-6 bg-[#1a1a1a] rounded-full flex items-center justify-center z-20 border-2 border-[#6e0ad6]">
+                  <div className={`w-3 h-3 rounded-full ${currentUser.isOnline ? 'bg-green-500 shadow-[0_0_10px_#22c55e]' : 'bg-gray-500'}`} />
+                </div>
               </div>
-              <div className="flex flex-col items-start">
-                <h1 className="text-3xl font-black text-white mb-1 tracking-tight drop-shadow-lg">{currentUser.name}</h1>
-                <div className="flex flex-col gap-2 mt-2">
-                  {currentUser.emailVerified ? (
-                    <div className="flex items-center gap-2 text-green-400">
-                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5">
-                        <path d="M1.5 8.67v8.58a3 3 0 003 3h15a3 3 0 003-3V8.67l-8.928 5.493a3 3 0 01-3.144 0L1.5 8.67z" />
-                        <path d="M22.5 6.908V6.75a3 3 0 00-3-3h-15a3 3 0 00-3 3v.158l9.714 5.978a1.5 1.5 0 001.572 0L22.5 6.908z" />
+
+              {/* Info (Middle) */}
+              <div className="flex flex-col items-center md:items-start gap-1 flex-1 pt-2">
+                <h1 className="text-4xl font-bold text-white tracking-tight drop-shadow-md mb-0.5">{currentUser.name}</h1>
+                <p className="text-white/80 text-sm font-medium mb-4">
+                  Miembro desde {new Date(currentUser.createdAt || Date.now()).getFullYear()}
+                </p>
+
+                {/* Contact List - Horizontal Row */}
+                <div className="flex flex-wrap items-center gap-8 w-full">
+
+                  {/* Email Row */}
+                  <div className="flex items-center gap-3 h-8">
+                    <div className="text-white flex items-center justify-center">
+                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" className="w-6 h-6">
+                        <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
+                        <polyline points="22,6 12,13 2,6" />
                       </svg>
-                      <span className="text-sm font-bold tracking-wide drop-shadow-sm">Email Verificado</span>
                     </div>
-                  ) : (
-                    <div className="flex items-center gap-2 text-yellow-300">
-                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5">
-                        <path d="M1.5 8.67v8.58a3 3 0 003 3h15a3 3 0 003-3V8.67l-8.928 5.493a3 3 0 01-3.144 0L1.5 8.67z" />
-                        <path d="M22.5 6.908V6.75a3 3 0 00-3-3h-15a3 3 0 00-3 3v.158l9.714 5.978a1.5 1.5 0 001.572 0L22.5 6.908z" />
+                    {currentUser.emailVerified ? (
+                      <div className="flex items-center gap-3">
+                        <span className="text-white font-bold text-base">
+                          {currentUser.showEmail ? currentUser.email : 'Confirmado'}
+                        </span>
+                        <button
+                          onClick={() => togglePrivacy('showEmail')}
+                          className={`relative w-10 h-5 rounded-full transition-all duration-300 ease-out focus:outline-none shadow-inner ${currentUser.showEmail ? 'bg-green-500' : 'bg-black/40 border border-white/10'}`}
+                        >
+                          <span
+                            className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow-md transform transition-transform duration-300 cubic-bezier(0.4, 0.0, 0.2, 1) ${currentUser.showEmail ? 'translate-x-5' : 'translate-x-0'}`}
+                          />
+                        </button>
+                      </div>
+                    ) : (
+                      <span className="text-white font-bold text-base">No verificado</span>
+                    )}
+                  </div>
+
+                  {/* Phone Row */}
+                  <div className="flex items-center gap-3 h-8">
+                    <div className="text-white flex items-center justify-center">
+                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" className="w-6 h-6">
+                        <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z" />
                       </svg>
-                      <span className="text-sm font-bold">Email Pendiente</span>
                     </div>
-                  )}
-                  {currentUser.phoneVerified ? (
-                    <div className="flex items-center gap-2 text-green-400">
-                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5">
-                        <path fillRule="evenodd" d="M1.5 4.5a3 3 0 013-3h1.372c.86 0 1.61.586 1.819 1.42l1.105 4.423a1.875 1.875 0 01-.694 1.955l-1.293.97c-.135.101-.164.249-.126.352a11.285 11.285 0 006.697 6.697c.103.038.25.009.352-.126l.97-1.293a1.875 1.875 0 011.955-.694l4.423 1.105c.834.209 1.42.959 1.42 1.82V19.5a3 3 0 01-3 3h-2.25C8.552 22.5 1.5 15.448 1.5 5.25V4.5z" clipRule="evenodd" />
-                      </svg>
-                      <span className="text-sm font-bold tracking-wide drop-shadow-sm">Teléfono Verificado</span>
-                    </div>
-                  ) : (
-                    <div className="flex items-center gap-2 text-yellow-300">
-                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5">
-                        <path fillRule="evenodd" d="M1.5 4.5a3 3 0 013-3h1.372c.86 0 1.61.586 1.819 1.42l1.105 4.423a1.875 1.875 0 01-.694 1.955l-1.293.97c-.135.101-.164.249-.126.352a11.285 11.285 0 006.697 6.697c.103.038.25.009.352-.126l.97-1.293a1.875 1.875 0 011.955-.694l4.423 1.105c.834.209 1.42.959 1.42 1.82V19.5a3 3 0 01-3 3h-2.25C8.552 22.5 1.5 15.448 1.5 5.25V4.5z" clipRule="evenodd" />
-                      </svg>
-                      <span className="text-sm font-bold">Teléfono Pendiente</span>
-                    </div>
-                  )}
+                    {currentUser.phoneVerified ? (
+                      <div className="flex items-center gap-3">
+                        <span className="text-white font-bold text-base">
+                          {currentUser.showPhone ? currentUser.phone : 'Confirmado'}
+                        </span>
+                        <button
+                          onClick={() => togglePrivacy('showPhone')}
+                          className={`relative w-10 h-5 rounded-full transition-all duration-300 ease-out focus:outline-none shadow-inner ${currentUser.showPhone ? 'bg-green-500' : 'bg-black/40 border border-white/10'}`}
+                        >
+                          <span
+                            className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow-md transform transition-transform duration-300 cubic-bezier(0.4, 0.0, 0.2, 1) ${currentUser.showPhone ? 'translate-x-5' : 'translate-x-0'}`}
+                          />
+                        </button>
+                      </div>
+                    ) : (
+                      <span className="text-white font-bold text-base">No verificado</span>
+                    )}
+                  </div>
+
                 </div>
               </div>
             </div>
@@ -287,102 +349,146 @@ const Dashboard: React.FC = () => {
 
           {/* 2. STATS: PUNTOS */}
           <motion.div
-            whileHover={{ y: -5 }}
-            className="col-span-1 bg-gradient-to-br from-[#6e0ad6] to-[#4a0099] rounded-[2rem] p-6 flex flex-col justify-between relative overflow-hidden shadow-[0_15px_40px_-10px_rgba(110,10,214,0.4)]"
+            className="col-span-1 bg-[#6e0ad6] rounded-[2rem] p-6 flex flex-col justify-center relative overflow-hidden shadow-2xl min-h-[200px]"
           >
-            <div className="absolute -right-4 -top-4 w-32 h-32 bg-white/10 rounded-full blur-2xl" />
-            <div className="flex items-center gap-3 mb-4">
-              <div className="p-2 bg-white/10 rounded-xl text-yellow-300 backdrop-blur-sm">
+            {/* Background Effects */}
+            <div className="absolute top-0 right-0 w-80 h-80 bg-white/10 rounded-full blur-[100px] -translate-y-1/2 translate-x-1/2 pointer-events-none" />
+            <div className="absolute bottom-0 left-0 w-64 h-64 bg-orange-500/20 rounded-full blur-[80px] translate-y-1/2 -translate-x-1/2 pointer-events-none" />
+
+            <div className="relative z-10 flex items-start gap-4">
+              <div className="p-2 bg-[#ea580c] rounded-full text-white shadow-lg flex-shrink-0 mt-1">
                 <StarIcon className="w-6 h-6" />
               </div>
-              <span className="font-bold text-white/90 text-lg">Reputación</span>
-            </div>
-            <div>
-              <div className="text-5xl font-black text-white mb-2 drop-shadow-md">{currentUser.points}</div>
-              <div className="w-full bg-black/30 rounded-full h-2 mt-2 overflow-hidden backdrop-blur-sm">
-                <div className="bg-gradient-to-r from-yellow-400 to-yellow-600 h-full rounded-full shadow-[0_0_10px_rgba(250,204,21,0.5)]" style={{ width: `${Math.min((currentUser.points / 1000) * 100, 100)}%` }} />
+              <div className="flex flex-col">
+                <span className="font-bold text-white text-2xl mb-1">Reputación</span>
+                <div className="text-5xl font-black text-white drop-shadow-md mb-1">{currentUser.points}</div>
+                <p className="text-sm text-white/80 font-medium">Puntos de confianza</p>
               </div>
-              <p className="text-xs text-white/60 mt-3 font-medium uppercase tracking-wider">Puntos de confianza</p>
             </div>
           </motion.div>
 
           {/* 3. STATS: ANUNCIOS */}
           <motion.div
-            whileHover={{ y: -5 }}
-            className="col-span-1 bg-gradient-to-br from-[#6e0ad6] to-[#4a0099] rounded-[2rem] p-6 flex flex-col justify-between relative overflow-hidden shadow-[0_15px_40px_-10px_rgba(110,10,214,0.4)]"
+            className="col-span-1 bg-[#6e0ad6] rounded-[2rem] p-6 flex flex-col justify-center relative overflow-hidden shadow-2xl min-h-[200px]"
           >
-            <div className="absolute -right-4 -top-4 w-32 h-32 bg-white/10 rounded-full blur-2xl" />
-            <div className="flex items-center gap-3 mb-4">
-              <div className="p-2 bg-white/10 rounded-xl text-blue-300 backdrop-blur-sm">
+            {/* Background Effects */}
+            <div className="absolute top-0 right-0 w-80 h-80 bg-white/10 rounded-full blur-[100px] -translate-y-1/2 translate-x-1/2 pointer-events-none" />
+            <div className="absolute bottom-0 left-0 w-64 h-64 bg-orange-500/20 rounded-full blur-[80px] translate-y-1/2 -translate-x-1/2 pointer-events-none" />
+
+            <div className="relative z-10 flex items-start gap-4">
+              <div className="p-2 bg-[#ea580c] rounded-full text-white shadow-lg flex-shrink-0 mt-1">
                 <EyeIcon className="w-6 h-6" />
               </div>
-              <span className="font-bold text-white/90 text-lg">Anuncios</span>
-            </div>
-            <div>
-              <div className="text-5xl font-black text-white mb-2 drop-shadow-md">{userAds.length}</div>
-              <p className="text-xs text-white/60 mt-1 font-medium uppercase tracking-wider">Activos en el mercado</p>
+              <div className="flex flex-col">
+                <span className="font-bold text-white text-2xl mb-1">Anuncios</span>
+                <div className="text-5xl font-black text-white drop-shadow-md mb-1">{userAds.length}</div>
+                <p className="text-sm text-white/80 font-medium">Activos en el mercado</p>
+              </div>
             </div>
           </motion.div>
 
           {/* 4. VERIFICACIONES (Removed old inline verifications) */}
 
-          {/* 5. MIS ANUNCIOS */}
-          <div className="col-span-1 md:col-span-2 bg-white rounded-[2rem] p-8 flex flex-col shadow-[0_20px_60px_-15px_rgba(0,0,0,0.1)] border-2 border-[#6e0ad6] min-h-[400px]">
-            <h3 className="text-2xl font-black text-gray-800 mb-6 flex items-center gap-3">
-              <span className="w-3 h-8 bg-[#6e0ad6] rounded-full shadow-[0_0_15px_rgba(110,10,214,0.5)]" />
-              Mis Publicaciones
-            </h3>
-            <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar">
-              {userAds.length > 0 ? (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  {userAds.map(ad => (
-                    <AdCard
-                      key={ad.id}
-                      ad={ad}
-                      seller={currentUser}
-                      onSelect={() => setSelectedAd(ad)}
-                      currentUser={currentUser}
-                      onToggleFavorite={() => { }}
-                      variant="dashboard"
-                      onHighlight={handleHighlight}
-                    />
-                  ))}
-                </div>
-              ) : (
-                <div className="h-full flex flex-col items-center justify-center text-gray-400 opacity-80">
-                  {!currentUser.phoneVerified ? (
-                    <motion.div
-                      onClick={() => setShowPhoneVerifyModal(true)}
-                      className="w-full cursor-pointer flex flex-col items-center gap-4 group py-10"
-                    >
-                      <div className="transition-transform duration-300 group-hover:scale-110">
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-16 h-16 text-[#ea580c]">
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 1.5H8.25A2.25 2.25 0 006 3.75v16.5a2.25 2.25 0 002.25 2.25h7.5A2.25 2.25 0 0018 20.25V3.75a2.25 2.25 0 00-2.25-2.25H13.5m-3 0V3h3V1.5m-3 0h3m-3 18.75h3" />
-                        </svg>
-                      </div>
-                      <div className="text-center">
-                        <span className="text-xl font-bold text-black block mb-1">Verifica tu teléfono</span>
-                        <span className="text-sm text-black font-medium">Para publicar anuncios</span>
-                      </div>
-                    </motion.div>
-                  ) : (
-                    <div className="flex flex-col items-center justify-center py-10 group">
-                      <div className="mb-4 transition-transform duration-300 group-hover:scale-110">
-                        <EyeIcon className="w-16 h-16 text-[#ea580c]" />
-                      </div>
-                      <p className="font-bold text-lg text-black">No tienes anuncios activos</p>
-                      <button onClick={() => navigate('/publicar')} className="mt-4 text-[#6e0ad6] font-bold hover:underline">
-                        Crear uno ahora
-                      </button>
+          {/* 5. MIS ANUNCIOS (CAROUSEL) */}
+          <div className="col-span-1 md:col-span-4 bg-white rounded-[2rem] p-8 flex flex-col shadow-[0_20px_60px_-15px_rgba(0,0,0,0.1)] border-2 border-[#6e0ad6] min-h-[450px] relative">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-2xl font-black text-gray-800 flex items-center gap-3">
+                <span className="w-3 h-8 bg-[#6e0ad6] rounded-full shadow-[0_0_15px_rgba(110,10,214,0.5)]" />
+                Mis Publicaciones
+              </h3>
+              {currentUser.phoneVerified && userAds.length > 0 && (
+                <button
+                  onClick={() => navigate('/publicar')}
+                  className="bg-[#ea580c] hover:bg-[#d9520b] text-white text-sm font-bold px-4 py-2 rounded-xl transition-colors shadow-md flex items-center gap-2"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-4 h-4">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                  </svg>
+                  Crear Anuncio
+                </button>
+              )}
+            </div>
+
+            <div className="relative flex-1 group/carousel">
+              {/* Left Arrow */}
+              {userAds.length > 4 && (
+                <button
+                  onClick={() => scrollCarousel('left')}
+                  className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-4 z-20 bg-[#6e0ad6] text-white p-3 rounded-full shadow-lg opacity-0 group-hover/carousel:opacity-100 transition-all duration-300 hover:scale-110 hover:bg-[#5b08b0]"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={3} stroke="currentColor" className="w-6 h-6">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
+                  </svg>
+                </button>
+              )}
+
+              {/* Carousel Container */}
+              <div
+                ref={carouselRef}
+                className={`flex gap-6 overflow-x-auto pb-8 pt-2 px-2 scroll-smooth snap-x snap-mandatory hide-scrollbar h-full items-center ${userAds.length <= 4 ? 'justify-center' : ''}`}
+              >
+                {userAds.length > 0 ? (
+                  userAds.map(ad => (
+                    <div key={ad.id} className="min-w-[240px] max-w-[240px] snap-center">
+                      <AdCard
+                        ad={ad}
+                        seller={currentUser}
+                        onSelect={() => setSelectedAd(ad)}
+                        currentUser={currentUser}
+                        onToggleFavorite={() => { }}
+                        variant="dashboard"
+                        onHighlight={handleHighlight}
+                      />
                     </div>
-                  )}
-                </div>
+                  ))
+                ) : (
+                  <div className="w-full h-full flex flex-col items-center justify-center text-gray-400 opacity-80 min-h-[300px]">
+                    {!currentUser.phoneVerified ? (
+                      <motion.div
+                        onClick={() => setShowPhoneVerifyModal(true)}
+                        className="w-full cursor-pointer flex flex-col items-center gap-4 group py-10"
+                      >
+                        <div className="transition-transform duration-300 group-hover:scale-110">
+                          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-16 h-16 text-[#ea580c]">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 1.5H8.25A2.25 2.25 0 006 3.75v16.5a2.25 2.25 0 002.25 2.25h7.5A2.25 2.25 0 0018 20.25V3.75a2.25 2.25 0 00-2.25-2.25H13.5m-3 0V3h3V1.5m-3 0h3m-3 18.75h3" />
+                          </svg>
+                        </div>
+                        <div className="text-center">
+                          <span className="text-xl font-bold text-black block mb-1">Verifica tu teléfono</span>
+                          <span className="text-sm text-black font-medium">Para publicar anuncios</span>
+                        </div>
+                      </motion.div>
+                    ) : (
+                      <div className="flex flex-col items-center justify-center py-10 group">
+                        <div className="mb-4 transition-transform duration-300 group-hover:scale-110">
+                          <EyeIcon className="w-16 h-16 text-[#ea580c]" />
+                        </div>
+                        <p className="font-bold text-lg text-black">No tienes anuncios activos</p>
+                        <button onClick={() => navigate('/publicar')} className="mt-4 text-[#6e0ad6] font-bold hover:underline">
+                          Crear uno ahora
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Right Arrow */}
+              {userAds.length > 4 && (
+                <button
+                  onClick={() => scrollCarousel('right')}
+                  className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-4 z-20 bg-[#6e0ad6] text-white p-3 rounded-full shadow-lg opacity-0 group-hover/carousel:opacity-100 transition-all duration-300 hover:scale-110 hover:bg-[#5b08b0]"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={3} stroke="currentColor" className="w-6 h-6">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
+                  </svg>
+                </button>
               )}
             </div>
           </div>
 
           {/* 6. MIS CHATS */}
-          <div className="col-span-1 md:col-span-2 bg-white rounded-[2rem] p-8 flex flex-col shadow-[0_20px_60px_-15px_rgba(0,0,0,0.1)] border-2 border-[#6e0ad6] min-h-[400px]">
+          <div className="col-span-1 md:col-span-4 bg-white rounded-[2rem] p-8 flex flex-col shadow-[0_20px_60px_-15px_rgba(0,0,0,0.1)] border-2 border-[#6e0ad6] min-h-[400px]">
             <h3 className="text-2xl font-black text-gray-800 mb-6 flex items-center gap-3">
               <span className="w-3 h-8 bg-green-500 rounded-full shadow-[0_0_15px_rgba(34,197,94,0.5)]" />
               Mensajes Recientes

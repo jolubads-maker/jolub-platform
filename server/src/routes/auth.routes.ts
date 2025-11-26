@@ -7,23 +7,33 @@ import {
     verifyPhoneCode,
     sendEmailCode,
     verifyEmailCode,
-    getIpInfo
+    getIpInfo,
+    forgotPassword,
+    resetPassword,
+    checkEmail,
+    login
 } from '../controllers/auth.controller';
 
 const router = Router();
 
 // User sync (login/register)
-router.post('/users', syncUser); // Was POST /api/users
+router.post('/auth/sync', syncUser);
+router.post('/auth/login', login);
 
 // Session management
-router.post('/users/:id/session-token', generateSessionToken); // Was POST /api/users/:id/session-token
-router.post('/auth/token', authenticateWithToken); // Was POST /api/auth/token
+router.post('/users/:id/session-token', generateSessionToken);
+router.post('/auth/token', authenticateWithToken);
 
 // Verification
 router.post('/send-phone-code', sendPhoneCode);
 router.post('/verify-phone-code', verifyPhoneCode);
 router.post('/send-email-code', sendEmailCode);
 router.post('/verify-email-code', verifyEmailCode);
+
+// Password Recovery
+router.post('/auth/forgot-password', forgotPassword);
+router.post('/auth/reset-password', resetPassword);
+router.post('/auth/check-email', checkEmail);
 
 // Utils
 router.get('/get-ip-info', getIpInfo);

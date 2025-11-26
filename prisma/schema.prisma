@@ -18,6 +18,7 @@ model User {
   name          String
   avatar        String
   email         String?  @unique // Email para autenticación OAuth
+  password      String?  // Contraseña para autenticación manual
   provider      String?  // 'google' | 'apple' | 'manual'
   providerId    String?  // ID del proveedor OAuth
   sessionToken  String?  @unique // Token de sesión para detección automática
@@ -25,6 +26,8 @@ model User {
   phone         String?
   phoneVerified Boolean  @default(false)
   emailVerified Boolean  @default(false)
+  showEmail     Boolean  @default(false)
+  showPhone     Boolean  @default(false)
   isOnline      Boolean  @default(true)
   lastSeen      DateTime @default(now())
   ip            String?  // IP del usuario al registrarse
@@ -53,6 +56,7 @@ model Ad {
   views       Int      @default(0)
   isFeatured  Boolean  @default(false)
   featuredExpiresAt DateTime?
+  expiresAt   DateTime? // Fecha de caducidad del anuncio (se extiende al destacar)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 

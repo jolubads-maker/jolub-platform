@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
+import ReCAPTCHA from 'react-google-recaptcha';
+import ForgotPasswordModal from './ForgotPasswordModal';
 
 interface LoginProps {
   onLogin: (userInfo: { name: string; avatar: string }) => void;
@@ -12,28 +14,108 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+  const [showForgotModal, setShowForgotModal] = useState(false);
+
+  const [showCaptcha, setShowCaptcha] = useState(false);
+
+  // Validation states
+  const [emailExists, setEmailExists] = useState(false);
+  const [isCheckingEmail, setIsCheckingEmail] = useState(false);
+
+  // Check email availability
+  React.useEffect(() => {
+    const checkEmail = async () => {
+      if (!email || !email.includes('@')) {
+        setEmailExists(false);
+        return;
+      }
+
+      setIsCheckingEmail(true);
+      try {
+        const response = await fetch('/api/auth/check-email', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email })
+        });
+        const data = await response.json();
+        setEmailExists(data.exists);
+      } catch (error) {
+        console.error('Error checking email:', error);
+        setEmailExists(false);
+      } finally {
+        setIsCheckingEmail(false);
+      }
+    };
+
+    const timeoutId = setTimeout(checkEmail, 500);
+    return () => clearTimeout(timeoutId);
+  }, [email]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (!captchaToken) {
+      alert('Por favor completa el reCAPTCHA');
+      return;
+    }
+
     setIsLoading(true);
 
-    // Simular autenticación
-    await new Promise(resolve => setTimeout(resolve, 1500));
+    try {
+      const response = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password })
+      });
 
-    // Login simulado - en producción aquí iría la llamada al backend
-    onLogin({
-      name: email.split('@')[0] || 'Usuario',
-      avatar: '', // Dejar vacío para que el backend decida (o mantenga el actual)
-      email: email,
-      provider: 'manual',
-      providerId: email
-    });
+      const data = await response.json();
 
-    setIsLoading(false);
+      if (!response.ok) {
+        throw new Error(data.error || 'Error al iniciar sesión');
+      }
+
+      // Login exitoso
+      onLogin(data);
+    } catch (error: any) {
+      console.error('Login error:', error);
+      alert(error.message || 'Error al iniciar sesión');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
+  const isFormValid = emailExists && password.length > 0 && captchaToken;
+
   return (
-    <div className="min-h-screen bg-[#6e0ad6] flex items-center justify-center p-4">
+    <div className="min-h-screen bg-[#6e0ad6] flex flex-col items-center justify-center p-4 relative">
+      {/* Botón Regresar */}
+      <button
+        onClick={() => navigate('/')}
+        className="absolute top-6 left-6 text-white hover:text-gray-200 flex items-center gap-2 font-bold transition-colors z-10"
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="w-5 h-5">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" />
+        </svg>
+        Regresar al Inicio
+      </button>
+
+      {/* Logo fuera del formulario */}
+      <div className="flex items-center justify-center gap-1 mb-8">
+        {/* J */}
+        <div className="w-12 h-12 bg-[#ea580c] rounded-xl flex items-center justify-center shadow-md">
+          <span className="text-3xl font-black text-white">J</span>
+        </div>
+
+        {/* OLU */}
+        <span className="text-2xl font-bold text-white tracking-widest px-1">OLU</span>
+
+        {/* B */}
+        <div className="w-12 h-12 bg-[#ea580c] rounded-xl flex items-center justify-center shadow-md">
+          <span className="text-3xl font-black text-white">B</span>
+        </div>
+      </div>
+
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -42,12 +124,6 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
       >
         {/* Tarjeta Principal */}
         <div className="bg-white rounded-2xl shadow-lg p-8">
-          {/* Encabezado */}
-          <div className="text-center mb-8">
-            <h1 className="text-5xl font-black text-[#6e0ad6] mb-2 tracking-tight">
-              <span className="text-5xl">J</span>olu<span className="text-5xl">B</span>
-            </h1>
-          </div>
 
           {/* Formulario */}
           <form onSubmit={handleSubmit} className="space-y-5">
@@ -56,15 +132,29 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
               <label htmlFor="email" className="block text-base font-bold text-gray-700 mb-2">
                 Correo electrónico
               </label>
-              <input
-                id="email"
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-                className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#6e0ad6] focus:border-transparent transition-all text-base text-purple-700"
-                placeholder="tu@email.com"
-              />
+              <div className="relative">
+                <input
+                  id="email"
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                  className={`w-full px-4 py-3 border-2 rounded-lg focus:outline-none focus:ring-2 transition-all text-base ${emailExists ? 'border-green-500 focus:ring-green-500 text-green-700' :
+                    isCheckingEmail ? 'border-yellow-400 focus:ring-yellow-400' :
+                      'border-gray-300 focus:ring-[#6e0ad6] text-purple-700'
+                    }`}
+                  placeholder="tu@email.com"
+                />
+                <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                  {isCheckingEmail ? (
+                    <div className="w-4 h-4 border-2 border-yellow-400 border-t-transparent rounded-full animate-spin"></div>
+                  ) : emailExists ? (
+                    <svg className="w-5 h-5 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                  ) : null}
+                </div>
+              </div>
             </div>
 
             {/* Password Input */}
@@ -78,6 +168,9 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
                   type={showPassword ? "text" : "password"}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
+                  onBlur={() => {
+                    if (password.length > 0) setShowCaptcha(true);
+                  }}
                   required
                   className="w-full px-4 py-3 pr-12 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#6e0ad6] focus:border-transparent transition-all text-base text-purple-700"
                   placeholder="••••••••"
@@ -101,12 +194,41 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
                   </button>
                 )}
               </div>
+              <div className="text-right mt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowForgotModal(true)}
+                  className="text-sm text-[#6e0ad6] hover:underline font-bold"
+                >
+                  ¿Olvidaste tu contraseña?
+                </button>
+              </div>
             </div>
+
+            {/* reCAPTCHA - Only show if password is entered */}
+            <AnimatePresence>
+              {showCaptcha && (
+                <motion.div
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: 'auto', opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  className="flex justify-center py-2 overflow-hidden"
+                >
+                  <div className="transform scale-90 origin-center">
+                    <ReCAPTCHA
+                      sitekey={import.meta.env.VITE_RECAPTCHA_SITE_KEY || "6LeIxAcTAAAAAJcZVRqyHh71UMIEGNQ_MXjiZKhI"}
+                      onChange={setCaptchaToken}
+                      theme="light"
+                    />
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
 
             {/* Botón de Login */}
             <button
               type="submit"
-              disabled={isLoading}
+              disabled={isLoading || !isFormValid}
               className="w-full bg-[#f28000] hover:bg-[#d97200] text-white font-bold py-3 px-6 rounded-full transition-all duration-300 transform hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
             >
               {isLoading ? (
@@ -144,6 +266,13 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
           Al continuar, aceptas nuestros Términos y Condiciones
         </p>
       </motion.div>
+
+      {/* Forgot Password Modal */}
+      <AnimatePresence>
+        {showForgotModal && (
+          <ForgotPasswordModal onClose={() => setShowForgotModal(false)} />
+        )}
+      </AnimatePresence>
     </div>
   );
 };
