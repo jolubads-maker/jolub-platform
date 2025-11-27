@@ -106,10 +106,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
                     set({ currentUser: null });
                 }
             } catch (error) {
-                console.error('Session verification failed:', error);
-                localStorage.removeItem('sessionToken');
-                localStorage.removeItem('currentUser');
-                set({ currentUser: null });
+                console.error('Session verification failed (Server Error):', error);
+                // Do NOT logout on server error (429, 500). 
+                // Only logout if we explicitly got null (401/403) handled above.
+                // We keep the local user state if possible, or just stop checking.
             } finally {
                 set({ isCheckingSession: false });
             }

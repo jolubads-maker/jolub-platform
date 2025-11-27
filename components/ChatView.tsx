@@ -144,129 +144,124 @@ const ChatView: React.FC<ChatViewProps> = ({ seller, buyer, onBack, chatLog, onS
           console.log('✅ [CLIENT] Mensaje confirmado por el servidor');
         }
       });
-    } else {
-      console.error('⚠️ Socket no inicializado');
     }
 
     setInputValue('');
   };
 
   return (
-    // Fondo estilo WhatsApp (oscuro con patrón sutil si fuera posible, aquí usaremos un color sólido oscuro elegante)
-    <div className="flex flex-col h-[85vh] max-w-4xl mx-auto rounded-2xl shadow-2xl overflow-hidden animate-fade-in bg-[#0b141a]">
+    // Full screen liquid background container
+    <div className="fixed inset-0 z-50 liquid-bg flex items-center justify-center p-4 md:p-6">
 
-      {/* Header WhatsApp Style */}
-      <div className="flex items-center p-3 bg-[#202c33] border-b border-[#2f3b43]">
-        <button onClick={onBack} className="text-[#aebac1] hover:text-white mr-3 transition-colors">
-          <ArrowLeftIcon className="w-6 h-6" />
-        </button>
-        <div className="relative cursor-pointer">
-          <img src={seller.avatar} alt={seller.name} className="w-10 h-10 rounded-full mr-3 object-cover" />
-          {seller.isOnline && (
-            <div className="absolute bottom-0 right-3 w-3 h-3 rounded-full border-2 border-[#202c33] bg-[#00a884]"></div>
-          )}
-        </div>
-        <div className="flex-1 cursor-pointer">
-          <h2 className="text-base font-medium text-[#e9edef] leading-tight">{seller.name}</h2>
-          <p className="text-xs text-[#8696a0]">
-            {seller.isOnline ? 'En línea' : 'Ult. vez hoy a las...'}
-          </p>
-        </div>
-      </div>
+      {/* Chat Card - Glassmorphism (More Opaque) */}
+      <div className="flex flex-col w-full max-w-4xl h-[85vh] rounded-2xl shadow-2xl overflow-hidden animate-fade-in bg-[#0b141a]/90 backdrop-blur-xl border border-white/10 relative">
 
-      {/* Chat Area WhatsApp Style */}
-      <div className="flex-1 p-4 overflow-y-auto bg-[#0b141a] bg-opacity-95" style={{ backgroundImage: 'url("https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png")', backgroundBlendMode: 'overlay' }}>
-        <div className="flex flex-col space-y-2">
-          {messages.length === 0 ? (
-            <div className="text-center py-12">
-              <div className="bg-[#202c33] rounded-xl p-4 inline-block mb-4 shadow-sm">
-                <p className="text-[#e9edef] text-sm">
-                  🔒 Los mensajes están cifrados de extremo a extremo. Nadie fuera de este chat, ni siquiera WhatsApp, puede leerlos ni escucharlos.
-                </p>
-              </div>
-              <p className="text-[#8696a0] text-sm mt-4">Envía un mensaje para comenzar la conversación.</p>
-            </div>
-          ) : (
-            messages.map((msg, index) => {
-              const isCurrentUser = msg.userId === buyer.id;
-
-              return (
-                <div
-                  key={msg.id || index}
-                  className={`flex ${isCurrentUser ? 'justify-end' : 'justify-start'} mb-1`}
-                >
-                  <div
-                    className={`relative max-w-[80%] px-3 py-1.5 rounded-lg shadow-sm text-sm ${isCurrentUser
-                      ? 'bg-[#005c4b] text-[#e9edef] rounded-tr-none' // Usuario: Verde WhatsApp
-                      : 'bg-[#202c33] text-[#e9edef] rounded-tl-none' // Otro: Gris oscuro
-                      }`}
-                  >
-                    <p className="break-words leading-relaxed">{msg.text}</p>
-                    <div className={`flex justify-end items-center space-x-1 mt-1 ${isCurrentUser ? 'text-[#8696a0]' : 'text-[#8696a0]'}`}>
-                      <span className="text-[10px] min-w-fit">
-                        {new Date(msg.timestamp || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                      </span>
-                      {isCurrentUser && (
-                        <span className={`text-[11px] ${msg.isRead ? 'text-[#53bdeb]' : 'text-[#8696a0]'}`}>
-                          {/* Doble check */}
-                          <svg viewBox="0 0 16 15" width="16" height="15" className="">
-                            <path fill="currentColor" d="M15.01 3.316l-.478-.372a.365.365 0 0 0-.51.063L8.666 9.879a.32.32 0 0 1-.484.033l-.358-.325a.319.319 0 0 0-.484.032l-.378.483a.418.418 0 0 0 .036.541l1.32 1.266c.143.14.361.125.484-.033l6.272-7.655a.366.366 0 0 0-.064-.512zm-4.1 0l-.478-.372a.365.365 0 0 0-.51.063L4.566 9.879a.32.32 0 0 1-.484.033L1.891 7.769a.366.366 0 0 0-.515.006l-.423.433a.364.364 0 0 0 .006.514l3.258 3.185c.143.14.361.125.484-.033l6.272-7.655a.365.365 0 0 0-.063-.51z"></path>
-                          </svg>
-                        </span>
-                      )}
-                    </div>
-
-                    {/* Triángulo de la burbuja */}
-                    {isCurrentUser ? (
-                      <span className="absolute top-0 -right-2 w-0 h-0 border-t-[10px] border-t-[#005c4b] border-r-[10px] border-r-transparent transform rotate-0"></span>
-                    ) : (
-                      <span className="absolute top-0 -left-2 w-0 h-0 border-t-[10px] border-t-[#202c33] border-l-[10px] border-l-transparent transform rotate-0 scale-x-[-1]"></span>
-                    )}
-                  </div>
-                </div>
-              );
-            })
-          )}
-          <div ref={messagesEndRef} />
-        </div>
-      </div>
-
-      {/* Input Area WhatsApp Style */}
-      <div className="p-2 bg-[#202c33] flex items-center space-x-2">
-        {isBlocked ? (
-          <div className="w-full p-4 bg-[#182229] text-center rounded-lg">
-            <p className="text-[#f15c6d] font-bold text-sm">
-              {blockedBy === buyer.id
-                ? 'Has bloqueado a este usuario.'
-                : 'Has sido bloqueado por el usuario.'}
-            </p>
-            <p className="text-[#8696a0] text-xs mt-1">
-              Su mensaje con ese usuario se eliminará en 24hrs.
+        {/* Header - Transparent */}
+        <div className="flex items-center p-3 bg-black/20 backdrop-blur-md border-b border-white/10">
+          <button onClick={onBack} className="text-white/80 hover:text-white mr-3 transition-colors">
+            <ArrowLeftIcon className="w-6 h-6" />
+          </button>
+          <div className="relative cursor-pointer">
+            <img src={seller.avatar} alt={seller.name} className="w-10 h-10 rounded-full mr-3 object-cover border-2 border-white/20" />
+            {seller.isOnline && (
+              <div className="absolute bottom-0 right-3 w-3 h-3 rounded-full border-2 border-[#5b06b6] bg-green-400"></div>
+            )}
+          </div>
+          <div className="flex-1 cursor-pointer">
+            <h2 className="text-base font-medium text-white leading-tight">{seller.name}</h2>
+            <p className="text-xs text-white/70">
+              {seller.isOnline ? 'En línea' : 'Ult. vez hoy a las...'}
             </p>
           </div>
-        ) : (
-          <form onSubmit={handleSendMessage} className="flex-1 flex items-center space-x-2">
-            <div className="flex-1 bg-[#2a3942] rounded-lg flex items-center px-4 py-2">
-              <input
-                type="text"
-                value={inputValue}
-                onChange={(e) => setInputValue(e.target.value)}
-                placeholder="Escribe un mensaje"
-                className="flex-1 bg-transparent text-[#d1d7db] placeholder-[#8696a0] outline-none text-sm"
-              />
+        </div>
+
+        {/* Chat Area - Transparent */}
+        <div className="flex-1 p-4 overflow-y-auto bg-transparent scrollbar-thin scrollbar-thumb-white/20 scrollbar-track-transparent">
+          <div className="flex flex-col space-y-2">
+            {messages.length === 0 ? (
+              <div className="text-center py-12">
+                <div className="bg-black/20 backdrop-blur-sm rounded-xl p-4 inline-block mb-4 shadow-sm border border-white/10">
+                  <p className="text-white/80 text-sm">
+                    🔒 Los mensajes están cifrados de extremo a extremo. Nadie fuera de este chat, ni siquiera WhatsApp, puede leerlos ni escucharlos.
+                  </p>
+                </div>
+                <p className="text-white/60 text-sm mt-4">Envía un mensaje para comenzar la conversación.</p>
+              </div>
+            ) : (
+              messages.map((msg, index) => {
+                const isCurrentUser = msg.userId === buyer.id;
+
+                return (
+                  <div
+                    key={msg.id || index}
+                    className={`flex ${isCurrentUser ? 'justify-end' : 'justify-start'} mb-1`}
+                  >
+                    <div
+                      className={`relative max-w-[80%] px-3 py-1.5 rounded-lg shadow-sm text-sm border border-white/5 ${isCurrentUser
+                        ? 'bg-[#5b06b6]/80 backdrop-blur-sm text-white rounded-tr-none' // Usuario: Purple Glass
+                        : 'bg-black/40 backdrop-blur-sm text-white rounded-tl-none' // Otro: Dark Glass
+                        }`}
+                    >
+                      <p className="break-words leading-relaxed">{msg.text}</p>
+                      <div className={`flex justify-end items-center space-x-1 mt-1 ${isCurrentUser ? 'text-white/70' : 'text-white/60'}`}>
+                        <span className="text-[10px] min-w-fit">
+                          {new Date(msg.timestamp || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        </span>
+                        {isCurrentUser && (
+                          <span className={`text-[11px] ${msg.isRead ? 'text-blue-300' : 'text-white/60'}`}>
+                            {/* Doble check */}
+                            <svg viewBox="0 0 16 15" width="16" height="15" className="">
+                              <path fill="currentColor" d="M15.01 3.316l-.478-.372a.365.365 0 0 0-.51.063L8.666 9.879a.32.32 0 0 1-.484.033l-.358-.325a.319.319 0 0 0-.484.032l-.378.483a.418.418 0 0 0 .036.541l1.32 1.266c.143.14.361.125.484-.033l6.272-7.655a.366.366 0 0 0-.064-.512zm-4.1 0l-.478-.372a.365.365 0 0 0-.51.063L4.566 9.879a.32.32 0 0 1-.484.033L1.891 7.769a.366.366 0 0 0-.515.006l-.423.433a.364.364 0 0 0 .006.514l3.258 3.185c.143.14.361.125.484-.033l6.272-7.655a.365.365 0 0 0-.063-.51z"></path>
+                            </svg>
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+            <div ref={messagesEndRef} />
+          </div>
+        </div>
+
+        {/* Input Area Glass Style */}
+        <div className="p-2 bg-black/20 backdrop-blur-md border-t border-white/10 flex items-center space-x-2">
+          {isBlocked ? (
+            <div className="w-full p-4 bg-black/40 text-center rounded-lg border border-red-500/30">
+              <p className="text-red-400 font-bold text-sm">
+                {blockedBy === buyer.id
+                  ? 'Has bloqueado a este usuario.'
+                  : 'Has sido bloqueado por el usuario.'}
+              </p>
+              <p className="text-white/60 text-xs mt-1">
+                Su mensaje con ese usuario se eliminará en 24hrs.
+              </p>
             </div>
-            <button
-              type="submit"
-              disabled={!inputValue.trim()}
-              className={`p-3 rounded-full transition-colors flex items-center justify-center ${inputValue.trim()
-                ? 'bg-[#00a884] hover:bg-[#008f70] text-white'
-                : 'bg-[#2a3942] text-[#8696a0] cursor-default'
-                }`}
-            >
-              <SendIcon className="w-5 h-5" />
-            </button>
-          </form>
-        )}
+          ) : (
+            <form onSubmit={handleSendMessage} className="flex-1 flex items-center space-x-2">
+              <div className="flex-1 bg-white/10 rounded-lg flex items-center px-4 py-2 border border-white/5 focus-within:bg-white/20 transition-colors">
+                <input
+                  type="text"
+                  value={inputValue}
+                  onChange={(e) => setInputValue(e.target.value)}
+                  placeholder="Escribe un mensaje"
+                  className="flex-1 bg-transparent text-white placeholder-white/50 outline-none text-sm"
+                />
+              </div>
+              <button
+                type="submit"
+                disabled={!inputValue.trim()}
+                className={`p-3 rounded-full transition-colors flex items-center justify-center ${inputValue.trim()
+                  ? 'bg-[#5b06b6] hover:bg-[#7c3aed] text-white shadow-lg'
+                  : 'bg-white/10 text-white/30 cursor-default'
+                  }`}
+              >
+                <SendIcon className="w-5 h-5" />
+              </button>
+            </form>
+          )}
+        </div>
       </div>
     </div>
   );

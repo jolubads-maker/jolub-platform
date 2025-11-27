@@ -185,7 +185,15 @@ class ApiService {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ sessionToken })
     });
-    if (!response.ok) return null;
+
+    if (response.status === 401 || response.status === 403) {
+      return null; // Token inválido o expirado
+    }
+
+    if (!response.ok) {
+      throw new Error(`Error de servidor: ${response.status}`); // 429, 500, etc.
+    }
+
     return response.json();
   }
 
