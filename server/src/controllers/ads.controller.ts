@@ -1,33 +1,79 @@
-seller: {
-    select: {
-        id: true,
-            name: true,
-                avatar: true,
-                    isOnline: true,
+﻿import { Request, Response } from 'express';
+import prisma from '../database';
+
+export const getAds = async (req: Request, res: Response) => {
+    try {
+        const { category, minPrice, maxPrice, location, search, userId } = req.query;
+
+        const where: any = {};
+
+        if (category && category !== 'Todas') {
+            where.category = String(category);
+        }
+
+        if (minPrice || maxPrice) {
+            where.price = {};
+            if (minPrice) where.price.gte = Number(minPrice);
+            if (maxPrice) where.price.lte = Number(maxPrice);
+        }
+
+        if (location) {
+            where.location = { contains: String(location), mode: 'insensitive' };
+        }
+
+        if (search) {
+            where.OR = [
+                { title: { contains: String(search), mode: 'insensitive' } },
+                { description: { contains: String(search), mode: 'insensitive' } },
+                { uniqueCode: { contains: String(search), mode: 'insensitive' } }
+            ];
+        }
+
+        if (userId) {
+            // Filter by sellerId if specifically requested via query param "userId"
+            // Note: If the intention is "My Ads", the frontend sends userId.
+            where.sellerId = Number(userId);
+        }
+
+        // Pagination
+        const page = parseInt(req.query.page as string) || 1;
+        const limit = parseInt(req.query.limit as string) || 20;
+        const skip = (page - 1) * limit;
+
+        const ads = await prisma.ad.findMany({
+            where,
+            include: {
+                media: { take: 1 }, // Optimize: only fetch 1 image for list view
+                seller: {
+                    select: {
+                        id: true,
+                        name: true,
+                        avatar: true,
+                        isOnline: true,
                         phoneVerified: true
-    }
-},
-favorites: userId ? {
-    where: { userId: Number(userId) },
-    select: { id: true }
-} : false
+                    }
+                },
+                favorites: userId ? {
+                    where: { userId: Number(userId) },
+                    select: { id: true }
+                } : false
             },
-orderBy: { createdAt: 'desc' },
-take: limit,
-    skip
+            orderBy: { createdAt: 'desc' },
+            take: limit,
+            skip
         });
 
-const formattedAds = ads.map(ad => ({
-    ...ad,
-    isFavorite: userId ? ad.favorites.length > 0 : false,
-    favorites: undefined
-}));
+        const formattedAds = ads.map(ad => ({
+            ...ad,
+            isFavorite: userId ? ad.favorites.length > 0 : false,
+            favorites: undefined
+        }));
 
-res.json(formattedAds);
+        res.json(formattedAds);
     } catch (err) {
-    console.error('Error getting ads:', err);
-    res.status(500).json({ error: 'Error getting ads' });
-}
+        console.error('Error getting ads:', err);
+        res.status(500).json({ error: 'Error getting ads' });
+    }
 };
 
 export const createAd = async (req: Request, res: Response) => {
@@ -36,16 +82,16 @@ export const createAd = async (req: Request, res: Response) => {
 
         // Basic validation (will be improved with Zod later)
         if (!adData.title || adData.title.trim().length < 3) {
-            return res.status(400).json({ error: 'El título debe tener al menos 3 caracteres' });
+            return res.status(400).json({ error: 'El t├¡tulo debe tener al menos 3 caracteres' });
         }
         if (!adData.description || adData.description.trim().length < 10) {
-            return res.status(400).json({ error: 'La descripción debe tener al menos 10 caracteres' });
+            return res.status(400).json({ error: 'La descripci├│n debe tener al menos 10 caracteres' });
         }
         if (!adData.price || adData.price < 0) {
-            return res.status(400).json({ error: 'El precio debe ser un número positivo' });
+            return res.status(400).json({ error: 'El precio debe ser un n├║mero positivo' });
         }
         if (!adData.sellerId) {
-            return res.status(400).json({ error: 'ID de vendedor inválido' });
+            return res.status(400).json({ error: 'ID de vendedor inv├ílido' });
         }
         if (!adData.media || !Array.isArray(adData.media) || adData.media.length === 0) {
             return res.status(400).json({ error: 'Debe incluir al menos un archivo multimedia' });
@@ -56,7 +102,7 @@ export const createAd = async (req: Request, res: Response) => {
             return res.status(404).json({ error: 'Vendedor no encontrado' });
         }
         if (!seller.phoneVerified) {
-            return res.status(403).json({ error: 'Debes verificar tu teléfono para publicar anuncios' });
+            return res.status(403).json({ error: 'Debes verificar tu tel├®fono para publicar anuncios' });
         }
 
         const uniqueCode = `AD-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
@@ -94,7 +140,7 @@ export const searchAds = async (req: Request, res: Response) => {
     try {
         const { q } = req.query;
         if (!q) {
-            return res.status(400).json({ error: 'Query de búsqueda requerida' });
+            return res.status(400).json({ error: 'Query de b├║squeda requerida' });
         }
 
         const query = String(q);
