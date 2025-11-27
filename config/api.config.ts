@@ -1,7 +1,7 @@
 // Configuración de API para diferentes entornos
 export const API_CONFIG = {
   // URL del backend en producción
-  PRODUCTION_API_URL: 'https://jolub-backend.onrender.com/api',
+  PRODUCTION_API_URL: 'https://jolubads.onrender.com/api',
   // URL del backend en desarrollo
   DEV_API_URL: 'http://localhost:4000/api'
 };
@@ -14,13 +14,19 @@ export const getApiUrl = () => {
     return import.meta.env.VITE_API_URL;
   }
 
-  // PRIORIDAD 2: Detectar si estamos en localhost (desarrollo)
+  // PRIORIDAD 2: Detectar si estamos en localhost o red local (desarrollo)
   const isLocalhost = window.location.hostname === 'localhost' ||
-    window.location.hostname === '127.0.0.1';
+    window.location.hostname === '127.0.0.1' ||
+    window.location.hostname.startsWith('192.168.');
 
   if (isLocalhost) {
-    console.log('🔧 Detectado localhost - Usando:', API_CONFIG.DEV_API_URL);
-    return API_CONFIG.DEV_API_URL;
+    // Si estamos en red local, intentar usar la IP para el backend también
+    const devUrl = window.location.hostname.startsWith('192.168.')
+      ? `http://${window.location.hostname}:4000/api`
+      : API_CONFIG.DEV_API_URL;
+
+    console.log('🔧 Detectado desarrollo - Usando:', devUrl);
+    return devUrl;
   }
 
   // PRIORIDAD 3: Cualquier otro dominio = producción

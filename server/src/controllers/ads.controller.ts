@@ -29,11 +29,13 @@ export const getAds = async (req: Request, res: Response) => {
             ];
         }
 
-        if (userId) {
-            // Filter by sellerId if specifically requested via query param "userId"
-            // Note: If the intention is "My Ads", the frontend sends userId.
-            where.sellerId = Number(userId);
+        if (req.query.sellerId) {
+            // Filter by sellerId if specifically requested
+            where.sellerId = Number(req.query.sellerId);
         }
+
+        // userId is used for favorites check, NOT for filtering by default
+
 
         // Pagination
         const page = parseInt(req.query.page as string) || 1;

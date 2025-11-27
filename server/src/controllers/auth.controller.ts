@@ -540,7 +540,10 @@ export const login = async (req: Request, res: Response) => {
             data: { isOnline: true, lastSeen: new Date() }
         });
 
-        res.json(user);
+        // CRITICAL FIX: Do NOT return the password hash to the frontend.
+        const { password: _, ...userWithoutPassword } = user;
+
+        res.json(userWithoutPassword);
     } catch (err) {
         logger.error(`Error logging in: ${err}`);
         res.status(500).json({ error: 'Error al iniciar sesión' });

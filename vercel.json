@@ -7,7 +7,7 @@
   "rewrites": [
     {
       "source": "/api/(.*)",
-      "destination": "https://jolub-backend.onrender.com/api/$1"
+      "destination": "https://jolubads.onrender.com/api/$1"
     }
   ]
 }

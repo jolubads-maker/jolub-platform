@@ -28,18 +28,6 @@ const ChatView: React.FC<ChatViewProps> = ({ seller, buyer, onBack, chatLog, onS
   }, [chatLog.messages]);
 
   useEffect(() => {
-    scrollToBottom();
-  }, [messages]);
-
-  // Configuración de Socket.io
-  useEffect(() => {
-    // Conectar al servidor
-    socketRef.current = io('http://localhost:4000');
-
-    // Unirse a la sala del chat
-    socketRef.current.emit('join_chat', chatLog.id);
-
-    // Escuchar nuevos mensajes
     socketRef.current.on('receive_message', (newMessage: ChatMessage) => {
       setMessages((prevMessages) => {
         // Evitar duplicados si el mensaje ya existe (por si acaso)
@@ -116,8 +104,8 @@ const ChatView: React.FC<ChatViewProps> = ({ seller, buyer, onBack, chatLog, onS
                   <div className="flex flex-col">
                     <div
                       className={`max-w-xs md:max-w-md lg:max-w-lg px-4 py-2 rounded-2xl ${isCurrentUser
-                          ? 'bg-brand-primary text-white rounded-br-none'
-                          : 'bg-gray-700 text-gray-200 rounded-bl-none'
+                        ? 'bg-brand-primary text-white rounded-br-none'
+                        : 'bg-gray-700 text-gray-200 rounded-bl-none'
                         }`}
                     >
                       <p className="text-sm">{msg.text}</p>

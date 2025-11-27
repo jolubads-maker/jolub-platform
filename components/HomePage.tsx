@@ -178,7 +178,7 @@ const HomePage: React.FC = () => {
 
       {/* HEADER OLX STYLE */}
       <header className="sticky top-0 z-50 w-full bg-olx-purple shadow-md">
-        <div className="container mx-auto px-4 h-20 flex items-center justify-between gap-8">
+        <div className="container mx-auto px-10 md:px-40 h-20 flex items-center justify-between gap-8">
 
           {/* LOGO */}
           <div className="flex-shrink-0 cursor-pointer flex items-center gap-1" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}>

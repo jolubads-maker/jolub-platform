@@ -90,16 +90,22 @@ const Dashboard: React.FC = () => {
     return users.find(user => user.id === otherId);
   };
 
-  const handleLogout = async () => {
-    const confirmed = window.confirm('¿Estás seguro de que deseas cerrar sesión?');
-    if (!confirmed) return;
+  const handleLogout = () => {
+    // const confirmed = window.confirm('¿Estás seguro de que deseas cerrar sesión?');
+    // if (!confirmed) return;
+    console.log('Logout initiated');
 
-    try {
-      await logout();
-      navigate('/');
-    } catch (error) {
-      console.error('Error al cerrar sesión:', error);
-    }
+    // 1. Clear Local Storage immediately
+    localStorage.removeItem('sessionToken');
+    localStorage.removeItem('currentUser');
+    localStorage.removeItem('phoneVerification');
+
+    // 2. Call API in background (fire and forget)
+    // We don't await this because we want immediate UI feedback
+    logout().catch(err => console.error('Background logout error:', err));
+
+    // 3. Force Hard Redirect to Home
+    window.location.href = '/';
   };
 
   // Avatar Upload Logic
