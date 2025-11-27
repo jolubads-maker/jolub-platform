@@ -69,35 +69,27 @@ export const initSocket = (httpServer: HttpServer, allowedOrigins: string[]) => 
             console.log(`📨 Recibido send_message:`, data);
 
             try {
-                // Verificar si el chat existe, si no, crearlo
-                let chat = await prisma.chatLog.findUnique({ where: { id: chatId } });
-                console.log(`🔍 Buscando chat ${chatId}:`, chat ? 'Encontrado' : 'No encontrado');
+                // 1. Verificar si el chat existe y si está bloqueado
+                let chat = await prisma.chatLog.findUnique({
+                    where: { id: chatId },
+                    include: { participants: true }
+                });
 
                 if (!chat) {
-                    // Intentar derivar participantes del chatId (ej: "1-2")
+                    // Lógica de creación de chat (existente)
                     const parts = chatId.split('-');
                     if (parts.length === 2) {
                         const p1 = parseInt(parts[0]);
                         const p2 = parseInt(parts[1]);
                         if (!isNaN(p1) && !isNaN(p2)) {
-                            console.log(`🆕 Intentando crear chat: ${chatId} con participantes ${p1}, ${p2}`);
                             chat = await prisma.chatLog.create({
-                                data: {
-                                    id: chatId,
-                                    updatedAt: new Date()
-                                }
+                                data: { id: chatId, updatedAt: new Date() },
+                                include: { participants: true }
                             });
-                            console.log('✅ ChatLog creado');
-
-                            // Crear entradas de ChatParticipant para ambos participantes
                             await prisma.chatParticipant.createMany({
-                                data: [
-                                    { userId: p1, chatId },
-                                    { userId: p2, chatId }
-                                ],
+                                data: [{ userId: p1, chatId }, { userId: p2, chatId }],
                                 skipDuplicates: true
                             });
-                            console.log('✅ Participantes añadidos');
                         }
                     }
                 }
@@ -108,34 +100,85 @@ export const initSocket = (httpServer: HttpServer, allowedOrigins: string[]) => 
                     return;
                 }
 
-                console.log('💾 Guardando mensaje en DB...');
-                const message = await prisma.message.create({
+                // CHECK BLOCKING
+                if (chat.isBlocked) {
+                    console.warn(`⚠️ Chat ${chatId} está bloqueado. Mensaje rechazado.`);
+                    if (callback) callback({ status: 'error', error: 'Chat is blocked' });
+                    return;
+                }
+
+                // 2. Guardar mensaje en DB
+                const newMessage = await prisma.message.create({
                     data: {
                         chatId,
                         userId: Number(userId),
                         text,
-                        sender
-                    },
-                    include: { user: true }
+                        sender,
+                        isRead: false // Por defecto no leído
+                    }
                 });
-                console.log('✅ Mensaje guardado:', message.id);
 
-                // Update chat updatedAt
+                // 3. Actualizar timestamp del chat
                 await prisma.chatLog.update({
                     where: { id: chatId },
                     data: { updatedAt: new Date() }
                 });
 
-                // Emit to room
-                console.log(`📡 Emitiendo 'receive_message' a sala ${chatId}`);
-                io.to(chatId).emit('receive_message', message);
+                // 4. Emitir a la sala
+                io.to(chatId).emit('receive_message', {
+                    ...newMessage,
+                    timestamp: newMessage.createdAt
+                });
 
-                // Acknowledge success
-                if (callback) callback({ status: 'ok', message });
+                console.log(`✅ [SERVER] Mensaje guardado y emitido: ${newMessage.id}`);
+                if (callback) callback({ status: 'ok', message: newMessage });
 
             } catch (error: any) {
-                console.error('❌ Error CRÍTICO enviando mensaje socket:', error);
+                console.error('❌ Error procesando mensaje:', error);
                 if (callback) callback({ status: 'error', error: error.message || 'Server error' });
+            }
+        });
+
+        // MARCAR LEÍDO
+        socket.on('mark_read', async (data) => {
+            const { chatId, userId } = data; // userId es quien LEE los mensajes (el receptor)
+            try {
+                // Marcar como leídos los mensajes que NO son míos en este chat
+                await prisma.message.updateMany({
+                    where: {
+                        chatId,
+                        userId: { not: Number(userId) }, // Mensajes del OTRO usuario
+                        isRead: false
+                    },
+                    data: { isRead: true }
+                });
+
+                // Notificar a la sala que los mensajes fueron leídos
+                io.to(chatId).emit('messages_read', { chatId, readerId: userId });
+                console.log(`👀 [SERVER] Mensajes marcados como leídos en chat ${chatId} por usuario ${userId}`);
+            } catch (error) {
+                console.error('Error marking messages as read:', error);
+            }
+        });
+
+        // BLOQUEAR CHAT
+        socket.on('block_chat', async (data, callback) => {
+            const { chatId, userId } = data; // userId es quien bloquea
+            try {
+                await prisma.chatLog.update({
+                    where: { id: chatId },
+                    data: {
+                        isBlocked: true,
+                        blockedBy: Number(userId)
+                    }
+                });
+
+                io.to(chatId).emit('chat_blocked', { chatId, blockedBy: userId });
+                console.log(`🚫 [SERVER] Chat ${chatId} bloqueado por usuario ${userId}`);
+                if (callback) callback({ status: 'ok' });
+            } catch (error) {
+                console.error('Error blocking chat:', error);
+                if (callback) callback({ status: 'error' });
             }
         });
 

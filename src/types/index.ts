@@ -92,10 +92,12 @@ export type ViewState =
 
 export interface ChatMessage {
   id: string;
+  chatId: string;
+  userId: number;
   text: string;
   sender: 'user' | 'seller' | 'buyer';
-  userId: number;
   timestamp: Date;
+  isRead?: boolean;
 }
 
 export interface ChatLog {
@@ -103,6 +105,9 @@ export interface ChatLog {
   participantIds: number[];
   messages: ChatMessage[];
   lastMessage?: ChatMessage;
+  updatedAt: Date;
+  isBlocked?: boolean;
+  blockedBy?: number | null;
 }
 
 export interface GeminiChatSession {

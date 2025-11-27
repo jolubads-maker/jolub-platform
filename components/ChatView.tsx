@@ -17,6 +17,8 @@ interface ChatViewProps {
 const ChatView: React.FC<ChatViewProps> = ({ seller, buyer, onBack, chatLog, onSendMessage }) => {
   const [inputValue, setInputValue] = useState('');
   const [messages, setMessages] = useState<ChatMessage[]>(chatLog.messages);
+  const [isBlocked, setIsBlocked] = useState(chatLog.isBlocked || false);
+  const [blockedBy, setBlockedBy] = useState<number | null>(chatLog.blockedBy || null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const socketRef = useRef<Socket | null>(null);
   const { fetchMessages } = useChatStore();
@@ -28,6 +30,8 @@ const ChatView: React.FC<ChatViewProps> = ({ seller, buyer, onBack, chatLog, onS
   // Sincronizar mensajes si cambian las props (carga inicial) y buscar historial completo
   useEffect(() => {
     setMessages(chatLog.messages);
+    setIsBlocked(chatLog.isBlocked || false);
+    setBlockedBy(chatLog.blockedBy || null);
 
     // Buscar historial completo del servidor para este chat
     const loadHistory = async () => {
@@ -39,7 +43,7 @@ const ChatView: React.FC<ChatViewProps> = ({ seller, buyer, onBack, chatLog, onS
     loadHistory();
 
     scrollToBottom();
-  }, [chatLog.messages, chatLog.id, fetchMessages]);
+  }, [chatLog.messages, chatLog.id, fetchMessages, chatLog.isBlocked, chatLog.blockedBy]);
 
   useEffect(() => {
     // Inicializar conexión de Socket.io usando la URL correcta (Render en prod)
@@ -59,6 +63,9 @@ const ChatView: React.FC<ChatViewProps> = ({ seller, buyer, onBack, chatLog, onS
       console.log('✅ Socket conectado:', socketRef.current?.id);
       // Unirse a la sala del chat
       socketRef.current?.emit('join_chat', chatLog.id);
+
+      // Marcar como leídos al entrar
+      socketRef.current?.emit('mark_read', { chatId: chatLog.id, userId: buyer.id });
     });
 
     socketRef.current.on('receive_message', (newMessage: ChatMessage) => {
@@ -69,9 +76,27 @@ const ChatView: React.FC<ChatViewProps> = ({ seller, buyer, onBack, chatLog, onS
           console.log('⚠️ Mensaje duplicado ignorado:', newMessage.id);
           return prevMessages;
         }
+        // Si estoy viendo el chat, marcar como leído inmediatamente
+        socketRef.current?.emit('mark_read', { chatId: chatLog.id, userId: buyer.id });
         return [...prevMessages, newMessage];
       });
       scrollToBottom();
+    });
+
+    socketRef.current.on('messages_read', (data: { chatId: string, readerId: number }) => {
+      if (data.chatId === chatLog.id && data.readerId !== buyer.id) {
+        // El otro usuario leyó mis mensajes
+        setMessages(prev => prev.map(msg =>
+          msg.userId === buyer.id ? { ...msg, isRead: true } : msg
+        ));
+      }
+    });
+
+    socketRef.current.on('chat_blocked', (data: { chatId: string, blockedBy: number }) => {
+      if (data.chatId === chatLog.id) {
+        setIsBlocked(true);
+        setBlockedBy(data.blockedBy);
+      }
     });
 
     socketRef.current.on('connect_error', (err) => {
@@ -83,7 +108,7 @@ const ChatView: React.FC<ChatViewProps> = ({ seller, buyer, onBack, chatLog, onS
         socketRef.current.disconnect();
       }
     };
-  }, [chatLog.id]);
+  }, [chatLog.id, buyer.id]);
 
   useEffect(() => {
     scrollToBottom();
@@ -110,6 +135,10 @@ const ChatView: React.FC<ChatViewProps> = ({ seller, buyer, onBack, chatLog, onS
       socketRef.current.emit('send_message', messageData, (response: any) => {
         console.log('📥 [CLIENT] Respuesta del servidor:', response);
         if (response.status !== 'ok') {
+          if (response.error === 'Chat is blocked') {
+            setIsBlocked(true);
+            alert('No puedes enviar mensajes porque el chat está bloqueado.');
+          }
           console.error('❌ [CLIENT] Error reportado por el servidor:', response.error);
         } else {
           console.log('✅ [CLIENT] Mensaje confirmado por el servidor');
@@ -178,8 +207,8 @@ const ChatView: React.FC<ChatViewProps> = ({ seller, buyer, onBack, chatLog, onS
                         {new Date(msg.timestamp || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                       </span>
                       {isCurrentUser && (
-                        <span className="text-[#53bdeb]">
-                          {/* Doble check azul simulado */}
+                        <span className={`text-[11px] ${msg.isRead ? 'text-[#53bdeb]' : 'text-[#8696a0]'}`}>
+                          {/* Doble check */}
                           <svg viewBox="0 0 16 15" width="16" height="15" className="">
                             <path fill="currentColor" d="M15.01 3.316l-.478-.372a.365.365 0 0 0-.51.063L8.666 9.879a.32.32 0 0 1-.484.033l-.358-.325a.319.319 0 0 0-.484.032l-.378.483a.418.418 0 0 0 .036.541l1.32 1.266c.143.14.361.125.484-.033l6.272-7.655a.366.366 0 0 0-.064-.512zm-4.1 0l-.478-.372a.365.365 0 0 0-.51.063L4.566 9.879a.32.32 0 0 1-.484.033L1.891 7.769a.366.366 0 0 0-.515.006l-.423.433a.364.364 0 0 0 .006.514l3.258 3.185c.143.14.361.125.484-.033l6.272-7.655a.365.365 0 0 0-.063-.51z"></path>
                           </svg>
@@ -204,27 +233,40 @@ const ChatView: React.FC<ChatViewProps> = ({ seller, buyer, onBack, chatLog, onS
 
       {/* Input Area WhatsApp Style */}
       <div className="p-2 bg-[#202c33] flex items-center space-x-2">
-        <form onSubmit={handleSendMessage} className="flex-1 flex items-center space-x-2">
-          <div className="flex-1 bg-[#2a3942] rounded-lg flex items-center px-4 py-2">
-            <input
-              type="text"
-              value={inputValue}
-              onChange={(e) => setInputValue(e.target.value)}
-              placeholder="Escribe un mensaje"
-              className="flex-1 bg-transparent text-[#d1d7db] placeholder-[#8696a0] outline-none text-sm"
-            />
+        {isBlocked ? (
+          <div className="w-full p-4 bg-[#182229] text-center rounded-lg">
+            <p className="text-[#f15c6d] font-bold text-sm">
+              {blockedBy === buyer.id
+                ? 'Has bloqueado a este usuario.'
+                : 'Has sido bloqueado por el usuario.'}
+            </p>
+            <p className="text-[#8696a0] text-xs mt-1">
+              Su mensaje con ese usuario se eliminará en 24hrs.
+            </p>
           </div>
-          <button
-            type="submit"
-            disabled={!inputValue.trim()}
-            className={`p-3 rounded-full transition-colors flex items-center justify-center ${inputValue.trim()
-              ? 'bg-[#00a884] hover:bg-[#008f70] text-white'
-              : 'bg-[#2a3942] text-[#8696a0] cursor-default'
-              }`}
-          >
-            <SendIcon className="w-5 h-5" />
-          </button>
-        </form>
+        ) : (
+          <form onSubmit={handleSendMessage} className="flex-1 flex items-center space-x-2">
+            <div className="flex-1 bg-[#2a3942] rounded-lg flex items-center px-4 py-2">
+              <input
+                type="text"
+                value={inputValue}
+                onChange={(e) => setInputValue(e.target.value)}
+                placeholder="Escribe un mensaje"
+                className="flex-1 bg-transparent text-[#d1d7db] placeholder-[#8696a0] outline-none text-sm"
+              />
+            </div>
+            <button
+              type="submit"
+              disabled={!inputValue.trim()}
+              className={`p-3 rounded-full transition-colors flex items-center justify-center ${inputValue.trim()
+                ? 'bg-[#00a884] hover:bg-[#008f70] text-white'
+                : 'bg-[#2a3942] text-[#8696a0] cursor-default'
+                }`}
+            >
+              <SendIcon className="w-5 h-5" />
+            </button>
+          </form>
+        )}
       </div>
     </div>
   );

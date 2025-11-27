@@ -508,27 +508,69 @@ const Dashboard: React.FC = () => {
                     <motion.div
                       key={index}
                       whileHover={{ scale: 1.02, backgroundColor: '#f8f9fa' }}
-                      className="flex items-center gap-4 p-4 rounded-2xl border border-gray-100 bg-white hover:shadow-lg transition-all cursor-pointer group"
-                      onClick={() => {
+                      className="flex items-center gap-4 p-4 rounded-2xl border border-gray-100 bg-white hover:shadow-lg transition-all cursor-pointer group relative"
+                    >
+                      <div onClick={() => {
                         const otherId = chat.participantIds.find(id => id !== currentUser.id);
                         if (otherId) {
                           const chatId = [currentUser.id, otherId].sort().join('-');
                           navigate(`/chat/${chatId}`, { state: { sellerId: otherId, buyerId: currentUser.id } });
                         }
-                      }}
-                    >
-                      <UserStatusBadge
-                        avatar={otherUser.avatar}
-                        name={otherUser.name}
-                        isOnline={otherUser.isOnline}
-                        size="lg"
-                      />
-                      <div className="flex-1 min-w-0">
-                        <h4 className="font-bold text-gray-800 text-lg truncate group-hover:text-[#6e0ad6] transition-colors">{otherUser.name}</h4>
-                        <p className="text-sm text-gray-500 truncate font-medium">Haz clic para abrir chat</p>
+                      }} className="flex-1 flex items-center gap-4">
+                        <UserStatusBadge
+                          avatar={otherUser.avatar}
+                          name={otherUser.name}
+                          isOnline={otherUser.isOnline}
+                          size="lg"
+                        />
+                        <div className="flex-1 min-w-0">
+                          <h4 className="font-bold text-gray-800 text-lg truncate group-hover:text-[#6e0ad6] transition-colors">{otherUser.name}</h4>
+                          <div className="flex items-center gap-2 text-sm text-gray-500">
+                            <StarIcon className="w-4 h-4 text-orange-500" />
+                            <span className="font-bold text-gray-700">Reputación: {otherUser.points || 0}</span>
+                          </div>
+                          {/* Unread Count Logic (Mocked for now as we need full message objects in list) */}
+                          {/* En una implementación real, chat.messages debería traer el conteo o los mensajes no leídos */}
+                          {chat.messages && chat.messages.some((m: any) => !m.isRead && m.userId !== currentUser.id) && (
+                            <p className="text-xs text-green-600 font-bold mt-1">
+                              Mensajes pendientes de contestar
+                            </p>
+                          )}
+                        </div>
                       </div>
-                      <div className="p-3 bg-green-50 rounded-full text-green-600 group-hover:bg-green-500 group-hover:text-white transition-colors shadow-sm">
-                        <MessageIcon className="w-5 h-5" />
+
+                      {/* Actions */}
+                      <div className="flex flex-col gap-2 z-10">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            const otherId = chat.participantIds.find(id => id !== currentUser.id);
+                            if (otherId) {
+                              const chatId = [currentUser.id, otherId].sort().join('-');
+                              navigate(`/chat/${chatId}`, { state: { sellerId: otherId, buyerId: currentUser.id } });
+                            }
+                          }}
+                          className="px-3 py-1 bg-green-500 text-white text-xs font-bold rounded-full hover:bg-green-600 transition-colors shadow-sm"
+                        >
+                          Contestar
+                        </button>
+                        <button
+                          onClick={async (e) => {
+                            e.stopPropagation();
+                            if (window.confirm(`¿Estás seguro de bloquear a ${otherUser.name}?`)) {
+                              // Lógica de bloqueo
+                              const chatId = [currentUser.id, otherUser.id].sort().join('-');
+                              // Necesitamos acceso al socket o API para bloquear.
+                              // Por ahora usaremos apiService si implementamos el endpoint, o socket si tuviéramos acceso aquí.
+                              // Como socket está en ChatView, lo ideal sería una acción de store o API.
+                              // Vamos a asumir que existe apiService.blockChat o similar, o lo agregamos.
+                              alert('Función de bloqueo en proceso de conexión con backend.');
+                            }
+                          }}
+                          className="px-3 py-1 bg-red-100 text-red-600 text-xs font-bold rounded-full hover:bg-red-200 transition-colors"
+                        >
+                          Bloquear
+                        </button>
                       </div>
                     </motion.div>
                   );

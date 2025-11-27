@@ -89,6 +89,8 @@ model ChatLog {
   id        String   @id @default(cuid())
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  isBlocked Boolean  @default(false)
+  blockedBy Int?     // ID del usuario que bloqueó
 
   // Relaciones
   adId      Int?
@@ -117,6 +119,7 @@ model Message {
   id        String   @id @default(cuid())
   text      String
   sender    String   // 'user' | 'seller' | 'buyer'
+  isRead    Boolean  @default(false)
   createdAt DateTime @default(now())
 
   // Relaciones
