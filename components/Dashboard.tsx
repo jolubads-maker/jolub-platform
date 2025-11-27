@@ -203,7 +203,7 @@ const Dashboard: React.FC = () => {
 
       {/* HEADER */}
       <header className="sticky top-0 z-50 w-full bg-[#6e0ad6] shadow-lg mb-8">
-        <div className="container mx-auto px-4 h-20 flex items-center justify-between gap-8">
+        <div className="container mx-auto px-10 md:px-40 h-20 flex items-center justify-between gap-8">
           <div className="flex-shrink-0 cursor-pointer flex items-center gap-1" onClick={() => navigate('/')}>
             <div className="w-12 h-12 bg-[#ea580c] rounded-lg flex items-center justify-center shadow-lg">
               <span className="text-white font-black text-3xl">J</span>
