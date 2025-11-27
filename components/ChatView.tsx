@@ -4,6 +4,7 @@ import ArrowLeftIcon from './icons/ArrowLeftIcon';
 import SendIcon from './icons/SendIcon';
 import { io, Socket } from 'socket.io-client';
 import { getSocketUrl } from '../config/api.config';
+import { useChatStore } from '../store/useChatStore';
 
 interface ChatViewProps {
   seller: User;
@@ -18,16 +19,27 @@ const ChatView: React.FC<ChatViewProps> = ({ seller, buyer, onBack, chatLog, onS
   const [messages, setMessages] = useState<ChatMessage[]>(chatLog.messages);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const socketRef = useRef<Socket | null>(null);
+  const { fetchMessages } = useChatStore();
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
-  // Sincronizar mensajes si cambian las props (carga inicial)
+  // Sincronizar mensajes si cambian las props (carga inicial) y buscar historial completo
   useEffect(() => {
     setMessages(chatLog.messages);
+
+    // Buscar historial completo del servidor para este chat
+    const loadHistory = async () => {
+      if (chatLog.id) {
+        console.log('🔄 Cargando historial completo para chat:', chatLog.id);
+        await fetchMessages(chatLog.id);
+      }
+    };
+    loadHistory();
+
     scrollToBottom();
-  }, [chatLog.messages]);
+  }, [chatLog.messages, chatLog.id, fetchMessages]);
 
   useEffect(() => {
     // Inicializar conexión de Socket.io usando la URL correcta (Render en prod)

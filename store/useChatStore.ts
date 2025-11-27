@@ -9,6 +9,7 @@ interface ChatState {
 
     // Actions
     loadUserChats: (userId: number) => Promise<void>;
+    fetchMessages: (chatId: string) => Promise<void>;
     sendMessage: (chatId: string, userId: number, text: string, sender: 'user' | 'seller' | 'buyer') => Promise<void>;
     addMessage: (chatId: string, message: ChatMessage) => void;
     ensureChatExists: (chatId: string, participantIds: number[]) => void;
@@ -49,6 +50,32 @@ export const useChatStore = create<ChatState>((set, get) => ({
             set({ chatLogs: chatMap });
         } catch (error) {
             console.error('Error loading chats:', error);
+        }
+    },
+
+    fetchMessages: async (chatId) => {
+        try {
+            const messages = await apiService.getChatMessages(chatId);
+            set(state => {
+                const newLogs = new Map(state.chatLogs);
+                const currentLog = newLogs.get(chatId);
+
+                if (currentLog) {
+                    newLogs.set(chatId, {
+                        ...currentLog,
+                        messages: messages.map((msg: any) => ({
+                            id: msg.id,
+                            text: msg.text,
+                            sender: msg.sender as 'user' | 'seller' | 'buyer',
+                            userId: msg.userId,
+                            timestamp: new Date(msg.createdAt || msg.timestamp || new Date())
+                        }))
+                    });
+                }
+                return { chatLogs: newLogs };
+            });
+        } catch (error) {
+            console.error('Error fetching messages:', error);
         }
     },
 
