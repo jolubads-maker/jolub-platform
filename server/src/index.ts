@@ -43,6 +43,8 @@ const allowedOrigins = [
     'http://192.168.0.19', // Local network testing
     'http://192.168.0.19:80',
     'http://192.168.0.19:5173',
+    'https://www.jolub.com',
+    'https://jolub.com',
     process.env.CLIENT_URL // Production URL
 ].filter(Boolean);
 
