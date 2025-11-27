@@ -27,6 +27,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
             userChats.forEach((chatParticipant: any) => {
                 const chat = chatParticipant.chat;
                 chatMap.set(chat.id, {
+                    id: chat.id,
                     participantIds: chat.participants.map((p: any) => p.userId),
                     messages: chat.messages.map((msg: any) => ({
                         id: msg.id,
@@ -85,6 +86,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
             if (!state.chatLogs.has(chatId)) {
                 const newLogs = new Map(state.chatLogs);
                 newLogs.set(chatId, {
+                    id: chatId,
                     participantIds,
                     messages: [],
                     lastMessage: undefined

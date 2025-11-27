@@ -33,3 +33,4 @@ prisma/*.db-journal
 *.sw?
 
 .vercel
+.env*.local

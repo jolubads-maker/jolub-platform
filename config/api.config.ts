@@ -34,3 +34,20 @@ export const getApiUrl = () => {
   console.log('🔧 Detectado producción - Usando proxy /api');
   return '/api';
 };
+
+// Obtener la URL base para Sockets (sin /api y sin proxy de Vercel)
+export const getSocketUrl = () => {
+  const isLocalhost = window.location.hostname === 'localhost' ||
+    window.location.hostname === '127.0.0.1' ||
+    window.location.hostname.startsWith('192.168.');
+
+  if (isLocalhost) {
+    return window.location.hostname.startsWith('192.168.')
+      ? `http://${window.location.hostname}:4000`
+      : 'http://localhost:4000';
+  }
+
+  // En producción, devolver la URL directa del backend (Render)
+  // Quitamos '/api' de la URL de producción si está presente
+  return API_CONFIG.PRODUCTION_API_URL.replace('/api', '');
+};

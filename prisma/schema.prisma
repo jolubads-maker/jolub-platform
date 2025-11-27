@@ -92,7 +92,7 @@ model ChatLog {
 
   // Relaciones
   adId      Int?
-  ad        Ad?     @relation("AdChats", fields: [adId], references: [id], onDelete: SetNull)
+  ad        Ad?     @relation("AdChats", fields: [adId], references: [id], onDelete: Cascade)
   participants ChatParticipant[]
   messages  Message[]
 

@@ -252,7 +252,7 @@ const ChatRouteWrapper: React.FC = () => {
       seller={chatSeller}
       buyer={currentUser}
       onBack={() => navigate(`/dashboard/${currentUser?.uniqueId || 'USER-' + currentUser?.id}`)}
-      chatLog={chatLog || { participantIds: [currentUser.id, chatSeller.id], messages: [], lastMessage: undefined }}
+      chatLog={chatLog || { id: chatId, participantIds: [currentUser.id, chatSeller.id], messages: [], lastMessage: undefined }}
       onSendMessage={async (message) => {
         try {
           await sendMessage(chatId, currentUser.id, message, currentUser.id === chatSeller.id ? 'seller' : 'buyer');

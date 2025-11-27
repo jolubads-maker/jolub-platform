@@ -56,16 +56,59 @@ export const initSocket = (httpServer: HttpServer, allowedOrigins: string[]) => 
             console.log(`👤 Usuario ${user?.username} se unió al chat: ${chatId}`);
         });
 
-        socket.on('send_message', async (data) => {
+        socket.on('send_message', async (data, callback) => {
             const { chatId, userId, text, sender } = data;
 
             // Validate sender identity
             if (user && user.id !== Number(userId)) {
                 console.warn(`⚠️ Intento de suplantación: SocketUser ${user.id} intentó enviar como ${userId}`);
+                if (callback) callback({ status: 'error', error: 'Identity mismatch' });
                 return;
             }
 
+            console.log(`📨 Recibido send_message:`, data);
+
             try {
+                // Verificar si el chat existe, si no, crearlo
+                let chat = await prisma.chatLog.findUnique({ where: { id: chatId } });
+                console.log(`🔍 Buscando chat ${chatId}:`, chat ? 'Encontrado' : 'No encontrado');
+
+                if (!chat) {
+                    // Intentar derivar participantes del chatId (ej: "1-2")
+                    const parts = chatId.split('-');
+                    if (parts.length === 2) {
+                        const p1 = parseInt(parts[0]);
+                        const p2 = parseInt(parts[1]);
+                        if (!isNaN(p1) && !isNaN(p2)) {
+                            console.log(`🆕 Intentando crear chat: ${chatId} con participantes ${p1}, ${p2}`);
+                            chat = await prisma.chatLog.create({
+                                data: {
+                                    id: chatId,
+                                    updatedAt: new Date()
+                                }
+                            });
+                            console.log('✅ ChatLog creado');
+
+                            // Crear entradas de ChatParticipant para ambos participantes
+                            await prisma.chatParticipant.createMany({
+                                data: [
+                                    { userId: p1, chatId },
+                                    { userId: p2, chatId }
+                                ],
+                                skipDuplicates: true
+                            });
+                            console.log('✅ Participantes añadidos');
+                        }
+                    }
+                }
+
+                if (!chat) {
+                    console.error(`❌ No se pudo encontrar ni crear el chat: ${chatId}`);
+                    if (callback) callback({ status: 'error', error: 'Chat creation failed' });
+                    return;
+                }
+
+                console.log('💾 Guardando mensaje en DB...');
                 const message = await prisma.message.create({
                     data: {
                         chatId,
@@ -75,6 +118,7 @@ export const initSocket = (httpServer: HttpServer, allowedOrigins: string[]) => 
                     },
                     include: { user: true }
                 });
+                console.log('✅ Mensaje guardado:', message.id);
 
                 // Update chat updatedAt
                 await prisma.chatLog.update({
@@ -83,9 +127,15 @@ export const initSocket = (httpServer: HttpServer, allowedOrigins: string[]) => 
                 });
 
                 // Emit to room
+                console.log(`📡 Emitiendo 'receive_message' a sala ${chatId}`);
                 io.to(chatId).emit('receive_message', message);
-            } catch (error) {
-                console.error('Error enviando mensaje socket:', error);
+
+                // Acknowledge success
+                if (callback) callback({ status: 'ok', message });
+
+            } catch (error: any) {
+                console.error('❌ Error CRÍTICO enviando mensaje socket:', error);
+                if (callback) callback({ status: 'error', error: error.message || 'Server error' });
             }
         });
 

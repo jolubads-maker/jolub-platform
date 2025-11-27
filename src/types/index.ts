@@ -99,6 +99,7 @@ export interface ChatMessage {
 }
 
 export interface ChatLog {
+  id: string;
   participantIds: number[];
   messages: ChatMessage[];
   lastMessage?: ChatMessage;
