@@ -166,3 +166,4 @@ Este proyecto es de código abierto.
 ## 🤝 Contribuciones
 
 Las contribuciones son bienvenidas. Por favor, abre un issue o pull request.
+<!-- deployment trigger: 11/27/2025 09:11:35 -->
