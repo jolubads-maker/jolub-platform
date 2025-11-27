@@ -1,20 +1,27 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { User, ChatMessage, ChatLog } from '../src/types';
-import ArrowLeftIcon from './icons/ArrowLeftIcon';
 import SendIcon from './icons/SendIcon';
 import { io, Socket } from 'socket.io-client';
 import { getSocketUrl } from '../config/api.config';
 import { useChatStore } from '../store/useChatStore';
+
+// X Icon Component
+const XMarkIcon = ({ className }: { className?: string }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={className}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+  </svg>
+);
 
 interface ChatViewProps {
   seller: User;
   buyer: User;
   onBack: () => void;
   chatLog: ChatLog;
-  onSendMessage: (message: string) => void; // Mantener por compatibilidad si es necesario
+  onSendMessage: (message: string) => void;
+  isOverlay?: boolean;
 }
 
-const ChatView: React.FC<ChatViewProps> = ({ seller, buyer, onBack, chatLog, onSendMessage }) => {
+const ChatView: React.FC<ChatViewProps> = ({ seller, buyer, onBack, chatLog, onSendMessage, isOverlay = false }) => {
   const [inputValue, setInputValue] = useState('');
   const [messages, setMessages] = useState<ChatMessage[]>(chatLog.messages);
   const [isBlocked, setIsBlocked] = useState(chatLog.isBlocked || false);
@@ -22,9 +29,10 @@ const ChatView: React.FC<ChatViewProps> = ({ seller, buyer, onBack, chatLog, onS
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const socketRef = useRef<Socket | null>(null);
   const { fetchMessages } = useChatStore();
+  const [initialLoad, setInitialLoad] = useState(true);
 
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  const scrollToBottom = (smooth = true) => {
+    messagesEndRef.current?.scrollIntoView({ behavior: smooth ? 'smooth' : 'auto' });
   };
 
   // Sincronizar mensajes si cambian las props (carga inicial) y buscar historial completo
@@ -42,50 +50,50 @@ const ChatView: React.FC<ChatViewProps> = ({ seller, buyer, onBack, chatLog, onS
     };
     loadHistory();
 
-    scrollToBottom();
-  }, [chatLog.messages, chatLog.id, fetchMessages, chatLog.isBlocked, chatLog.blockedBy]);
+    // Scroll inicial
+    setTimeout(() => scrollToBottom(false), 100);
+  }, [chatLog.id, fetchMessages]);
+
+  // Update messages state when store updates
+  useEffect(() => {
+    if (chatLog.messages.length > messages.length) {
+      setMessages(chatLog.messages);
+    }
+  }, [chatLog.messages]);
 
   useEffect(() => {
-    // Inicializar conexión de Socket.io usando la URL correcta (Render en prod)
+    // Inicializar conexión de Socket.io usando la URL correcta
     const socketUrl = getSocketUrl();
-
     console.log('🔌 Conectando socket a:', socketUrl);
 
     socketRef.current = io(socketUrl, {
       transports: ['websocket'],
       reconnection: true,
       auth: {
-        token: buyer.sessionToken // Enviar token de sesión para autenticación
+        token: buyer.sessionToken
       }
     });
 
     socketRef.current.on('connect', () => {
       console.log('✅ Socket conectado:', socketRef.current?.id);
-      // Unirse a la sala del chat
       socketRef.current?.emit('join_chat', chatLog.id);
-
-      // Marcar como leídos al entrar
       socketRef.current?.emit('mark_read', { chatId: chatLog.id, userId: buyer.id });
     });
 
     socketRef.current.on('receive_message', (newMessage: ChatMessage) => {
       console.log('📩 [CLIENT] Mensaje recibido del servidor:', newMessage);
       setMessages((prevMessages) => {
-        // Evitar duplicados si el mensaje ya existe
-        if (prevMessages.some(m => m.id === newMessage.id)) {
-          console.log('⚠️ Mensaje duplicado ignorado:', newMessage.id);
-          return prevMessages;
-        }
-        // Si estoy viendo el chat, marcar como leído inmediatamente
+        if (prevMessages.some(m => m.id === newMessage.id)) return prevMessages;
+
         socketRef.current?.emit('mark_read', { chatId: chatLog.id, userId: buyer.id });
         return [...prevMessages, newMessage];
       });
-      scrollToBottom();
+      // Auto-scroll on new message
+      setTimeout(scrollToBottom, 100);
     });
 
     socketRef.current.on('messages_read', (data: { chatId: string, readerId: number }) => {
       if (data.chatId === chatLog.id && data.readerId !== buyer.id) {
-        // El otro usuario leyó mis mensajes
         setMessages(prev => prev.map(msg =>
           msg.userId === buyer.id ? { ...msg, isRead: true } : msg
         ));
@@ -99,10 +107,6 @@ const ChatView: React.FC<ChatViewProps> = ({ seller, buyer, onBack, chatLog, onS
       }
     });
 
-    socketRef.current.on('connect_error', (err) => {
-      console.error('❌ [CLIENT] Error de conexión socket:', err);
-    });
-
     return () => {
       if (socketRef.current) {
         socketRef.current.disconnect();
@@ -110,38 +114,37 @@ const ChatView: React.FC<ChatViewProps> = ({ seller, buyer, onBack, chatLog, onS
     };
   }, [chatLog.id, buyer.id]);
 
+  // Only scroll to bottom if the last message is from current user (sent) or if it's initial load
   useEffect(() => {
-    scrollToBottom();
-  }, [messages]);
-
-  const getMessageUser = (message: ChatMessage) => {
-    return message.userId === seller.id ? seller : buyer;
-  };
+    if (initialLoad && messages.length > 0) {
+      scrollToBottom(false);
+      setInitialLoad(false);
+    } else if (messages.length > 0) {
+      const lastMsg = messages[messages.length - 1];
+      if (lastMsg.userId === buyer.id) {
+        scrollToBottom();
+      }
+    }
+  }, [messages, initialLoad, buyer.id]);
 
   const handleSendMessage = (e: React.FormEvent) => {
     e.preventDefault();
     if (!inputValue.trim()) return;
 
-    // Emitir evento de mensaje al servidor
     if (socketRef.current) {
       const messageData = {
         chatId: chatLog.id,
         userId: buyer.id,
         text: inputValue,
-        sender: 'buyer' // O lógica para determinar sender
+        sender: 'buyer'
       };
 
-      console.log('📤 [CLIENT] Enviando mensaje:', messageData);
       socketRef.current.emit('send_message', messageData, (response: any) => {
-        console.log('📥 [CLIENT] Respuesta del servidor:', response);
         if (response.status !== 'ok') {
           if (response.error === 'Chat is blocked') {
             setIsBlocked(true);
             alert('No puedes enviar mensajes porque el chat está bloqueado.');
           }
-          console.error('❌ [CLIENT] Error reportado por el servidor:', response.error);
-        } else {
-          console.log('✅ [CLIENT] Mensaje confirmado por el servidor');
         }
       });
     }
@@ -150,42 +153,46 @@ const ChatView: React.FC<ChatViewProps> = ({ seller, buyer, onBack, chatLog, onS
   };
 
   return (
-    // Full screen liquid background container
-    <div className="fixed inset-0 z-50 liquid-bg flex items-center justify-center p-4 md:p-6">
+    // Full screen liquid background container (Page Background)
+    <div className={`fixed inset-0 z-50 flex justify-end ${isOverlay ? 'bg-black/60 backdrop-blur-sm' : 'liquid-bg'}`}>
 
-      {/* Chat Card - Glassmorphism (More Opaque) */}
-      <div className="flex flex-col w-full max-w-4xl h-[85vh] rounded-2xl shadow-2xl overflow-hidden animate-fade-in bg-[#0b141a]/90 backdrop-blur-xl border border-white/10 relative">
+      {/* Chat Drawer - Right Aligned */}
+      <div className="w-full md:w-[450px] h-full bg-[#0b141a]/95 backdrop-blur-xl border-l border-white/10 flex flex-col shadow-2xl animate-slide-in-right">
 
-        {/* Header - Transparent */}
-        <div className="flex items-center p-3 bg-black/20 backdrop-blur-md border-b border-white/10">
-          <button onClick={onBack} className="text-white/80 hover:text-white mr-3 transition-colors">
-            <ArrowLeftIcon className="w-6 h-6" />
+        {/* Header */}
+        <div className="flex items-center p-4 bg-black/20 backdrop-blur-md border-b border-white/10 justify-between">
+          <div className="flex items-center">
+            <div className="relative cursor-pointer mr-3">
+              <img src={seller.avatar} alt={seller.name} className="w-10 h-10 rounded-full object-cover border-2 border-white/20" />
+              {seller.isOnline && (
+                <div className="absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-[#0b141a] bg-green-400"></div>
+              )}
+            </div>
+            <div>
+              <h2 className="text-base font-bold text-white leading-tight">{seller.name}</h2>
+              <p className="text-xs text-white/60">
+                {seller.isOnline ? 'En línea' : 'Desconectado'}
+              </p>
+            </div>
+          </div>
+
+          {/* Close Button (X) */}
+          <button onClick={onBack} className="p-2 rounded-full hover:bg-white/10 text-white/80 hover:text-white transition-colors">
+            <XMarkIcon className="w-6 h-6" />
           </button>
-          <div className="relative cursor-pointer">
-            <img src={seller.avatar} alt={seller.name} className="w-10 h-10 rounded-full mr-3 object-cover border-2 border-white/20" />
-            {seller.isOnline && (
-              <div className="absolute bottom-0 right-3 w-3 h-3 rounded-full border-2 border-[#5b06b6] bg-green-400"></div>
-            )}
-          </div>
-          <div className="flex-1 cursor-pointer">
-            <h2 className="text-base font-medium text-white leading-tight">{seller.name}</h2>
-            <p className="text-xs text-white/70">
-              {seller.isOnline ? 'En línea' : 'Ult. vez hoy a las...'}
-            </p>
-          </div>
         </div>
 
-        {/* Chat Area - Transparent */}
+        {/* Chat Area */}
         <div className="flex-1 p-4 overflow-y-auto bg-transparent scrollbar-thin scrollbar-thumb-white/20 scrollbar-track-transparent">
-          <div className="flex flex-col space-y-2">
+          <div className="flex flex-col space-y-3">
             {messages.length === 0 ? (
               <div className="text-center py-12">
                 <div className="bg-black/20 backdrop-blur-sm rounded-xl p-4 inline-block mb-4 shadow-sm border border-white/10">
                   <p className="text-white/80 text-sm">
-                    🔒 Los mensajes están cifrados de extremo a extremo. Nadie fuera de este chat, ni siquiera WhatsApp, puede leerlos ni escucharlos.
+                    🔒 Mensajes cifrados de extremo a extremo.
                   </p>
                 </div>
-                <p className="text-white/60 text-sm mt-4">Envía un mensaje para comenzar la conversación.</p>
+                <p className="text-white/60 text-sm mt-4">Saluda a {seller.name} 👋</p>
               </div>
             ) : (
               messages.map((msg, index) => {
@@ -197,18 +204,18 @@ const ChatView: React.FC<ChatViewProps> = ({ seller, buyer, onBack, chatLog, onS
                     className={`flex ${isCurrentUser ? 'justify-end' : 'justify-start'} mb-1`}
                   >
                     <div
-                      className={`relative max-w-[80%] px-3 py-1.5 rounded-lg shadow-sm text-sm border border-white/5 ${isCurrentUser
-                        ? 'bg-[#5b06b6]/80 backdrop-blur-sm text-white rounded-tr-none' // Usuario: Purple Glass
-                        : 'bg-black/40 backdrop-blur-sm text-white rounded-tl-none' // Otro: Dark Glass
+                      className={`relative max-w-[85%] px-4 py-2 rounded-2xl text-sm shadow-sm ${isCurrentUser
+                        ? 'bg-[#4b0997] text-white rounded-tr-sm' // Usuario: Purple
+                        : 'bg-[#d9520b] text-white rounded-tl-sm' // Otro: Orange
                         }`}
                     >
                       <p className="break-words leading-relaxed">{msg.text}</p>
-                      <div className={`flex justify-end items-center space-x-1 mt-1 ${isCurrentUser ? 'text-white/70' : 'text-white/60'}`}>
+                      <div className={`flex justify-end items-center space-x-1 mt-1 opacity-70`}>
                         <span className="text-[10px] min-w-fit">
                           {new Date(msg.timestamp || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                         </span>
                         {isCurrentUser && (
-                          <span className={`text-[11px] ${msg.isRead ? 'text-blue-300' : 'text-white/60'}`}>
+                          <span className={`text-[11px] ${msg.isRead ? 'text-blue-300' : 'text-white'}`}>
                             {/* Doble check */}
                             <svg viewBox="0 0 16 15" width="16" height="15" className="">
                               <path fill="currentColor" d="M15.01 3.316l-.478-.372a.365.365 0 0 0-.51.063L8.666 9.879a.32.32 0 0 1-.484.033l-.358-.325a.319.319 0 0 0-.484.032l-.378.483a.418.418 0 0 0 .036.541l1.32 1.266c.143.14.361.125.484-.033l6.272-7.655a.366.366 0 0 0-.064-.512zm-4.1 0l-.478-.372a.365.365 0 0 0-.51.063L4.566 9.879a.32.32 0 0 1-.484.033L1.891 7.769a.366.366 0 0 0-.515.006l-.423.433a.364.364 0 0 0 .006.514l3.258 3.185c.143.14.361.125.484-.033l6.272-7.655a.365.365 0 0 0-.063-.51z"></path>
@@ -225,8 +232,8 @@ const ChatView: React.FC<ChatViewProps> = ({ seller, buyer, onBack, chatLog, onS
           </div>
         </div>
 
-        {/* Input Area Glass Style */}
-        <div className="p-2 bg-black/20 backdrop-blur-md border-t border-white/10 flex items-center space-x-2">
+        {/* Input Area */}
+        <div className="p-3 bg-black/20 backdrop-blur-md border-t border-white/10">
           {isBlocked ? (
             <div className="w-full p-4 bg-black/40 text-center rounded-lg border border-red-500/30">
               <p className="text-red-400 font-bold text-sm">
@@ -234,26 +241,23 @@ const ChatView: React.FC<ChatViewProps> = ({ seller, buyer, onBack, chatLog, onS
                   ? 'Has bloqueado a este usuario.'
                   : 'Has sido bloqueado por el usuario.'}
               </p>
-              <p className="text-white/60 text-xs mt-1">
-                Su mensaje con ese usuario se eliminará en 24hrs.
-              </p>
             </div>
           ) : (
-            <form onSubmit={handleSendMessage} className="flex-1 flex items-center space-x-2">
-              <div className="flex-1 bg-white/10 rounded-lg flex items-center px-4 py-2 border border-white/5 focus-within:bg-white/20 transition-colors">
+            <form onSubmit={handleSendMessage} className="flex items-center space-x-2">
+              <div className="flex-1 bg-white/5 rounded-full flex items-center px-4 py-2 border border-white/10 focus-within:bg-white/10 transition-colors">
                 <input
                   type="text"
                   value={inputValue}
                   onChange={(e) => setInputValue(e.target.value)}
-                  placeholder="Escribe un mensaje"
-                  className="flex-1 bg-transparent text-white placeholder-white/50 outline-none text-sm"
+                  placeholder="Escribe un mensaje..."
+                  className="flex-1 bg-transparent text-white placeholder-white/40 outline-none text-sm"
                 />
               </div>
               <button
                 type="submit"
                 disabled={!inputValue.trim()}
-                className={`p-3 rounded-full transition-colors flex items-center justify-center ${inputValue.trim()
-                  ? 'bg-[#5b06b6] hover:bg-[#7c3aed] text-white shadow-lg'
+                className={`p-3 rounded-full transition-all transform hover:scale-105 flex items-center justify-center ${inputValue.trim()
+                  ? 'bg-[#4b0997] hover:bg-[#5b06b6] text-white shadow-lg shadow-purple-900/50'
                   : 'bg-white/10 text-white/30 cursor-default'
                   }`}
               >

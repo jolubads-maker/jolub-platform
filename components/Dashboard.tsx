@@ -15,6 +15,7 @@ import { useAdStore } from '../store/useAdStore';
 import { useChatStore } from '../store/useChatStore';
 import { apiService } from '../services/apiService';
 import UserStatusBadge from './UserStatusBadge';
+import ChatView from './ChatView';
 
 const Dashboard: React.FC = () => {
   const navigate = useNavigate();
@@ -39,6 +40,9 @@ const Dashboard: React.FC = () => {
   const [showEmailVerifyModal, setShowEmailVerifyModal] = useState(false);
   // Phone Verification Modal State
   const [showPhoneVerifyModal, setShowPhoneVerifyModal] = useState(false);
+
+  // Chat Lightbox State
+  const [selectedChat, setSelectedChat] = useState<ChatLog | null>(null);
 
   // Avatar Upload State
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
@@ -544,11 +548,8 @@ const Dashboard: React.FC = () => {
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
-                            const otherId = chat.participantIds.find(id => id !== currentUser.id);
-                            if (otherId) {
-                              const chatId = [currentUser.id, otherId].sort().join('-');
-                              navigate(`/chat/${chatId}`, { state: { sellerId: otherId, buyerId: currentUser.id } });
-                            }
+                            console.log('Opening chat lightbox for:', chat.id);
+                            setSelectedChat(chat);
                           }}
                           className="px-3 py-1 bg-green-500 text-white text-xs font-bold rounded-full hover:bg-green-600 transition-colors shadow-sm"
                         >
@@ -805,27 +806,46 @@ const Dashboard: React.FC = () => {
         )}
       </AnimatePresence>
 
-      {/* PHONE VERIFICATION MODAL */}
+      {/* CHAT LIGHTBOX */}
       <AnimatePresence>
-        {showPhoneVerifyModal && (
-          <PhoneVerificationModal
-            onPhoneVerified={handlePhoneVerified}
-            onClose={() => setShowPhoneVerifyModal(false)}
+        {selectedChat && (
+          <ChatView
+            chatLog={selectedChat}
+            buyer={currentUser}
+            seller={getOtherParticipant(selectedChat)!}
+            onBack={() => setSelectedChat(null)}
+            onSendMessage={() => { }}
+            isOverlay={true}
           />
         )}
       </AnimatePresence>
 
+
+      {/* PHONE VERIFICATION MODAL */}
+      <AnimatePresence>
+        {
+          showPhoneVerifyModal && (
+            <PhoneVerificationModal
+              onPhoneVerified={handlePhoneVerified}
+              onClose={() => setShowPhoneVerifyModal(false)}
+            />
+          )
+        }
+      </AnimatePresence >
+
       {/* EMAIL VERIFICATION MODAL */}
       <AnimatePresence>
-        {showEmailVerifyModal && (
-          <EmailVerificationModal
-            currentUser={currentUser}
-            onEmailVerified={handleEmailVerified}
-            onClose={() => setShowEmailVerifyModal(false)}
-          />
-        )}
-      </AnimatePresence>
-    </div>
+        {
+          showEmailVerifyModal && (
+            <EmailVerificationModal
+              currentUser={currentUser}
+              onEmailVerified={handleEmailVerified}
+              onClose={() => setShowEmailVerifyModal(false)}
+            />
+          )
+        }
+      </AnimatePresence >
+    </div >
   );
 };
 
