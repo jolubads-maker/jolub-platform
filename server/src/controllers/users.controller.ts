@@ -91,12 +91,20 @@ export const verifyUserPhone = async (req: Request, res: Response) => {
         const { id } = req.params;
         const { phoneNumber } = req.body;
 
+        const currentUser = await prisma.user.findUnique({ where: { id: Number(id) } });
+
+        const dataToUpdate: any = {
+            phone: String(phoneNumber),
+            phoneVerified: true
+        };
+
+        if (currentUser && !currentUser.phoneVerified) {
+            dataToUpdate.points = { increment: 20 };
+        }
+
         const user = await prisma.user.update({
             where: { id: Number(id) },
-            data: {
-                phone: String(phoneNumber),
-                phoneVerified: true
-            }
+            data: dataToUpdate
         });
         res.json(user);
     } catch (err) {
@@ -190,5 +198,29 @@ export const updatePrivacy = async (req: Request, res: Response) => {
     } catch (err) {
         console.error('Error updating privacy:', err);
         res.status(500).json({ error: 'Error updating privacy settings' });
+    }
+};
+
+export const rateUser = async (req: Request, res: Response) => {
+    try {
+        const { id } = req.params;
+        const { points } = req.body;
+
+        if (typeof points !== 'number') {
+            return res.status(400).json({ error: 'Points must be a number' });
+        }
+
+        const user = await prisma.user.update({
+            where: { id: Number(id) },
+            data: {
+                points: {
+                    increment: points
+                }
+            }
+        });
+        res.json(user);
+    } catch (err) {
+        console.error('Error rating user:', err);
+        res.status(500).json({ error: 'Error rating user' });
     }
 };

@@ -257,12 +257,22 @@ export const verifyPhoneCode = async (req: Request, res: Response) => {
 
         await prisma.verificationCode.delete({ where: { id: verificationCode.id } });
 
-        await prisma.user.updateMany({
-            where: { phone: phoneNumber },
-            data: { phoneVerified: true }
+        // Find user by phone number
+        const user = await prisma.user.findFirst({ where: { phone: phoneNumber } });
+
+        if (!user) {
+            return res.status(404).json({ error: 'Usuario no encontrado para este número' });
+        }
+
+        const updatedUser = await prisma.user.update({
+            where: { id: user.id },
+            data: {
+                phoneVerified: true,
+                points: { increment: 20 }
+            }
         });
 
-        res.json({ ok: true, message: 'Teléfono verificado exitosamente' });
+        res.json({ ok: true, message: 'Teléfono verificado exitosamente (+20 Puntos)', user: updatedUser });
     } catch (err) {
         logger.error(`Error verifying phone code: ${err}`);
         res.status(500).json({ error: 'Error verificando código' });
@@ -358,12 +368,22 @@ export const verifyEmailCode = async (req: Request, res: Response) => {
 
         await prisma.verificationCode.delete({ where: { id: verificationCode.id } });
 
-        await prisma.user.updateMany({
-            where: { email },
-            data: { emailVerified: true }
+        // Find user by email
+        const user = await prisma.user.findFirst({ where: { email } });
+
+        if (!user) {
+            return res.status(404).json({ error: 'Usuario no encontrado para este email' });
+        }
+
+        const updatedUser = await prisma.user.update({
+            where: { id: user.id },
+            data: {
+                emailVerified: true,
+                points: { increment: 10 }
+            }
         });
 
-        res.json({ ok: true, message: 'Email verificado exitosamente' });
+        res.json({ ok: true, message: 'Email verificado exitosamente (+10 Puntos)', user: updatedUser });
     } catch (err) {
         logger.error(`Error verifying email code: ${err}`);
         res.status(500).json({ error: 'Error verificando código' });

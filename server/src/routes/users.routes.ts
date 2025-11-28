@@ -7,7 +7,8 @@ import {
     updateAvatar,
     verifyUserPhone,
     getUserFavorites,
-    updatePrivacy
+    updatePrivacy,
+    rateUser
 } from '../controllers/users.controller';
 import { validate, userSchema } from '../utils/validation';
 
@@ -20,6 +21,7 @@ router.put('/users/:id/online-status', updateOnlineStatus);
 router.put('/users/:id/avatar', validate(userSchema.pick({ avatar: true })), updateAvatar);
 router.put('/users/:id/verify-phone', verifyUserPhone);
 router.put('/users/:id/privacy', updatePrivacy);
+router.post('/users/:id/rate', rateUser);
 router.get('/users/:userId/favorites', getUserFavorites);
 
 export default router;

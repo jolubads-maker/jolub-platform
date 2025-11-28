@@ -35,9 +35,15 @@ import { useChatStore } from './store/useChatStore';
 const AdDetailWrapper: React.FC = () => {
   const { uniqueCode } = useParams();
   const navigate = useNavigate();
-  const { ads } = useAdStore();
+  const { ads, loading, fetchAdByUniqueCode } = useAdStore();
   const { users } = useAuthStore();
   const { currentUser } = useAuthStore();
+
+  useEffect(() => {
+    if (uniqueCode) {
+      fetchAdByUniqueCode(uniqueCode);
+    }
+  }, [uniqueCode]);
 
   // Buscar el anuncio por uniqueCode (ej: AD-17613)
   const ad = useMemo(() => {
@@ -64,20 +70,28 @@ const AdDetailWrapper: React.FC = () => {
     navigate(`/chat/${chatId}`, { state: { sellerId, buyerId } });
   };
 
+  if (loading && !ad) {
+    return <LoadingScreen />;
+  }
+
   if (!ad || !seller) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="text-center">
-          <h2 className="text-2xl font-bold text-gray-700 mb-2">Anuncio no encontrado</h2>
-          <button
-            onClick={() => navigate('/')}
-            className="text-blue-600 hover:underline"
-          >
-            Volver al inicio
-          </button>
+    // Si no está cargando y no hay anuncio, mostrar error
+    if (!loading) {
+      return (
+        <div className="min-h-screen flex items-center justify-center bg-gray-50">
+          <div className="text-center">
+            <h2 className="text-2xl font-bold text-gray-700 mb-2">Anuncio no encontrado</h2>
+            <button
+              onClick={() => navigate('/')}
+              className="text-blue-600 hover:underline"
+            >
+              Volver al inicio
+            </button>
+          </div>
         </div>
-      </div>
-    );
+      );
+    }
+    return <LoadingScreen />;
   }
 
   return (
@@ -101,7 +115,7 @@ const App: React.FC = () => {
   const setAuthError = useAuthStore(state => state.setError);
 
   const { fetchAds, loading: adsLoading } = useAdStore();
-  const { loadUserChats } = useChatStore();
+  const loadUserChats = useChatStore(state => state.loadUserChats);
 
   const navigate = useNavigate();
 
@@ -232,7 +246,9 @@ const ChatRouteWrapper: React.FC = () => {
   const state = location.state as { sellerId?: number, buyerId?: number } | null;
 
   const { currentUser, users } = useAuthStore();
-  const { chatLogs, sendMessage, addMessage } = useChatStore();
+  const chatLogs = useChatStore(state => state.chatLogs);
+  const sendMessage = useChatStore(state => state.sendMessage);
+  const addMessage = useChatStore(state => state.addMessage);
 
   if (!currentUser || !chatId) return <Navigate to="/" />;
 
@@ -252,7 +268,7 @@ const ChatRouteWrapper: React.FC = () => {
       seller={chatSeller}
       buyer={currentUser}
       onBack={() => navigate(`/dashboard/${currentUser?.uniqueId || 'USER-' + currentUser?.id}`)}
-      chatLog={chatLog || { id: chatId, participantIds: [currentUser.id, chatSeller.id], messages: [], lastMessage: undefined }}
+      chatLog={chatLog || { id: chatId, participantIds: [currentUser.id, chatSeller.id], messages: [], lastMessage: undefined, updatedAt: new Date() }}
       onSendMessage={async (message) => {
         try {
           await sendMessage(chatId, currentUser.id, message, currentUser.id === chatSeller.id ? 'seller' : 'buyer');

@@ -52,6 +52,7 @@ model Ad {
   details     String?  // Detalles adicionales del producto
   price       Int
   category    String   @default("Otros") // Categoría del producto
+  subcategory String?  // Subcategoría del producto
   location    String?  // Ubicación del vendedor
   views       Int      @default(0)
   isFeatured  Boolean  @default(false)

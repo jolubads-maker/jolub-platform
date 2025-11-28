@@ -22,6 +22,18 @@ export const getUserChats = async (req: Request, res: Response) => {
                                 }
                             }
                         },
+                        ad: {
+                            select: {
+                                id: true,
+                                uniqueCode: true,
+                                title: true,
+                                price: true,
+                                media: {
+                                    take: 1,
+                                    select: { url: true, type: true }
+                                }
+                            }
+                        },
                         messages: {
                             select: {
                                 id: true,
@@ -59,7 +71,8 @@ export const getUserChats = async (req: Request, res: Response) => {
 
 export const createChat = async (req: Request, res: Response) => {
     try {
-        const { participantIds } = req.body;
+        const { participantIds, adId, checkOnly } = req.body;
+        console.log('createChat body:', req.body);
         if (!participantIds || participantIds.length !== 2) {
             return res.status(400).json({ error: 'Se requieren exactamente 2 participantes' });
         }
@@ -71,21 +84,39 @@ export const createChat = async (req: Request, res: Response) => {
             where: { id: chatId },
             include: {
                 participants: { include: { user: true } },
-                messages: { include: { user: true }, orderBy: { createdAt: 'asc' } }
+                messages: { include: { user: true }, orderBy: { createdAt: 'asc' } },
+                ad: { include: { media: { take: 1 } } }
             }
         });
+
+        if (checkOnly) {
+            return res.json(chat); // Returns null if not found
+        }
 
         if (!chat) {
             chat = await prisma.chatLog.create({
                 data: {
                     id: chatId,
+                    adId: adId ? Number(adId) : undefined,
                     participants: {
                         create: sortedIds.map((userId: any) => ({ userId: Number(userId) }))
                     }
                 },
                 include: {
                     participants: { include: { user: true } },
-                    messages: { include: { user: true }, orderBy: { createdAt: 'asc' } }
+                    messages: { include: { user: true }, orderBy: { createdAt: 'asc' } },
+                    ad: { include: { media: { take: 1 } } }
+                }
+            });
+        } else if (adId) {
+            // Update the ad context if a new adId is provided
+            chat = await prisma.chatLog.update({
+                where: { id: chatId },
+                data: { adId: Number(adId) },
+                include: {
+                    participants: { include: { user: true } },
+                    messages: { include: { user: true }, orderBy: { createdAt: 'asc' } },
+                    ad: { include: { media: { take: 1 } } }
                 }
             });
         }

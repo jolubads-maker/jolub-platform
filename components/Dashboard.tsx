@@ -1,5 +1,5 @@
 /// <reference types="vite/client" />
-import React, { useState, useRef, useMemo } from 'react';
+import React, { useState, useRef, useMemo, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { PayPalScriptProvider, PayPalButtons } from "@paypal/react-paypal-js";
@@ -42,7 +42,8 @@ const Dashboard: React.FC = () => {
   const [showPhoneVerifyModal, setShowPhoneVerifyModal] = useState(false);
 
   // Chat Lightbox State
-  const [selectedChat, setSelectedChat] = useState<ChatLog | null>(null);
+  const [selectedChatId, setSelectedChatId] = useState<string | null>(null);
+  const selectedChat = selectedChatId ? chatLogs.get(selectedChatId) : null;
 
   // Avatar Upload State
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
@@ -60,6 +61,30 @@ const Dashboard: React.FC = () => {
       (log as ChatLog).participantIds.includes(currentUser.id)
     );
   }, [chatLogs, currentUser]);
+
+  // Listen for new messages to update chat list
+  useEffect(() => {
+    if (!currentUser) return;
+
+    const socketUrl = 'http://localhost:4000';
+    import('socket.io-client').then(({ io }) => {
+      const socket = io(socketUrl, {
+        transports: ['websocket'],
+        auth: { token: currentUser.sessionToken }
+      });
+
+      socket.on('new_message_notification', (data) => {
+        console.log('🔔 Dashboard: Nueva notificación recibida, actualizando chats...', data);
+        // Reload chats to update order and unread status
+        // Ideally we would just update the store, but reloading is safer for now to ensure sync
+        useChatStore.getState().loadUserChats(currentUser.id);
+      });
+
+      return () => {
+        socket.disconnect();
+      };
+    });
+  }, [currentUser]);
 
   if (!currentUser) {
     navigate('/login');
@@ -95,20 +120,11 @@ const Dashboard: React.FC = () => {
   };
 
   const handleLogout = () => {
-    // const confirmed = window.confirm('¿Estás seguro de que deseas cerrar sesión?');
-    // if (!confirmed) return;
     console.log('Logout initiated');
-
-    // 1. Clear Local Storage immediately
     localStorage.removeItem('sessionToken');
     localStorage.removeItem('currentUser');
     localStorage.removeItem('phoneVerification');
-
-    // 2. Call API in background (fire and forget)
-    // We don't await this because we want immediate UI feedback
     logout().catch(err => console.error('Background logout error:', err));
-
-    // 3. Force Hard Redirect to Home
     window.location.href = '/';
   };
 
@@ -137,15 +153,11 @@ const Dashboard: React.FC = () => {
       const data = await response.json();
       const newAvatarUrl = data.secure_url;
 
-      // Update in Backend
       await apiService.createOrUpdateUser({
         ...currentUser,
         avatar: newAvatarUrl
       });
 
-      // Update in Store (Optimistic or re-fetch)
-      // For now, we rely on createOrUpdateUser returning the updated user 
-      // but we should probably call a store action to update it locally
       useAuthStore.setState(state => ({
         currentUser: { ...state.currentUser!, avatar: newAvatarUrl }
       }));
@@ -182,8 +194,8 @@ const Dashboard: React.FC = () => {
   const scrollCarousel = (direction: 'left' | 'right') => {
     if (carouselRef.current) {
       const cardWidth = 240;
-      const gap = 24; // gap-6
-      const scrollAmount = (cardWidth + gap) * 4; // Scroll 4 items
+      const gap = 24;
+      const scrollAmount = (cardWidth + gap) * 4;
       const newScrollLeft = direction === 'left'
         ? carouselRef.current.scrollLeft - scrollAmount
         : carouselRef.current.scrollLeft + scrollAmount;
@@ -397,8 +409,6 @@ const Dashboard: React.FC = () => {
             </div>
           </motion.div>
 
-          {/* 4. VERIFICACIONES (Removed old inline verifications) */}
-
           {/* 5. MIS ANUNCIOS (CAROUSEL) */}
           <div className="col-span-1 md:col-span-4 bg-white rounded-[2rem] p-8 flex flex-col shadow-[0_20px_60px_-15px_rgba(0,0,0,0.1)] border-2 border-[#6e0ad6] min-h-[450px] relative">
             <div className="flex items-center justify-between mb-6">
@@ -508,35 +518,63 @@ const Dashboard: React.FC = () => {
                 userChats.map((chat, index) => {
                   const otherUser = getOtherParticipant(chat);
                   if (!otherUser) return null;
+                  const hasUnread = chat.messages && chat.messages.some((m: any) => !m.isRead && m.userId !== currentUser.id);
+
                   return (
                     <motion.div
-                      key={index}
-                      whileHover={{ scale: 1.02, backgroundColor: '#f8f9fa' }}
-                      className="flex items-center gap-4 p-4 rounded-2xl border border-gray-100 bg-white hover:shadow-lg transition-all cursor-pointer group relative"
+                      key={chat.id || index}
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="flex items-center gap-4 p-4 rounded-2xl border border-black bg-white hover:shadow-lg transition-all relative group"
                     >
-                      <div onClick={() => {
-                        const otherId = chat.participantIds.find(id => id !== currentUser.id);
-                        if (otherId) {
-                          const chatId = [currentUser.id, otherId].sort().join('-');
-                          navigate(`/chat/${chatId}`, { state: { sellerId: otherId, buyerId: currentUser.id } });
-                        }
-                      }} className="flex-1 flex items-center gap-4">
-                        <UserStatusBadge
-                          avatar={otherUser.avatar}
-                          name={otherUser.name}
-                          isOnline={otherUser.isOnline}
-                          size="lg"
-                        />
+                      {/* Unread Badge */}
+                      {hasUnread && (
+                        <div className="absolute top-3 right-3 w-3 h-3 bg-green-500 rounded-full animate-pulse shadow-sm z-20"></div>
+                      )}
+
+                      <div className="flex-1 flex items-center gap-4">
+                        <div className="relative flex-shrink-0">
+                          <img
+                            src={otherUser.avatar || 'https://via.placeholder.com/40'}
+                            alt={otherUser.name}
+                            className="w-12 h-12 rounded-full object-cover border-2 border-gray-100"
+                          />
+                          <div className={`absolute bottom-0 right-0 w-3.5 h-3.5 border-2 border-white rounded-full ${otherUser.isOnline ? 'bg-green-500' : 'bg-gray-400'}`}></div>
+                        </div>
                         <div className="flex-1 min-w-0">
-                          <h4 className="font-bold text-gray-800 text-lg truncate group-hover:text-[#6e0ad6] transition-colors">{otherUser.name}</h4>
-                          <div className="flex items-center gap-2 text-sm text-gray-500">
-                            <StarIcon className="w-4 h-4 text-orange-500" />
-                            <span className="font-bold text-gray-700">Reputación: {otherUser.points || 0}</span>
+                          <h4 className="font-bold text-gray-800 text-lg truncate group-hover:text-[#6e0ad6] transition-colors">
+                            {otherUser.name}
+                          </h4>
+
+                          {/* Reputation & Ad Info Row */}
+                          <div className="flex items-center gap-3 mt-1 flex-wrap">
+                            {/* Reputation */}
+                            <div className="flex items-center gap-1 bg-orange-100 px-2 py-0.5 rounded-full border border-orange-200">
+                              <StarIcon className="w-3 h-3 text-orange-500" />
+                              <span className="text-xs font-bold text-orange-700">{otherUser.points || 0}</span>
+                              <span className="text-[10px] text-orange-600/80 font-medium">Reputación</span>
+                            </div>
+
+                            {/* Ad Details */}
+                            {chat.ad && (
+                              <div className="flex items-center gap-2 pl-2 border-l-2 border-gray-200">
+                                {chat.ad.media && chat.ad.media[0] ? (
+                                  <img src={chat.ad.media[0].url} alt="Ad" className="w-8 h-8 rounded-md object-cover border border-gray-200" />
+                                ) : (
+                                  <div className="w-8 h-8 rounded-md bg-gray-100 border border-gray-200 flex items-center justify-center">
+                                    <span className="text-[8px] text-gray-400">N/A</span>
+                                  </div>
+                                )}
+                                <div className="flex flex-col leading-none">
+                                  <span className="text-[10px] font-mono text-gray-500 mb-0.5">#{chat.ad.uniqueCode || chat.ad.id}</span>
+                                  <span className="text-xs font-black text-[#6e0ad6]">${chat.ad.price}</span>
+                                </div>
+                              </div>
+                            )}
                           </div>
-                          {/* Unread Count Logic (Mocked for now as we need full message objects in list) */}
-                          {/* En una implementación real, chat.messages debería traer el conteo o los mensajes no leídos */}
-                          {chat.messages && chat.messages.some((m: any) => !m.isRead && m.userId !== currentUser.id) && (
-                            <p className="text-xs text-green-600 font-bold mt-1">
+
+                          {hasUnread && (
+                            <p className="text-xs text-green-600 font-bold mt-1 animate-pulse">
                               Mensajes pendientes de contestar
                             </p>
                           )}
@@ -548,23 +586,16 @@ const Dashboard: React.FC = () => {
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
-                            console.log('Opening chat lightbox for:', chat.id);
-                            setSelectedChat(chat);
+                            setSelectedChatId(chat.id);
                           }}
                           className="px-3 py-1 bg-green-500 text-white text-xs font-bold rounded-full hover:bg-green-600 transition-colors shadow-sm"
                         >
-                          Contestar
+                          Chat
                         </button>
                         <button
                           onClick={async (e) => {
                             e.stopPropagation();
                             if (window.confirm(`¿Estás seguro de bloquear a ${otherUser.name}?`)) {
-                              // Lógica de bloqueo
-                              const chatId = [currentUser.id, otherUser.id].sort().join('-');
-                              // Necesitamos acceso al socket o API para bloquear.
-                              // Por ahora usaremos apiService si implementamos el endpoint, o socket si tuviéramos acceso aquí.
-                              // Como socket está en ChatView, lo ideal sería una acción de store o API.
-                              // Vamos a asumir que existe apiService.blockChat o similar, o lo agregamos.
                               alert('Función de bloqueo en proceso de conexión con backend.');
                             }
                           }}
@@ -610,215 +641,222 @@ const Dashboard: React.FC = () => {
         </div>
       </div>
 
-      {/* LIGHTBOX MODAL */}
+      {/* AD LIGHTBOX MODAL */}
       <AnimatePresence>
-        {selectedAd && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
-            onClick={closeLightbox}
-          >
+        {
+          selectedAd && (
             <motion.div
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
-              className="bg-white border border-white/10 rounded-3xl overflow-hidden max-w-5xl w-full max-h-[90vh] flex flex-col md:flex-row shadow-2xl"
-              onClick={e => e.stopPropagation()}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
+              onClick={closeLightbox}
             >
-              <div className="flex-1 bg-black relative flex flex-col justify-center group">
-                <div ref={mediaContainerRef} className="relative w-full h-full min-h-[300px] md:min-h-[500px] flex items-center justify-center bg-gray-900">
-                  {selectedAd.media[selectedMediaIndex]?.type === 'image' ? (
-                    <img
-                      src={selectedAd.media[selectedMediaIndex]?.url}
-                      alt="Detail"
-                      className="max-w-full max-h-full object-contain"
-                    />
-                  ) : (
-                    <video
-                      src={selectedAd.media[selectedMediaIndex]?.url}
-                      controls
-                      className="max-w-full max-h-full"
-                    />
-                  )}
-                </div>
-                {selectedAd.media.length > 1 && (
-                  <>
-                    <button onClick={goPrevMedia} className="absolute left-4 top-1/2 -translate-y-1/2 p-3 bg-black/50 text-white rounded-full hover:bg-white/20 backdrop-blur-md transition-all opacity-0 group-hover:opacity-100">‹</button>
-                    <button onClick={goNextMedia} className="absolute right-4 top-1/2 -translate-y-1/2 p-3 bg-black/50 text-white rounded-full hover:bg-white/20 backdrop-blur-md transition-all opacity-0 group-hover:opacity-100">›</button>
-                  </>
-                )}
-              </div>
-              <div className="w-full md:w-[400px] p-8 bg-white/95 backdrop-blur-xl border-l border-white/5 flex flex-col">
-                <div className="flex justify-between items-start mb-6">
-                  <h2 className="text-2xl font-bold text-gray-800 leading-tight">{selectedAd.title}</h2>
-                  <button onClick={closeLightbox} className="text-gray-500 hover:text-gray-800">✕</button>
-                </div>
-                <div className="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-[#6e0ad6] to-indigo-600 mb-6">
-                  ${selectedAd.price.toLocaleString()}
-                </div>
-                <div className="space-y-6 flex-1 overflow-y-auto custom-scrollbar pr-2">
-                  <div>
-                    <h4 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-2">Descripción</h4>
-                    <p className="text-gray-600 leading-relaxed text-sm">{selectedAd.description}</p>
+              <motion.div
+                initial={{ scale: 0.9, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.9, opacity: 0 }}
+                className="bg-white border border-white/10 rounded-3xl overflow-hidden max-w-5xl w-full max-h-[90vh] flex flex-col md:flex-row shadow-2xl"
+                onClick={e => e.stopPropagation()}
+              >
+                <div className="flex-1 bg-black relative flex flex-col justify-center group">
+                  <div ref={mediaContainerRef} className="relative w-full h-full min-h-[300px] md:min-h-[500px] flex items-center justify-center bg-gray-900">
+                    {selectedAd.media[selectedMediaIndex]?.type === 'image' ? (
+                      <img
+                        src={selectedAd.media[selectedMediaIndex]?.url}
+                        alt="Detail"
+                        className="max-w-full max-h-full object-contain"
+                      />
+                    ) : (
+                      <video
+                        src={selectedAd.media[selectedMediaIndex]?.url}
+                        controls
+                        className="max-w-full max-h-full"
+                      />
+                    )}
                   </div>
-                  {selectedAd.details && (
-                    <div>
-                      <h4 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-2">Detalles</h4>
-                      <p className="text-gray-600 text-sm">{selectedAd.details}</p>
-                    </div>
+                  {selectedAd.media.length > 1 && (
+                    <>
+                      <button onClick={goPrevMedia} className="absolute left-4 top-1/2 -translate-y-1/2 p-3 bg-black/50 text-white rounded-full hover:bg-white/20 backdrop-blur-md transition-all opacity-0 group-hover:opacity-100">‹</button>
+                      <button onClick={goNextMedia} className="absolute right-4 top-1/2 -translate-y-1/2 p-3 bg-black/50 text-white rounded-full hover:bg-white/20 backdrop-blur-md transition-all opacity-0 group-hover:opacity-100">›</button>
+                    </>
                   )}
                 </div>
-                <div className="pt-6 mt-6 border-t border-gray-100 flex items-center justify-between text-sm text-gray-500">
-                  <span className="flex items-center gap-2"><EyeIcon className="w-4 h-4" /> {selectedAd.views} Vistas</span>
-                  <span>{selectedAd.location}</span>
+                <div className="w-full md:w-[400px] p-8 bg-white/95 backdrop-blur-xl border-l border-white/5 flex flex-col">
+                  <div className="flex justify-between items-start mb-6">
+                    <h2 className="text-2xl font-bold text-gray-800 leading-tight">{selectedAd.title}</h2>
+                    <button onClick={closeLightbox} className="text-gray-500 hover:text-gray-800">✕</button>
+                  </div>
+                  <div className="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-[#6e0ad6] to-indigo-600 mb-6">
+                    ${selectedAd.price.toLocaleString()}
+                  </div>
+                  <div className="space-y-6 flex-1 overflow-y-auto custom-scrollbar pr-2">
+                    <div>
+                      <h4 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-2">Descripción</h4>
+                      <p className="text-gray-600 leading-relaxed text-sm">{selectedAd.description}</p>
+                    </div>
+                    {selectedAd.details && (
+                      <div>
+                        <h4 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-2">Detalles</h4>
+                        <p className="text-gray-600 text-sm">{selectedAd.details}</p>
+                      </div>
+                    )}
+                  </div>
+                  <div className="pt-6 mt-6 border-t border-gray-100 flex items-center justify-between text-sm text-gray-500">
+                    <span className="flex items-center gap-2"><EyeIcon className="w-4 h-4" /> {selectedAd.views} Vistas</span>
+                    <span>{selectedAd.location}</span>
+                  </div>
                 </div>
-              </div>
+              </motion.div>
             </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+          )
+        }
+      </AnimatePresence >
 
       {/* HIGHLIGHT AD MODAL */}
       <AnimatePresence>
-        {highlightAd && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
-            onClick={() => setHighlightAd(null)}
-          >
+        {
+          highlightAd && (
             <motion.div
-              initial={{ scale: 0.95, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.95, opacity: 0 }}
-              className="bg-white rounded-3xl overflow-hidden max-w-lg w-full shadow-2xl relative"
-              onClick={e => e.stopPropagation()}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
+              onClick={() => setHighlightAd(null)}
             >
-              <div className="bg-[#6e0ad6] p-6 flex justify-between items-center">
-                <h2 className="text-2xl font-black text-white">Destacar Anuncio</h2>
-                <button onClick={() => setHighlightAd(null)} className="text-white/70 hover:text-white transition-colors">
-                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-                </button>
-              </div>
-              <div className="p-8">
-                <div className="mb-6">
-                  <div className="p-4 bg-[#6e0ad6] rounded-xl shadow-md mb-3">
-                    <p className="text-xs text-white font-bold uppercase tracking-wide mb-1">ID del Anuncio</p>
-                    <p className="text-lg font-mono font-bold text-white break-all">
-                      #{highlightAd.uniqueCode || `AD-${highlightAd.id}`}
-                    </p>
-                  </div>
-                  <h3 className="text-xl font-black text-black leading-tight">
-                    {highlightAd.title}
-                  </h3>
+              <motion.div
+                initial={{ scale: 0.95, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.95, opacity: 0 }}
+                className="bg-white rounded-3xl overflow-hidden max-w-lg w-full shadow-2xl relative"
+                onClick={e => e.stopPropagation()}
+              >
+                <div className="bg-[#6e0ad6] p-6 flex justify-between items-center">
+                  <h2 className="text-2xl font-black text-white">Destacar Anuncio</h2>
+                  <button onClick={() => setHighlightAd(null)} className="text-white/70 hover:text-white transition-colors">
+                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                  </button>
                 </div>
-                <div className="mb-6">
-                  <label className="block text-sm font-bold text-gray-700 mb-2">¿Cuánto tiempo quieres destacar?</label>
-                  <div className="relative">
-                    <select
-                      value={highlightDuration}
-                      onChange={(e) => setHighlightDuration(e.target.value)}
-                      className="w-full appearance-none bg-white border-2 border-gray-200 text-gray-800 font-bold rounded-xl py-3 px-4 pr-8 leading-tight focus:outline-none focus:border-[#6e0ad6] focus:ring-0 transition-colors"
-                    >
-                      <option value="1">1 día = $2.00</option>
-                      <option value="3">3 días = $5.00</option>
-                      <option value="7">7 días = $8.00</option>
-                      <option value="15">15 días = $12.00</option>
-                      <option value="30">30 días = $15.00</option>
-                    </select>
-                    <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-gray-500">
-                      <svg className="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z" /></svg>
+                <div className="p-8">
+                  <div className="mb-6">
+                    <div className="p-4 bg-[#6e0ad6] rounded-xl shadow-md mb-3">
+                      <p className="text-xs text-white font-bold uppercase tracking-wide mb-1">ID del Anuncio</p>
+                      <p className="text-lg font-mono font-bold text-white break-all">
+                        #{highlightAd.uniqueCode || `AD-${highlightAd.id}`}
+                      </p>
+                    </div>
+                    <h3 className="text-xl font-black text-black leading-tight">
+                      {highlightAd.title}
+                    </h3>
+                  </div>
+                  <div className="mb-6">
+                    <label className="block text-sm font-bold text-gray-700 mb-2">¿Cuánto tiempo quieres destacar?</label>
+                    <div className="relative">
+                      <select
+                        value={highlightDuration}
+                        onChange={(e) => setHighlightDuration(e.target.value)}
+                        className="w-full appearance-none bg-white border-2 border-gray-200 text-gray-800 font-bold rounded-xl py-3 px-4 pr-8 leading-tight focus:outline-none focus:border-[#6e0ad6] focus:ring-0 transition-colors"
+                      >
+                        <option value="1">1 día = $2.00</option>
+                        <option value="3">3 días = $5.00</option>
+                        <option value="7">7 días = $8.00</option>
+                        <option value="15">15 días = $12.00</option>
+                        <option value="30">30 días = $15.00</option>
+                      </select>
+                      <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-gray-500">
+                        <svg className="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z" /></svg>
+                      </div>
                     </div>
                   </div>
-                </div>
-                <div className="mb-8">
-                  <label className="flex items-center gap-3 cursor-pointer group">
-                    <div className={`w-6 h-6 rounded-lg border-2 flex items-center justify-center transition-colors ${highlightTermsAccepted ? 'bg-[#6e0ad6] border-[#6e0ad6]' : 'border-gray-300 group-hover:border-[#6e0ad6]'}`}>
-                      {highlightTermsAccepted && <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>}
-                    </div>
-                    <input
-                      type="checkbox"
-                      className="hidden"
-                      checked={highlightTermsAccepted}
-                      onChange={(e) => setHighlightTermsAccepted(e.target.checked)}
-                    />
-                    <span className="text-sm text-gray-600 font-medium select-none">
-                      Acepto las <span className="text-[#6e0ad6] hover:underline">condiciones de uso</span> y la <span className="text-[#6e0ad6] hover:underline">política de privacidad</span>.
-                    </span>
-                  </label>
-                </div>
-                <div className="flex flex-col gap-3">
-                  <PayPalScriptProvider options={{ clientId: import.meta.env.VITE_PAYPAL_CLIENT_ID || "test" }}>
-                    <PayPalButtons
-                      style={{ layout: "vertical" }}
-                      disabled={!highlightTermsAccepted}
-                      createOrder={(data, actions) => {
-                        let value = "2.00";
-                        if (highlightDuration === "3") value = "5.00";
-                        if (highlightDuration === "7") value = "8.00";
-                        if (highlightDuration === "15") value = "12.00";
-                        if (highlightDuration === "30") value = "15.00";
+                  <div className="mb-8">
+                    <label className="flex items-center gap-3 cursor-pointer group">
+                      <div className={`w-6 h-6 rounded-lg border-2 flex items-center justify-center transition-colors ${highlightTermsAccepted ? 'bg-[#6e0ad6] border-[#6e0ad6]' : 'border-gray-300 group-hover:border-[#6e0ad6]'}`}>
+                        {highlightTermsAccepted && <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>}
+                      </div>
+                      <input
+                        type="checkbox"
+                        className="hidden"
+                        checked={highlightTermsAccepted}
+                        onChange={(e) => setHighlightTermsAccepted(e.target.checked)}
+                      />
+                      <span className="text-sm text-gray-600 font-medium select-none">
+                        Acepto las <span className="text-[#6e0ad6] hover:underline">condiciones de uso</span> y la <span className="text-[#6e0ad6] hover:underline">política de privacidad</span>.
+                      </span>
+                    </label>
+                  </div>
+                  <div className="flex flex-col gap-3">
+                    <PayPalScriptProvider options={{ clientId: import.meta.env.VITE_PAYPAL_CLIENT_ID || "test" }}>
+                      <PayPalButtons
+                        style={{ layout: "vertical" }}
+                        disabled={!highlightTermsAccepted}
+                        createOrder={(data, actions) => {
+                          let value = "2.00";
+                          if (highlightDuration === "3") value = "5.00";
+                          if (highlightDuration === "7") value = "8.00";
+                          if (highlightDuration === "15") value = "12.00";
+                          if (highlightDuration === "30") value = "15.00";
 
-                        return actions.order.create({
-                          intent: "CAPTURE",
-                          purchase_units: [
-                            {
-                              amount: {
-                                currency_code: "USD",
-                                value: value,
+                          return actions.order.create({
+                            intent: "CAPTURE",
+                            purchase_units: [
+                              {
+                                amount: {
+                                  currency_code: "USD",
+                                  value: value,
+                                },
                               },
-                            },
-                          ],
-                        });
-                      }}
-                      onApprove={async (data, actions) => {
-                        if (!actions.order) return;
-                        return actions.order.capture().then(async (details) => {
-                          try {
-                            const res = await fetch(`/api/ads/${highlightAd.id}/feature`, {
-                              method: 'POST',
-                              headers: { 'Content-Type': 'application/json' },
-                              body: JSON.stringify({ durationDays: highlightDuration })
-                            });
+                            ],
+                          });
+                        }}
+                        onApprove={async (data, actions) => {
+                          if (!actions.order) return;
+                          return actions.order.capture().then(async (details) => {
+                            try {
+                              const res = await fetch(`/api/ads/${highlightAd.id}/feature`, {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ durationDays: highlightDuration })
+                              });
 
-                            if (res.ok) {
-                              alert("¡Pago exitoso! Tu anuncio ha sido destacado.");
-                              setHighlightAd(null);
-                              window.location.reload();
-                            } else {
-                              alert("Error al actualizar el anuncio. Por favor contacta soporte.");
+                              if (res.ok) {
+                                alert("¡Pago exitoso! Tu anuncio ha sido destacado.");
+                                setHighlightAd(null);
+                                window.location.reload();
+                              } else {
+                                alert("Error al actualizar el anuncio. Por favor contacta soporte.");
+                              }
+                            } catch (err) {
+                              console.error(err);
+                              alert("Error de conexión.");
                             }
-                          } catch (err) {
-                            console.error(err);
-                            alert("Error de conexión.");
-                          }
-                        });
-                      }}
-                    />
-                  </PayPalScriptProvider>
+                          });
+                        }}
+                      />
+                    </PayPalScriptProvider>
+                  </div>
                 </div>
-              </div>
+              </motion.div>
             </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+          )
+        }
+      </AnimatePresence >
 
       {/* CHAT LIGHTBOX */}
       <AnimatePresence>
-        {selectedChat && (
-          <ChatView
-            chatLog={selectedChat}
-            buyer={currentUser}
-            seller={getOtherParticipant(selectedChat)!}
-            onBack={() => setSelectedChat(null)}
-            onSendMessage={() => { }}
-            isOverlay={true}
-          />
-        )}
-      </AnimatePresence>
+        {
+          selectedChat && (
+            <ChatView
+              chatLog={selectedChat}
+              buyer={currentUser}
+              seller={getOtherParticipant(selectedChat)!}
+              onBack={() => setSelectedChatId(null)}
+              onSendMessage={() => { }}
+              isOverlay={true}
+              ad={selectedChat.ad as any}
+            />
+          )
+        }
+      </AnimatePresence >
 
 
       {/* PHONE VERIFICATION MODAL */}

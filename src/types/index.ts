@@ -31,14 +31,10 @@ export interface Media {
 }
 
 export type AdCategory =
-  | 'Electrónica'
+  | 'Bienes raíces'
   | 'Vehículos'
-  | 'Hogar'
-  | 'Moda'
-  | 'Deportes'
-  | 'Juguetes'
-  | 'Libros'
-  | 'Otros';
+  | 'Articulos Varios'
+  | 'Servicios profesionales';
 
 export interface Ad {
   id: number;
@@ -48,6 +44,7 @@ export interface Ad {
   details?: string;
   price: number;
   category: AdCategory;
+  subcategory?: string;
   location?: string;
   sellerId: number;
   views: number;
@@ -108,6 +105,13 @@ export interface ChatLog {
   updatedAt: Date;
   isBlocked?: boolean;
   blockedBy?: number | null;
+  ad?: {
+    id: number;
+    uniqueCode: string;
+    title: string;
+    price: number;
+    media: Media[];
+  };
 }
 
 export interface GeminiChatSession {

@@ -90,10 +90,26 @@ class ApiService {
     return response.json();
   }
 
+  async rateUser(userId: number, points: number): Promise<User> {
+    const response = await fetch(`${API_BASE}/users/${userId}/rate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ points })
+    });
+    if (!response.ok) throw new Error('Error calificando usuario');
+    return response.json();
+  }
+
   // Anuncios
   async getAds(): Promise<Ad[]> {
     const response = await fetch(`${API_BASE}/ads`);
     if (!response.ok) throw new Error('Error obteniendo anuncios');
+    return response.json();
+  }
+
+  async getAdByUniqueCode(uniqueCode: string): Promise<Ad> {
+    const response = await fetch(`${API_BASE}/ads/code/${uniqueCode}`);
+    if (!response.ok) throw new Error('Error obteniendo anuncio');
     return response.json();
   }
 
@@ -129,11 +145,11 @@ class ApiService {
     return response.json();
   }
 
-  async createOrGetChat(participantIds: number[]): Promise<ChatLog> {
+  async createOrGetChat(participantIds: number[], adId?: number, options?: { checkOnly?: boolean }): Promise<ChatLog | null> {
     const response = await fetch(`${API_BASE}/chats`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ participantIds })
+      body: JSON.stringify({ participantIds, adId, checkOnly: options?.checkOnly })
     });
     if (!response.ok) throw new Error('Error creando chat');
     return response.json();

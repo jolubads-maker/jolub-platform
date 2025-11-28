@@ -117,6 +117,8 @@ export const createAd = async (req: Request, res: Response) => {
                 details: adData.details ? adData.details.trim().substring(0, 5000) : null,
                 price: Math.round(adData.price * 100) / 100,
                 category: adData.category || 'Otros',
+                subcategory: adData.subcategory,
+                location: adData.location,
                 sellerId: Number(adData.sellerId),
                 media: {
                     create: adData.media.map((m: any) => ({
@@ -236,5 +238,37 @@ export const featureAd = async (req: Request, res: Response) => {
     } catch (err) {
         console.error('Error featuring ad:', err);
         res.status(500).json({ error: 'Error featuring ad' });
+    }
+};
+
+export const getAdByUniqueCode = async (req: Request, res: Response) => {
+    try {
+        const { uniqueCode } = req.params;
+        const ad = await prisma.ad.findUnique({
+            where: { uniqueCode },
+            include: {
+                media: true, // Fetch ALL media
+                seller: {
+                    select: {
+                        id: true,
+                        name: true,
+                        avatar: true,
+                        isOnline: true,
+                        phoneVerified: true,
+                        points: true,
+                        createdAt: true
+                    }
+                }
+            }
+        });
+
+        if (!ad) {
+            return res.status(404).json({ error: 'Anuncio no encontrado' });
+        }
+
+        res.json(ad);
+    } catch (err) {
+        console.error('Error getting ad by unique code:', err);
+        res.status(500).json({ error: 'Error getting ad' });
     }
 };

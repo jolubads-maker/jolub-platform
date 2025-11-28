@@ -38,6 +38,7 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 const allowedOrigins = [
     'http://localhost:3000',
     'http://localhost:5173',
+    'http://localhost', // Allow default port 80
     'http://127.0.0.1:3000',
     'http://192.168.0.16:81', // Specific user IP
     'http://192.168.0.19', // Local network testing

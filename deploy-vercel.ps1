@@ -9,7 +9,7 @@ robocopy . deploy_build /XD .git node_modules dist deploy_temp deploy_final .vsc
 
 Write-Host "Desplegando..."
 Set-Location deploy_build
-vercel --prod
+vercel --prod --force
 Set-Location ..
 
 Write-Host "Limpiando..."

@@ -1,6 +1,17 @@
 import { create } from 'zustand';
-import { Ad, AdFormData } from '../src/types';
+import { Ad, AdFormData, Media } from '../src/types';
 import { apiService } from '../services/apiService';
+
+interface CreateAdParams {
+    title: string;
+    description: string;
+    details?: string;
+    price: number;
+    sellerId: number;
+    media: Media[];
+    category: Ad['category'];
+    location?: string;
+}
 
 interface AdState {
     ads: Ad[];
@@ -9,9 +20,10 @@ interface AdState {
 
     // Actions
     fetchAds: () => Promise<void>;
-    createAd: (adData: any) => Promise<Ad>;
+    createAd: (adData: CreateAdParams) => Promise<Ad>;
     incrementViews: (adId: number) => Promise<void>;
     searchAds: (query: string) => Promise<void>;
+    fetchAdByUniqueCode: (uniqueCode: string) => Promise<Ad | null>;
 }
 
 export const useAdStore = create<AdState>((set, get) => ({
@@ -29,9 +41,29 @@ export const useAdStore = create<AdState>((set, get) => ({
         }
     },
 
-    createAd: async (adData) => {
+    fetchAdByUniqueCode: async (uniqueCode: string) => {
+        set({ loading: true });
         try {
-            const newAd = await apiService.createAd(adData);
+            const ad = await apiService.getAdByUniqueCode(uniqueCode);
+            set(state => ({
+                ads: [ad, ...state.ads.filter(a => a.id !== ad.id)],
+                loading: false
+            }));
+            return ad;
+        } catch (error: any) {
+            set({ error: error.message, loading: false });
+            return null;
+        }
+    },
+
+    createAd: async (adData: CreateAdParams) => {
+        try {
+            // Ensure media is correctly typed for the API
+            const apiAdData = {
+                ...adData,
+                media: adData.media.map(m => ({ type: m.type, url: m.url }))
+            };
+            const newAd = await apiService.createAd(apiAdData);
             set(state => ({ ads: [newAd, ...state.ads] }));
             return newAd;
         } catch (error) {
@@ -39,7 +71,7 @@ export const useAdStore = create<AdState>((set, get) => ({
         }
     },
 
-    incrementViews: async (adId) => {
+    incrementViews: async (adId: number) => {
         try {
             const updatedAd = await apiService.incrementAdViews(adId);
             set(state => ({
@@ -50,7 +82,7 @@ export const useAdStore = create<AdState>((set, get) => ({
         }
     },
 
-    searchAds: async (query) => {
+    searchAds: async (query: string) => {
         set({ loading: true });
         try {
             const ads = await apiService.searchAds(query);
@@ -60,3 +92,4 @@ export const useAdStore = create<AdState>((set, get) => ({
         }
     }
 }));
+

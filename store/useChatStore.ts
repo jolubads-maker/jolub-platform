@@ -1,4 +1,4 @@
-import { create } from 'zustand';
+   import { create } from 'zustand';
 import { ChatLog, ChatMessage } from '../src/types';
 import { apiService } from '../services/apiService';
 
@@ -13,6 +13,7 @@ interface ChatState {
     sendMessage: (chatId: string, userId: number, text: string, sender: 'user' | 'seller' | 'buyer') => Promise<void>;
     addMessage: (chatId: string, message: ChatMessage) => void;
     ensureChatExists: (chatId: string, participantIds: number[]) => void;
+    markAsRead: (chatId: string) => void;
 }
 
 export const useChatStore = create<ChatState>((set, get) => ({
@@ -43,6 +44,13 @@ export const useChatStore = create<ChatState>((set, get) => ({
                         sender: chat.messages[0].sender as 'user' | 'seller' | 'buyer',
                         userId: chat.messages[0].userId,
                         timestamp: new Date(chat.messages[0].timestamp || new Date())
+                    } : undefined,
+                    ad: chat.ad ? {
+                        id: chat.ad.id,
+                        uniqueCode: chat.ad.uniqueCode,
+                        title: chat.ad.title,
+                        price: chat.ad.price,
+                        media: chat.ad.media
                     } : undefined
                 });
             });
@@ -117,6 +125,30 @@ export const useChatStore = create<ChatState>((set, get) => ({
                     participantIds,
                     messages: [],
                     lastMessage: undefined
+                });
+                return { chatLogs: newLogs };
+            }
+            return {};
+        });
+    },
+
+    markAsRead: (chatId) => {
+        set(state => {
+            const newLogs = new Map(state.chatLogs);
+            const currentLog = newLogs.get(chatId);
+            if (currentLog) {
+                // Mark all messages as read (or at least the ones from the other user)
+                // For simplicity in UI, we assume if we mark as read, the "pending" status is cleared.
+                // In reality, we might want to check userId, but for the "Pending" badge, 
+                // usually it checks if the last message is from other and !isRead.
+                const updatedMessages = currentLog.messages.map(msg => ({ ...msg, isRead: true }));
+                // Also update lastMessage if it exists
+                const updatedLastMessage = currentLog.lastMessage ? { ...currentLog.lastMessage, isRead: true } : undefined;
+
+                newLogs.set(chatId, {
+                    ...currentLog,
+                    messages: updatedMessages,
+                    lastMessage: updatedLastMessage
                 });
                 return { chatLogs: newLogs };
             }

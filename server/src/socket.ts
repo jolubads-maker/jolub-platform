@@ -56,6 +56,13 @@ export const initSocket = (httpServer: HttpServer, allowedOrigins: string[]) => 
             console.log(`👤 Usuario ${user?.username} se unió al chat: ${chatId}`);
         });
 
+        // Join user-specific room for notifications
+        if (user) {
+            const userRoom = `user_${user.id}`;
+            socket.join(userRoom);
+            console.log(`👤 Usuario ${user.username} se unió a su sala personal: ${userRoom}`);
+        }
+
         socket.on('send_message', async (data, callback) => {
             const { chatId, userId, text, sender } = data;
 
@@ -124,11 +131,24 @@ export const initSocket = (httpServer: HttpServer, allowedOrigins: string[]) => 
                     data: { updatedAt: new Date() }
                 });
 
-                // 4. Emitir a la sala
+                // 4. Emitir a la sala del chat
                 io.to(chatId).emit('receive_message', {
                     ...newMessage,
                     timestamp: newMessage.createdAt
                 });
+
+                // 5. Emitir notificación al destinatario (si no es el remitente)
+                const recipientId = chat.participants.find(p => p.userId !== Number(userId))?.userId;
+                if (recipientId) {
+                    const notificationData = {
+                        chatId,
+                        senderName: user?.username || 'Usuario', // Or fetch sender name properly
+                        text: text.substring(0, 50) + (text.length > 50 ? '...' : ''),
+                        adId: chat.adId // Include adId if available
+                    };
+                    io.to(`user_${recipientId}`).emit('new_message_notification', notificationData);
+                    console.log(`🔔 Notificación enviada a user_${recipientId}`, notificationData);
+                }
 
                 console.log(`✅ [SERVER] Mensaje guardado y emitido: ${newMessage.id}`);
                 if (callback) callback({ status: 'ok', message: newMessage });

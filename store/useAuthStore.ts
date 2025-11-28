@@ -164,7 +164,13 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         if (!currentUser) return;
 
         // 1. Optimistic Update: Update local state immediately
-        const optimisticUser = { ...currentUser, emailVerified: true };
+        const pointsIncrement = currentUser.emailVerified ? 0 : 10;
+        const optimisticUser = {
+            ...currentUser,
+            emailVerified: true,
+            points: (currentUser.points || 0) + pointsIncrement
+        };
+
         set(state => ({
             currentUser: optimisticUser,
             users: state.users.map(u => u.id === optimisticUser.id ? optimisticUser : u)
