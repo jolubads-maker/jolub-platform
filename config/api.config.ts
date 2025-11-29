@@ -21,14 +21,22 @@ export const getApiUrl = () => {
   }
 
   // PRIORIDAD 2: Variable de entorno (si existe y está configurada)
+  // PERO: Ignorar si apunta a localhost y NO estamos en localhost (evita errores de build local desplegado)
   if (import.meta.env.VITE_API_URL && import.meta.env.VITE_API_URL !== '') {
-    console.log('🔧 Usando VITE_API_URL:', import.meta.env.VITE_API_URL);
-    return import.meta.env.VITE_API_URL;
+    const envUrlIsLocal = import.meta.env.VITE_API_URL.includes('localhost') ||
+      import.meta.env.VITE_API_URL.includes('127.0.0.1');
+
+    if (!envUrlIsLocal) {
+      console.log('🔧 Usando VITE_API_URL:', import.meta.env.VITE_API_URL);
+      return import.meta.env.VITE_API_URL;
+    } else {
+      console.warn('⚠️ VITE_API_URL apunta a localhost pero estamos en producción. Ignorando variable de entorno.');
+    }
   }
 
-  // PRIORIDAD 3: Cualquier otro dominio = producción
-  console.log('🔧 Detectado producción - Usando proxy /api');
-  return '/api';
+  // PRIORIDAD 3: Producción (Hardcoded fallback)
+  console.log('🔧 Detectado producción - Usando URL de producción hardcoded');
+  return API_CONFIG.PRODUCTION_API_URL;
 };
 
 // Obtener la URL base para Sockets (sin /api y sin proxy de Vercel)
