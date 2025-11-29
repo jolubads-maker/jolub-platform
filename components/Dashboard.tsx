@@ -22,8 +22,8 @@ const Dashboard: React.FC = () => {
   const navigate = useNavigate();
 
   // Global State
-  const { currentUser, logout, updateUserStatus, updateUserPhone, updateUserEmail, togglePrivacy } = useAuthStore();
-  const { ads, incrementViews } = useAdStore();
+  const { currentUser, logout, updateUserPhone, updateUserEmail } = useAuthStore();
+  const { ads } = useAdStore();
   const { chatLogs } = useChatStore();
   const { getUserById } = useAuthStore();
 
@@ -495,7 +495,6 @@ const Dashboard: React.FC = () => {
 
     </div>
   );
-});
 };
 
 export default Dashboard;
