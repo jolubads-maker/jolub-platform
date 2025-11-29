@@ -3,6 +3,7 @@ import { Ad, User, Media } from '../src/types';
 import ArrowLeftIcon from './icons/ArrowLeftIcon';
 import ChatIcon from './icons/ChatIcon';
 import EyeIcon from './icons/EyeIcon';
+import { getSocketUrl } from '../config/api.config';
 
 interface AdDetailProps {
   ad: Ad;
@@ -79,7 +80,7 @@ const AdDetail: React.FC<AdDetailProps> = ({ ad, seller, onBack, onStartChat, cu
   useEffect(() => {
     if (!currentUser) return;
 
-    const socketUrl = 'http://localhost:4000'; // Or use config
+    const socketUrl = getSocketUrl();
     import('socket.io-client').then(({ io }) => {
       const socket = io(socketUrl, {
         transports: ['websocket'],
@@ -353,34 +354,34 @@ const AdDetail: React.FC<AdDetailProps> = ({ ad, seller, onBack, onStartChat, cu
       {/* Notification Toast */}
       {notification && (
         <div
-            className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-50 bg-[#b94509] shadow-[0_20px_50px_rgba(0,0,0,0.5)] rounded-2xl p-6 max-w-md w-full animate-fade-in-up cursor-pointer hover:scale-105 transition-transform duration-300 border border-white/10"
-            onClick={() => {
-                setIsChatOpen(true);
-                setNotification(null);
-            }}
+          className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-50 bg-[#b94509] shadow-[0_20px_50px_rgba(0,0,0,0.5)] rounded-2xl p-6 max-w-md w-full animate-fade-in-up cursor-pointer hover:scale-105 transition-transform duration-300 border border-white/10"
+          onClick={() => {
+            setIsChatOpen(true);
+            setNotification(null);
+          }}
         >
-            <div className="flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                    <div className="bg-white/20 p-3 rounded-full backdrop-blur-sm">
-                        <ChatIcon className="h-8 w-8 text-white" />
-                    </div>
-                    <div className="flex-1">
-                        <p className="text-lg font-bold text-white leading-tight">Nuevo mensaje de {notification.senderName}</p>
-                        <p className="text-white/80 text-sm mt-1 truncate max-w-[200px]">{notification.text}</p>
-                    </div>
-                </div>
-                <button
-                    className="text-white/60 hover:text-white transition-colors p-2"
-                    onClick={(e) => {
-                        e.stopPropagation();
-                        setNotification(null);
-                    }}
-                >
-                    <svg className="h-6 w-6" viewBox="0 0 20 20" fill="currentColor">
-                        <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
-                    </svg>
-                </button>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <div className="bg-white/20 p-3 rounded-full backdrop-blur-sm">
+                <ChatIcon className="h-8 w-8 text-white" />
+              </div>
+              <div className="flex-1">
+                <p className="text-lg font-bold text-white leading-tight">Nuevo mensaje de {notification.senderName}</p>
+                <p className="text-white/80 text-sm mt-1 truncate max-w-[200px]">{notification.text}</p>
+              </div>
             </div>
+            <button
+              className="text-white/60 hover:text-white transition-colors p-2"
+              onClick={(e) => {
+                e.stopPropagation();
+                setNotification(null);
+              }}
+            >
+              <svg className="h-6 w-6" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+              </svg>
+            </button>
+          </div>
         </div>
       )}
     </div>
