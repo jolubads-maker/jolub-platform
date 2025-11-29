@@ -10,8 +10,8 @@ interface AdFormProps {
 }
 
 // 🔧 CONFIGURACIÓN CLOUDINARY
-const CLOUDINARY_CLOUD_NAME = 'dim5dxlil';
-const CLOUDINARY_UPLOAD_PRESET = 'ml_default';
+const CLOUDINARY_CLOUD_NAME = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
+const CLOUDINARY_UPLOAD_PRESET = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
 
 // 📂 CATEGORÍAS Y SUBCATEGORÍAS
 const CATEGORIES_DATA: Record<AdCategory, string[]> = {

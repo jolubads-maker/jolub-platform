@@ -11,18 +11,24 @@ import {
     forgotPassword,
     resetPassword,
     checkEmail,
-    login
+    checkEmail,
+    login,
+    logout
 } from '../controllers/auth.controller';
+
+import { validate } from '../middleware/validate.middleware';
+import { loginSchema, syncUserSchema, tokenSchema } from '../schemas/auth.schema';
 
 const router = Router();
 
 // User sync (login/register)
-router.post('/auth/sync', syncUser);
-router.post('/auth/login', login);
+router.post('/auth/sync', validate(syncUserSchema), syncUser);
+router.post('/auth/login', validate(loginSchema), login);
+router.post('/auth/logout', logout);
 
 // Session management
 router.post('/users/:id/session-token', generateSessionToken);
-router.post('/auth/token', authenticateWithToken);
+router.post('/auth/token', validate(tokenSchema), authenticateWithToken);
 
 // Verification
 router.post('/send-phone-code', sendPhoneCode);

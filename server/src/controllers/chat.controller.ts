@@ -78,7 +78,12 @@ export const createChat = async (req: Request, res: Response) => {
         }
 
         const sortedIds = participantIds.sort();
-        const chatId = sortedIds.join('-');
+        let chatId = sortedIds.join('-');
+
+        // CRITICAL: Append adId to create unique chats per ad
+        if (adId) {
+            chatId = `${chatId}-${adId}`;
+        }
 
         let chat = await prisma.chatLog.findUnique({
             where: { id: chatId },

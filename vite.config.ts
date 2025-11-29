@@ -6,13 +6,19 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, '.', '');
   return {
     server: {
-      port: 80,
+      port: 5173,
       host: '0.0.0.0',
       proxy: {
         '/api': {
           target: 'http://localhost:4000',
           changeOrigin: true,
           secure: false,
+        },
+        '/socket.io': {
+          target: 'http://localhost:4000',
+          changeOrigin: true,
+          secure: false,
+          ws: true
         }
       }
     },

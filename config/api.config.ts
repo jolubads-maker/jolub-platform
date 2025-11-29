@@ -8,29 +8,25 @@ export const API_CONFIG = {
 
 // Determinar la URL correcta según el entorno
 export const getApiUrl = () => {
-  // PRIORIDAD 1: Variable de entorno (si existe y está configurada)
+  // PRIORIDAD 1: Detectar si estamos en localhost o red local (desarrollo)
+  // Esto debe ir PRIMERO para forzar el uso del proxy de Vite (/api) y evitar problemas de CORS/Firewall
+  const isLocalhost = window.location.hostname === 'localhost' ||
+    window.location.hostname === '127.0.0.1' ||
+    window.location.hostname.startsWith('192.168.') ||
+    window.location.hostname.startsWith('10.');
+
+  if (isLocalhost) {
+    console.log('🔧 Detectado desarrollo (LAN/Localhost) - Usando proxy /api');
+    return '/api';
+  }
+
+  // PRIORIDAD 2: Variable de entorno (si existe y está configurada)
   if (import.meta.env.VITE_API_URL && import.meta.env.VITE_API_URL !== '') {
     console.log('🔧 Usando VITE_API_URL:', import.meta.env.VITE_API_URL);
     return import.meta.env.VITE_API_URL;
   }
 
-  // PRIORIDAD 2: Detectar si estamos en localhost o red local (desarrollo)
-  const isLocalhost = window.location.hostname === 'localhost' ||
-    window.location.hostname === '127.0.0.1' ||
-    window.location.hostname.startsWith('192.168.');
-
-  if (isLocalhost) {
-    // Si estamos en red local, intentar usar la IP para el backend también
-    const devUrl = window.location.hostname.startsWith('192.168.')
-      ? `http://${window.location.hostname}:4000/api`
-      : API_CONFIG.DEV_API_URL;
-
-    console.log('🔧 Detectado desarrollo - Usando:', devUrl);
-    return devUrl;
-  }
-
   // PRIORIDAD 3: Cualquier otro dominio = producción
-  // Usamos '/api' para aprovechar el rewrite de Vercel y evitar problemas de CORS
   console.log('🔧 Detectado producción - Usando proxy /api');
   return '/api';
 };
@@ -42,9 +38,8 @@ export const getSocketUrl = () => {
     window.location.hostname.startsWith('192.168.');
 
   if (isLocalhost) {
-    return window.location.hostname.startsWith('192.168.')
-      ? `http://${window.location.hostname}:4000`
-      : 'http://localhost:4000';
+    // Use relative path to let Vite proxy handle it (fixes port 4000 firewall issues)
+    return '';
   }
 
   // En producción, devolver la URL directa del backend (Render)

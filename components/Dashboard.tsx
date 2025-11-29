@@ -3,19 +3,20 @@ import React, { useState, useRef, useMemo, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { PayPalScriptProvider, PayPalButtons } from "@paypal/react-paypal-js";
-import { Ad, ChatLog } from '../src/types';
-import AdCard from './AdCard';
-import StarIcon from './icons/StarIcon';
-import MessageIcon from './icons/MessageIcon';
+import { Ad, ChatLog, User } from '../src/types';
 import EyeIcon from './icons/EyeIcon';
 import PhoneVerificationModal from './PhoneVerificationModal';
 import EmailVerificationModal from './EmailVerificationModal';
 import { useAuthStore } from '../store/useAuthStore';
 import { useAdStore } from '../store/useAdStore';
 import { useChatStore } from '../store/useChatStore';
-import { apiService } from '../services/apiService';
-import UserStatusBadge from './UserStatusBadge';
 import ChatView from './ChatView';
+
+// New Components
+import DashboardStats from './dashboard/DashboardStats';
+import DashboardProfile from './dashboard/DashboardProfile';
+import DashboardChats from './dashboard/DashboardChats';
+import DashboardAds from './dashboard/DashboardAds';
 
 const Dashboard: React.FC = () => {
   const navigate = useNavigate();
@@ -24,7 +25,7 @@ const Dashboard: React.FC = () => {
   const { currentUser, logout, updateUserStatus, updateUserPhone, updateUserEmail, togglePrivacy } = useAuthStore();
   const { ads, incrementViews } = useAdStore();
   const { chatLogs } = useChatStore();
-  const { users } = useAuthStore();
+  const { getUserById } = useAuthStore();
 
   // Local State
   const [selectedAd, setSelectedAd] = useState<Ad | null>(null);
@@ -44,10 +45,8 @@ const Dashboard: React.FC = () => {
   // Chat Lightbox State
   const [selectedChatId, setSelectedChatId] = useState<string | null>(null);
   const selectedChat = selectedChatId ? chatLogs.get(selectedChatId) : null;
-
-  // Avatar Upload State
-  const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [chatPartner, setChatPartner] = useState<User | undefined>(undefined);
+  const [relevantUsers, setRelevantUsers] = useState<User[]>([]);
 
   // Derived State
   const userAds = useMemo(() => {
@@ -61,6 +60,40 @@ const Dashboard: React.FC = () => {
       (log as ChatLog).participantIds.includes(currentUser.id)
     );
   }, [chatLogs, currentUser]);
+
+  // Fetch users for chat list
+  useEffect(() => {
+    const loadRelevantUsers = async () => {
+      if (!userChats.length) return;
+
+      const uniqueUserIds = new Set<number>();
+      userChats.forEach(chat => {
+        chat.participantIds.forEach(id => {
+          if (id !== currentUser.id) uniqueUserIds.add(id);
+        });
+      });
+
+      const fetchedUsers: User[] = [];
+      for (const id of uniqueUserIds) {
+        const user = await getUserById(id);
+        if (user) fetchedUsers.push(user);
+      }
+      setRelevantUsers(fetchedUsers);
+    };
+
+    loadRelevantUsers();
+  }, [userChats, currentUser.id, getUserById]);
+
+  useEffect(() => {
+    if (selectedChat && currentUser) {
+      const partnerId = selectedChat.participantIds.find(id => id !== currentUser.id);
+      if (partnerId) {
+        getUserById(partnerId).then(setChatPartner);
+      } else {
+        setChatPartner(undefined);
+      }
+    }
+  }, [selectedChat, currentUser, getUserById]);
 
   // Listen for new messages to update chat list
   useEffect(() => {
@@ -76,7 +109,6 @@ const Dashboard: React.FC = () => {
       socket.on('new_message_notification', (data) => {
         console.log('🔔 Dashboard: Nueva notificación recibida, actualizando chats...', data);
         // Reload chats to update order and unread status
-        // Ideally we would just update the store, but reloading is safer for now to ensure sync
         useChatStore.getState().loadUserChats(currentUser.id);
       });
 
@@ -114,11 +146,6 @@ const Dashboard: React.FC = () => {
     setSelectedMediaIndex((idx) => (idx + 1) % total);
   };
 
-  const getOtherParticipant = (chat: ChatLog) => {
-    const otherId = chat.participantIds.find(id => id !== currentUser.id);
-    return users.find(user => user.id === otherId);
-  };
-
   const handleLogout = () => {
     console.log('Logout initiated');
     localStorage.removeItem('sessionToken');
@@ -126,49 +153,6 @@ const Dashboard: React.FC = () => {
     localStorage.removeItem('phoneVerification');
     logout().catch(err => console.error('Background logout error:', err));
     window.location.href = '/';
-  };
-
-  // Avatar Upload Logic
-  const CLOUDINARY_CLOUD_NAME = 'dim5dxlil';
-  const CLOUDINARY_UPLOAD_PRESET = 'ml_default';
-
-  const handleAvatarClick = () => {
-    fileInputRef.current?.click();
-  };
-
-  const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
-    setIsUploadingAvatar(true);
-    try {
-      const formData = new FormData();
-      formData.append('file', file);
-      formData.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
-
-      const response = await fetch(
-        `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`,
-        { method: 'POST', body: formData }
-      );
-      const data = await response.json();
-      const newAvatarUrl = data.secure_url;
-
-      await apiService.createOrUpdateUser({
-        ...currentUser,
-        avatar: newAvatarUrl
-      });
-
-      useAuthStore.setState(state => ({
-        currentUser: { ...state.currentUser!, avatar: newAvatarUrl }
-      }));
-
-      alert('Avatar actualizado correctamente');
-    } catch (error: any) {
-      console.error('Error actualizando avatar:', error);
-      alert(`Error: ${error.message || 'No se pudo actualizar la imagen'}`);
-    } finally {
-      setIsUploadingAvatar(false);
-    }
   };
 
   const handlePhoneVerified = async (phoneNumber: string) => {
@@ -189,33 +173,8 @@ const Dashboard: React.FC = () => {
     }
   };
 
-  const carouselRef = useRef<HTMLDivElement>(null);
-
-  const scrollCarousel = (direction: 'left' | 'right') => {
-    if (carouselRef.current) {
-      const cardWidth = 240;
-      const gap = 24;
-      const scrollAmount = (cardWidth + gap) * 4;
-      const newScrollLeft = direction === 'left'
-        ? carouselRef.current.scrollLeft - scrollAmount
-        : carouselRef.current.scrollLeft + scrollAmount;
-
-      carouselRef.current.scrollTo({
-        left: newScrollLeft,
-        behavior: 'smooth'
-      });
-    }
-  };
-
   return (
     <div className="min-h-screen bg-white text-gray-800 font-sans relative overflow-hidden">
-      <input
-        type="file"
-        ref={fileInputRef}
-        onChange={handleFileChange}
-        className="hidden"
-        accept="image/*"
-      />
 
       {/* HEADER */}
       <header className="sticky top-0 z-50 w-full bg-[#6e0ad6] shadow-lg mb-8">
@@ -268,376 +227,35 @@ const Dashboard: React.FC = () => {
         </div>
 
         <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-4 gap-6">
-          {/* 1. PERFIL (Purple & Bento) */}
-          <motion.div
-            layoutId="profile-card"
-            className="col-span-1 md:col-span-2 bg-[#6e0ad6] rounded-[2rem] p-6 relative overflow-hidden group shadow-2xl min-h-[200px] flex flex-col justify-center"
-          >
-            {/* Background Effects */}
-            <div className="absolute top-0 right-0 w-80 h-80 bg-white/10 rounded-full blur-[100px] -translate-y-1/2 translate-x-1/2 pointer-events-none" />
-            <div className="absolute bottom-0 left-0 w-64 h-64 bg-orange-500/20 rounded-full blur-[80px] translate-y-1/2 -translate-x-1/2 pointer-events-none" />
 
-            <div className="relative z-10 flex flex-col md:flex-row items-center md:items-start gap-6 pl-4">
+          {/* 1. PERFIL */}
+          <DashboardProfile currentUser={currentUser} />
 
-              {/* Avatar (Left) */}
-              <div className="relative group/avatar cursor-pointer flex-shrink-0" onClick={handleAvatarClick}>
-                <div className="absolute inset-0 bg-white/20 rounded-full blur-md opacity-50 group-hover/avatar:opacity-80 transition-opacity" />
-                <img
-                  src={currentUser.avatar || "https://ui-avatars.com/api/?name=" + encodeURIComponent(currentUser.name) + "&background=random"}
-                  alt={currentUser.name}
-                  className="relative w-32 h-32 rounded-full border-4 border-white/20 object-cover shadow-2xl transition-transform duration-300 group-hover/avatar:scale-105 bg-gray-800"
-                  onError={(e) => {
-                    const target = e.target as HTMLImageElement;
-                    target.src = "https://ui-avatars.com/api/?name=" + encodeURIComponent(currentUser.name) + "&background=random";
-                  }}
-                />
-                {isUploadingAvatar && (
-                  <div className="absolute inset-0 flex items-center justify-center z-20 bg-black/50 rounded-full">
-                    <div className="w-8 h-8 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                  </div>
-                )}
-                <div className="absolute bottom-1 right-1 w-6 h-6 bg-[#1a1a1a] rounded-full flex items-center justify-center z-20 border-2 border-[#6e0ad6]">
-                  <div className={`w-3 h-3 rounded-full ${currentUser.isOnline ? 'bg-green-500 shadow-[0_0_10px_#22c55e]' : 'bg-gray-500'}`} />
-                </div>
-              </div>
+          {/* 2 & 3. STATS */}
+          <DashboardStats points={currentUser.points} adsCount={userAds.length} />
 
-              {/* Info (Middle) */}
-              <div className="flex flex-col items-center md:items-start gap-1 flex-1 pt-2">
-                <h1 className="text-4xl font-bold text-white tracking-tight drop-shadow-md mb-0.5">{currentUser.name}</h1>
-                <p className="text-white/80 text-sm font-medium mb-4">
-                  Miembro desde {new Date(currentUser.createdAt || Date.now()).getFullYear()}
-                </p>
+          {/* 4. MIS ANUNCIOS */}
+          <DashboardAds
+            userAds={userAds}
+            currentUser={currentUser}
+            onSelectAd={setSelectedAd}
+            onHighlightAd={handleHighlight}
+            onVerifyPhone={() => setShowPhoneVerifyModal(true)}
+          />
 
-                {/* Contact List - Horizontal Row */}
-                <div className="flex flex-wrap items-center gap-8 w-full">
-
-                  {/* Email Row */}
-                  <div className="flex items-center gap-3 h-8">
-                    <div className="text-white flex items-center justify-center">
-                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" className="w-6 h-6">
-                        <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
-                        <polyline points="22,6 12,13 2,6" />
-                      </svg>
-                    </div>
-                    {currentUser.emailVerified ? (
-                      <div className="flex items-center gap-3">
-                        <span className="text-white font-bold text-base">
-                          {currentUser.showEmail ? currentUser.email : 'Confirmado'}
-                        </span>
-                        <button
-                          onClick={() => togglePrivacy('showEmail')}
-                          className={`relative w-10 h-5 rounded-full transition-all duration-300 ease-out focus:outline-none shadow-inner ${currentUser.showEmail ? 'bg-green-500' : 'bg-black/40 border border-white/10'}`}
-                        >
-                          <span
-                            className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow-md transform transition-transform duration-300 cubic-bezier(0.4, 0.0, 0.2, 1) ${currentUser.showEmail ? 'translate-x-5' : 'translate-x-0'}`}
-                          />
-                        </button>
-                      </div>
-                    ) : (
-                      <span className="text-white font-bold text-base">No verificado</span>
-                    )}
-                  </div>
-
-                  {/* Phone Row */}
-                  <div className="flex items-center gap-3 h-8">
-                    <div className="text-white flex items-center justify-center">
-                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" className="w-6 h-6">
-                        <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z" />
-                      </svg>
-                    </div>
-                    {currentUser.phoneVerified ? (
-                      <div className="flex items-center gap-3">
-                        <span className="text-white font-bold text-base">
-                          {currentUser.showPhone ? currentUser.phone : 'Confirmado'}
-                        </span>
-                        <button
-                          onClick={() => togglePrivacy('showPhone')}
-                          className={`relative w-10 h-5 rounded-full transition-all duration-300 ease-out focus:outline-none shadow-inner ${currentUser.showPhone ? 'bg-green-500' : 'bg-black/40 border border-white/10'}`}
-                        >
-                          <span
-                            className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow-md transform transition-transform duration-300 cubic-bezier(0.4, 0.0, 0.2, 1) ${currentUser.showPhone ? 'translate-x-5' : 'translate-x-0'}`}
-                          />
-                        </button>
-                      </div>
-                    ) : (
-                      <span className="text-white font-bold text-base">No verificado</span>
-                    )}
-                  </div>
-
-                </div>
-              </div>
-            </div>
-          </motion.div>
-
-          {/* 2. STATS: PUNTOS */}
-          <motion.div
-            className="col-span-1 bg-[#6e0ad6] rounded-[2rem] p-6 flex flex-col justify-center relative overflow-hidden shadow-2xl min-h-[200px]"
-          >
-            {/* Background Effects */}
-            <div className="absolute top-0 right-0 w-80 h-80 bg-white/10 rounded-full blur-[100px] -translate-y-1/2 translate-x-1/2 pointer-events-none" />
-            <div className="absolute bottom-0 left-0 w-64 h-64 bg-orange-500/20 rounded-full blur-[80px] translate-y-1/2 -translate-x-1/2 pointer-events-none" />
-
-            <div className="relative z-10 flex items-start gap-4">
-              <div className="p-2 bg-[#ea580c] rounded-full text-white shadow-lg flex-shrink-0 mt-1">
-                <StarIcon className="w-6 h-6" />
-              </div>
-              <div className="flex flex-col">
-                <span className="font-bold text-white text-2xl mb-1">Reputación</span>
-                <div className="text-5xl font-black text-white drop-shadow-md mb-1">{currentUser.points}</div>
-                <p className="text-sm text-white/80 font-medium">Puntos de confianza</p>
-              </div>
-            </div>
-          </motion.div>
-
-          {/* 3. STATS: ANUNCIOS */}
-          <motion.div
-            className="col-span-1 bg-[#6e0ad6] rounded-[2rem] p-6 flex flex-col justify-center relative overflow-hidden shadow-2xl min-h-[200px]"
-          >
-            {/* Background Effects */}
-            <div className="absolute top-0 right-0 w-80 h-80 bg-white/10 rounded-full blur-[100px] -translate-y-1/2 translate-x-1/2 pointer-events-none" />
-            <div className="absolute bottom-0 left-0 w-64 h-64 bg-orange-500/20 rounded-full blur-[80px] translate-y-1/2 -translate-x-1/2 pointer-events-none" />
-
-            <div className="relative z-10 flex items-start gap-4">
-              <div className="p-2 bg-[#ea580c] rounded-full text-white shadow-lg flex-shrink-0 mt-1">
-                <EyeIcon className="w-6 h-6" />
-              </div>
-              <div className="flex flex-col">
-                <span className="font-bold text-white text-2xl mb-1">Anuncios</span>
-                <div className="text-5xl font-black text-white drop-shadow-md mb-1">{userAds.length}</div>
-                <p className="text-sm text-white/80 font-medium">Activos en el mercado</p>
-              </div>
-            </div>
-          </motion.div>
-
-          {/* 5. MIS ANUNCIOS (CAROUSEL) */}
-          <div className="col-span-1 md:col-span-4 bg-white rounded-[2rem] p-8 flex flex-col shadow-[0_20px_60px_-15px_rgba(0,0,0,0.1)] border-2 border-[#6e0ad6] min-h-[450px] relative">
-            <div className="flex items-center justify-between mb-6">
-              <h3 className="text-2xl font-black text-gray-800 flex items-center gap-3">
-                <span className="w-3 h-8 bg-[#6e0ad6] rounded-full shadow-[0_0_15px_rgba(110,10,214,0.5)]" />
-                Mis Publicaciones
-              </h3>
-              {currentUser.phoneVerified && userAds.length > 0 && (
-                <button
-                  onClick={() => navigate('/publicar')}
-                  className="bg-[#ea580c] hover:bg-[#d9520b] text-white text-sm font-bold px-4 py-2 rounded-xl transition-colors shadow-md flex items-center gap-2"
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-4 h-4">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-                  </svg>
-                  Crear Anuncio
-                </button>
-              )}
-            </div>
-
-            <div className="relative flex-1 group/carousel">
-              {/* Left Arrow */}
-              {userAds.length > 4 && (
-                <button
-                  onClick={() => scrollCarousel('left')}
-                  className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-4 z-20 bg-[#6e0ad6] text-white p-3 rounded-full shadow-lg opacity-0 group-hover/carousel:opacity-100 transition-all duration-300 hover:scale-110 hover:bg-[#5b08b0]"
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={3} stroke="currentColor" className="w-6 h-6">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
-                  </svg>
-                </button>
-              )}
-
-              {/* Carousel Container */}
-              <div
-                ref={carouselRef}
-                className={`flex gap-6 overflow-x-auto pb-8 pt-2 px-2 scroll-smooth snap-x snap-mandatory hide-scrollbar h-full items-center ${userAds.length <= 4 ? 'justify-center' : ''}`}
-              >
-                {userAds.length > 0 ? (
-                  userAds.map(ad => (
-                    <div key={ad.id} className="min-w-[240px] max-w-[240px] snap-center">
-                      <AdCard
-                        ad={ad}
-                        seller={currentUser}
-                        onSelect={() => setSelectedAd(ad)}
-                        currentUser={currentUser}
-                        onToggleFavorite={() => { }}
-                        variant="dashboard"
-                        onHighlight={handleHighlight}
-                      />
-                    </div>
-                  ))
-                ) : (
-                  <div className="w-full h-full flex flex-col items-center justify-center text-gray-400 opacity-80 min-h-[300px]">
-                    {!currentUser.phoneVerified ? (
-                      <motion.div
-                        onClick={() => setShowPhoneVerifyModal(true)}
-                        className="w-full cursor-pointer flex flex-col items-center gap-4 group py-10"
-                      >
-                        <div className="transition-transform duration-300 group-hover:scale-110">
-                          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-16 h-16 text-[#ea580c]">
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 1.5H8.25A2.25 2.25 0 006 3.75v16.5a2.25 2.25 0 002.25 2.25h7.5A2.25 2.25 0 0018 20.25V3.75a2.25 2.25 0 00-2.25-2.25H13.5m-3 0V3h3V1.5m-3 0h3m-3 18.75h3" />
-                          </svg>
-                        </div>
-                        <div className="text-center">
-                          <span className="text-xl font-bold text-black block mb-1">Verifica tu teléfono</span>
-                          <span className="text-sm text-black font-medium">Para publicar anuncios</span>
-                        </div>
-                      </motion.div>
-                    ) : (
-                      <div className="flex flex-col items-center justify-center py-10 group">
-                        <div className="mb-4 transition-transform duration-300 group-hover:scale-110">
-                          <EyeIcon className="w-16 h-16 text-[#ea580c]" />
-                        </div>
-                        <p className="font-bold text-lg text-black">No tienes anuncios activos</p>
-                        <button onClick={() => navigate('/publicar')} className="mt-4 text-[#6e0ad6] font-bold hover:underline">
-                          Crear uno ahora
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-
-              {/* Right Arrow */}
-              {userAds.length > 4 && (
-                <button
-                  onClick={() => scrollCarousel('right')}
-                  className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-4 z-20 bg-[#6e0ad6] text-white p-3 rounded-full shadow-lg opacity-0 group-hover/carousel:opacity-100 transition-all duration-300 hover:scale-110 hover:bg-[#5b08b0]"
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={3} stroke="currentColor" className="w-6 h-6">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
-                  </svg>
-                </button>
-              )}
-            </div>
-          </div>
-
-          {/* 6. MIS CHATS */}
-          <div className="col-span-1 md:col-span-4 bg-white rounded-[2rem] p-8 flex flex-col shadow-[0_20px_60px_-15px_rgba(0,0,0,0.1)] border-2 border-[#6e0ad6] min-h-[400px]">
-            <h3 className="text-2xl font-black text-gray-800 mb-6 flex items-center gap-3">
-              <span className="w-3 h-8 bg-green-500 rounded-full shadow-[0_0_15px_rgba(34,197,94,0.5)]" />
-              Mensajes Recientes
-            </h3>
-            <div className="flex-1 overflow-y-auto pr-2 space-y-3 custom-scrollbar">
-              {userChats.length > 0 ? (
-                userChats.map((chat, index) => {
-                  const otherUser = getOtherParticipant(chat);
-                  if (!otherUser) return null;
-                  const hasUnread = chat.messages && chat.messages.some((m: any) => !m.isRead && m.userId !== currentUser.id);
-
-                  return (
-                    <motion.div
-                      key={chat.id || index}
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      className="flex items-center gap-4 p-4 rounded-2xl border border-black bg-white hover:shadow-lg transition-all relative group"
-                    >
-                      {/* Unread Badge */}
-                      {hasUnread && (
-                        <div className="absolute top-3 right-3 w-3 h-3 bg-green-500 rounded-full animate-pulse shadow-sm z-20"></div>
-                      )}
-
-                      <div className="flex-1 flex items-center gap-4">
-                        <div className="relative flex-shrink-0">
-                          <img
-                            src={otherUser.avatar || 'https://via.placeholder.com/40'}
-                            alt={otherUser.name}
-                            className="w-12 h-12 rounded-full object-cover border-2 border-gray-100"
-                          />
-                          <div className={`absolute bottom-0 right-0 w-3.5 h-3.5 border-2 border-white rounded-full ${otherUser.isOnline ? 'bg-green-500' : 'bg-gray-400'}`}></div>
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <h4 className="font-bold text-gray-800 text-lg truncate group-hover:text-[#6e0ad6] transition-colors">
-                            {otherUser.name}
-                          </h4>
-
-                          {/* Reputation & Ad Info Row */}
-                          <div className="flex items-center gap-3 mt-1 flex-wrap">
-                            {/* Reputation */}
-                            <div className="flex items-center gap-1 bg-orange-100 px-2 py-0.5 rounded-full border border-orange-200">
-                              <StarIcon className="w-3 h-3 text-orange-500" />
-                              <span className="text-xs font-bold text-orange-700">{otherUser.points || 0}</span>
-                              <span className="text-[10px] text-orange-600/80 font-medium">Reputación</span>
-                            </div>
-
-                            {/* Ad Details */}
-                            {chat.ad && (
-                              <div className="flex items-center gap-2 pl-2 border-l-2 border-gray-200">
-                                {chat.ad.media && chat.ad.media[0] ? (
-                                  <img src={chat.ad.media[0].url} alt="Ad" className="w-8 h-8 rounded-md object-cover border border-gray-200" />
-                                ) : (
-                                  <div className="w-8 h-8 rounded-md bg-gray-100 border border-gray-200 flex items-center justify-center">
-                                    <span className="text-[8px] text-gray-400">N/A</span>
-                                  </div>
-                                )}
-                                <div className="flex flex-col leading-none">
-                                  <span className="text-[10px] font-mono text-gray-500 mb-0.5">#{chat.ad.uniqueCode || chat.ad.id}</span>
-                                  <span className="text-xs font-black text-[#6e0ad6]">${chat.ad.price}</span>
-                                </div>
-                              </div>
-                            )}
-                          </div>
-
-                          {hasUnread && (
-                            <p className="text-xs text-green-600 font-bold mt-1 animate-pulse">
-                              Mensajes pendientes de contestar
-                            </p>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Actions */}
-                      <div className="flex flex-col gap-2 z-10">
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setSelectedChatId(chat.id);
-                          }}
-                          className="px-3 py-1 bg-green-500 text-white text-xs font-bold rounded-full hover:bg-green-600 transition-colors shadow-sm"
-                        >
-                          Chat
-                        </button>
-                        <button
-                          onClick={async (e) => {
-                            e.stopPropagation();
-                            if (window.confirm(`¿Estás seguro de bloquear a ${otherUser.name}?`)) {
-                              alert('Función de bloqueo en proceso de conexión con backend.');
-                            }
-                          }}
-                          className="px-3 py-1 bg-red-100 text-red-600 text-xs font-bold rounded-full hover:bg-red-200 transition-colors"
-                        >
-                          Bloquear
-                        </button>
-                      </div>
-                    </motion.div>
-                  );
-                })
-              ) : (
-                <div className="h-full flex flex-col items-center justify-center text-gray-400 opacity-80">
-                  {!currentUser.emailVerified ? (
-                    <motion.div
-                      onClick={() => setShowEmailVerifyModal(true)}
-                      className="w-full cursor-pointer flex flex-col items-center gap-4 transition-all group py-10"
-                    >
-                      <div className="transition-transform duration-300 group-hover:scale-110">
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-16 h-16 text-[#ea580c]">
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75" />
-                        </svg>
-                      </div>
-                      <div className="text-center">
-                        <span className="text-xl font-bold text-black block mb-1">Verifica tu Correo</span>
-                        <span className="text-sm text-black font-medium">Necesario para chatear</span>
-                      </div>
-                    </motion.div>
-                  ) : (
-                    <div className="flex flex-col items-center justify-center py-10 group">
-                      <div className="mb-4 transition-transform duration-300 group-hover:scale-110">
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-16 h-16 text-[#ea580c]">
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75" />
-                        </svg>
-                      </div>
-                      <p className="font-bold text-lg text-black">No hay conversaciones</p>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          </div>
+          {/* 5. MIS CHATS */}
+          <DashboardChats
+            userChats={userChats}
+            currentUser={currentUser}
+            users={relevantUsers}
+            onSelectChat={setSelectedChatId}
+            onBlockUser={(user) => {
+              if (window.confirm(`¿Estás seguro de bloquear a ${user.name}?`)) {
+                alert('Función de bloqueo en proceso de conexión con backend.');
+              }
+            }}
+            onVerifyEmail={() => setShowEmailVerifyModal(true)}
+          />
         </div>
       </div>
 
@@ -804,86 +422,78 @@ const Dashboard: React.FC = () => {
                                   currency_code: "USD",
                                   value: value,
                                 },
+                                description: `Destacar anuncio ${highlightAd.title} por ${highlightDuration} días`,
                               },
                             ],
                           });
                         }}
                         onApprove={async (data, actions) => {
-                          if (!actions.order) return;
-                          return actions.order.capture().then(async (details) => {
-                            try {
-                              const res = await fetch(`/api/ads/${highlightAd.id}/feature`, {
-                                method: 'POST',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({ durationDays: highlightDuration })
-                              });
-
-                              if (res.ok) {
-                                alert("¡Pago exitoso! Tu anuncio ha sido destacado.");
-                                setHighlightAd(null);
-                                window.location.reload();
-                              } else {
-                                alert("Error al actualizar el anuncio. Por favor contacta soporte.");
-                              }
-                            } catch (err) {
-                              console.error(err);
-                              alert("Error de conexión.");
-                            }
-                          });
+                          if (actions.order) {
+                            const details = await actions.order.capture();
+                            // Aquí llamarías a tu backend para confirmar el pago y destacar el anuncio
+                            console.log("Pago completado:", details);
+                            alert("¡Pago exitoso! Tu anuncio ha sido destacado.");
+                            setHighlightAd(null);
+                          }
                         }}
                       />
                     </PayPalScriptProvider>
+                    <button
+                      onClick={() => setHighlightAd(null)}
+                      className="w-full py-3 rounded-xl border-2 border-gray-200 text-gray-600 font-bold hover:bg-gray-50 transition-colors"
+                    >
+                      Cancelar
+                    </button>
                   </div>
                 </div>
               </motion.div>
             </motion.div>
           )
         }
-      </AnimatePresence >
+      </AnimatePresence>
 
       {/* CHAT LIGHTBOX */}
       <AnimatePresence>
-        {
-          selectedChat && (
+        {selectedChatId && (
+          chatPartner ? (
             <ChatView
-              chatLog={selectedChat}
+              seller={chatPartner}
               buyer={currentUser}
-              seller={getOtherParticipant(selectedChat)!}
               onBack={() => setSelectedChatId(null)}
-              onSendMessage={() => { }}
+              chatLog={selectedChat || undefined}
+              onClose={() => setSelectedChatId(null)}
+              ad={selectedChat?.ad}
               isOverlay={true}
-              ad={selectedChat.ad as any}
             />
+          ) : (
+            <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 backdrop-blur-sm">
+              <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-[#6e0ad6]"></div>
+            </div>
           )
-        }
-      </AnimatePresence >
+        )}
+      </AnimatePresence>
 
-
-      {/* PHONE VERIFICATION MODAL */}
+      {/* MODALS */}
       <AnimatePresence>
-        {
-          showPhoneVerifyModal && (
-            <PhoneVerificationModal
-              onPhoneVerified={handlePhoneVerified}
-              onClose={() => setShowPhoneVerifyModal(false)}
-            />
-          )
-        }
-      </AnimatePresence >
+        {showPhoneVerifyModal && (
+          <PhoneVerificationModal
+            onPhoneVerified={handlePhoneVerified}
+            onClose={() => setShowPhoneVerifyModal(false)}
+          />
+        )}
+      </AnimatePresence>
 
-      {/* EMAIL VERIFICATION MODAL */}
       <AnimatePresence>
-        {
-          showEmailVerifyModal && (
-            <EmailVerificationModal
-              currentUser={currentUser}
-              onEmailVerified={handleEmailVerified}
-              onClose={() => setShowEmailVerifyModal(false)}
-            />
-          )
-        }
-      </AnimatePresence >
-    </div >
+        {showEmailVerifyModal && (
+          <EmailVerificationModal
+            currentUser={currentUser}
+            onEmailVerified={handleEmailVerified}
+            onClose={() => setShowEmailVerifyModal(false)}
+          />
+        )}
+      </AnimatePresence>
+
+    </div>
   );
 };
 

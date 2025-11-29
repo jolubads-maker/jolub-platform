@@ -1,7 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import ReCAPTCHA from 'react-google-recaptcha';
 import ForgotPasswordModal from './ForgotPasswordModal';
 
 interface LoginProps {
@@ -14,24 +13,26 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
   const [showForgotModal, setShowForgotModal] = useState(false);
-
-  const [showCaptcha, setShowCaptcha] = useState(false);
+  const [loginError, setLoginError] = useState<string | null>(null);
 
   // Validation states
-  const [emailExists, setEmailExists] = useState(false);
-  const [isCheckingEmail, setIsCheckingEmail] = useState(false);
+  // 'idle': No ha escrito o está vacío
+  // 'loading': Verificando...
+  // 'valid': El correo existe (Login permitido)
+  // 'invalid': El correo NO existe (Mostrar error y sugerir registro)
+  const [emailStatus, setEmailStatus] = useState<'idle' | 'loading' | 'valid' | 'invalid'>('idle');
 
   // Check email availability
-  React.useEffect(() => {
+  useEffect(() => {
     const checkEmail = async () => {
       if (!email || !email.includes('@')) {
-        setEmailExists(false);
+        setEmailStatus('idle');
         return;
       }
 
-      setIsCheckingEmail(true);
+      setEmailStatus('loading');
+      setLoginError(null); // Clear error on email change
       try {
         const response = await fetch('/api/auth/check-email', {
           method: 'POST',
@@ -39,28 +40,30 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
           body: JSON.stringify({ email })
         });
         const data = await response.json();
-        setEmailExists(data.exists);
+
+        // Para LOGIN, queremos que exists sea TRUE
+        if (data.exists) {
+          setEmailStatus('valid');
+        } else {
+          setEmailStatus('invalid');
+        }
       } catch (error) {
         console.error('Error checking email:', error);
-        setEmailExists(false);
-      } finally {
-        setIsCheckingEmail(false);
+        setEmailStatus('idle'); // O manejar error de red
       }
     };
 
-    const timeoutId = setTimeout(checkEmail, 500);
+    const timeoutId = setTimeout(checkEmail, 800); // Debounce de 800ms
     return () => clearTimeout(timeoutId);
   }, [email]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!captchaToken) {
-      alert('Por favor completa el reCAPTCHA');
-      return;
-    }
+    if (emailStatus !== 'valid') return;
 
     setIsLoading(true);
+    setLoginError(null);
 
     try {
       const response = await fetch('/api/auth/login', {
@@ -79,13 +82,13 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
       onLogin(data);
     } catch (error: any) {
       console.error('Login error:', error);
-      alert(error.message || 'Error al iniciar sesión');
+      setLoginError(error.message || 'Error al iniciar sesión');
     } finally {
       setIsLoading(false);
     }
   };
 
-  const isFormValid = emailExists && password.length > 0 && captchaToken;
+  const isFormValid = emailStatus === 'valid' && password.length > 0;
 
   return (
     <div className="min-h-screen bg-[#6e0ad6] flex flex-col items-center justify-center p-4 relative">
@@ -139,22 +142,40 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required
-                  className={`w-full px-4 py-3 border-2 rounded-lg focus:outline-none focus:ring-2 transition-all text-base ${emailExists ? 'border-green-500 focus:ring-green-500 text-green-700' :
-                    isCheckingEmail ? 'border-yellow-400 focus:ring-yellow-400' :
-                      'border-gray-300 focus:ring-[#6e0ad6] text-purple-700'
+                  className={`w-full px-4 py-3 border-2 rounded-lg focus:outline-none transition-all text-base
+                    ${emailStatus === 'valid' ? 'border-green-500 focus:border-green-500 text-green-700' :
+                      emailStatus === 'invalid' ? 'border-red-500 focus:border-red-500 text-red-700' :
+                        'border-[#ea580c] focus:border-[#ea580c] text-gray-800' /* Default & Loading & Idle */
                     }`}
                   placeholder="tu@email.com"
                 />
                 <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                  {isCheckingEmail ? (
-                    <div className="w-4 h-4 border-2 border-yellow-400 border-t-transparent rounded-full animate-spin"></div>
-                  ) : emailExists ? (
+                  {emailStatus === 'loading' ? (
+                    <div className="w-5 h-5 border-2 border-[#ea580c] border-t-transparent rounded-full animate-spin"></div>
+                  ) : emailStatus === 'valid' ? (
                     <svg className="w-5 h-5 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                  ) : emailStatus === 'invalid' ? (
+                    <svg className="w-5 h-5 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                     </svg>
                   ) : null}
                 </div>
               </div>
+              {/* Mensaje de error si no existe */}
+              <AnimatePresence>
+                {emailStatus === 'invalid' && (
+                  <motion.p
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    exit={{ opacity: 0, height: 0 }}
+                    className="text-red-500 text-sm font-bold mt-1"
+                  >
+                    Correo electrónico no registrado
+                  </motion.p>
+                )}
+              </AnimatePresence>
             </div>
 
             {/* Password Input */}
@@ -167,19 +188,26 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
                   id="password"
                   type={showPassword ? "text" : "password"}
                   value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  onBlur={() => {
-                    if (password.length > 0) setShowCaptcha(true);
+                  onChange={(e) => {
+                    setPassword(e.target.value);
+                    setLoginError(null); // Clear error on type
                   }}
                   required
-                  className="w-full px-4 py-3 pr-12 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#6e0ad6] focus:border-transparent transition-all text-base text-purple-700"
+                  disabled={emailStatus !== 'valid'}
+                  className={`w-full px-4 py-3 pr-12 border-2 rounded-lg focus:outline-none transition-all text-base
+                    ${emailStatus !== 'valid'
+                      ? 'bg-gray-100 border-gray-300 text-gray-400 cursor-not-allowed'
+                      : loginError
+                        ? 'border-red-500 focus:border-red-500 text-red-700'
+                        : 'border-[#ea580c] focus:border-[#ea580c] text-gray-800'
+                    }`}
                   placeholder="••••••••"
                 />
-                {password.length >= 2 && (
+                {password.length >= 1 && emailStatus === 'valid' && (
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-purple-700 transition-colors"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-[#ea580c] transition-colors"
                   >
                     {showPassword ? (
                       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -194,6 +222,24 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
                   </button>
                 )}
               </div>
+
+              {/* Login Error Message */}
+              <AnimatePresence>
+                {loginError && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0, marginTop: 0 }}
+                    animate={{ opacity: 1, height: 'auto', marginTop: 8 }}
+                    exit={{ opacity: 0, height: 0, marginTop: 0 }}
+                    className="flex items-center gap-2 text-red-500 text-sm font-bold bg-red-50 p-3 rounded-lg border border-red-100"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor">
+                      <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                    </svg>
+                    <span>{loginError}</span>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
               <div className="text-right mt-2">
                 <button
                   type="button"
@@ -205,31 +251,15 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
               </div>
             </div>
 
-            {/* reCAPTCHA - Only show if password is entered */}
-            <AnimatePresence>
-              {showCaptcha && (
-                <motion.div
-                  initial={{ height: 0, opacity: 0 }}
-                  animate={{ height: 'auto', opacity: 1 }}
-                  exit={{ height: 0, opacity: 0 }}
-                  className="flex justify-center py-2 overflow-hidden"
-                >
-                  <div className="transform scale-90 origin-center">
-                    <ReCAPTCHA
-                      sitekey={import.meta.env.VITE_RECAPTCHA_SITE_KEY || "6LeIxAcTAAAAAJcZVRqyHh71UMIEGNQ_MXjiZKhI"}
-                      onChange={setCaptchaToken}
-                      theme="light"
-                    />
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
-
             {/* Botón de Login */}
             <button
               type="submit"
               disabled={isLoading || !isFormValid}
-              className="w-full bg-[#f28000] hover:bg-[#d97200] text-white font-bold py-3 px-6 rounded-full transition-all duration-300 transform hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
+              className={`w-full font-bold py-3 px-6 rounded-full transition-all duration-300 transform 
+                ${!isFormValid
+                  ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                  : 'bg-[#ea580c] hover:bg-[#d9520b] text-white hover:scale-[1.02] shadow-lg'
+                }`}
             >
               {isLoading ? (
                 <div className="flex items-center justify-center gap-2">
@@ -253,12 +283,21 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
           </div>
 
           {/* Botón de Registro */}
-          <button
+          <motion.button
+            animate={emailStatus === 'invalid' ? {
+              scale: [1, 1.05, 1],
+              boxShadow: ["0px 0px 0px rgba(110, 10, 214, 0)", "0px 0px 20px rgba(110, 10, 214, 0.5)", "0px 0px 0px rgba(110, 10, 214, 0)"]
+            } : {}}
+            transition={{ duration: 0.5, repeat: emailStatus === 'invalid' ? 2 : 0 }}
             onClick={() => navigate('/register')}
-            className="w-full bg-white border-2 border-[#6e0ad6] text-[#6e0ad6] font-bold py-3 px-6 rounded-full hover:bg-[#6e0ad6] hover:text-white transition-all duration-300 transform hover:scale-[1.02]"
+            className={`w-full border-2 font-bold py-3 px-6 rounded-full transition-all duration-300 transform hover:scale-[1.02]
+                ${emailStatus === 'invalid'
+                ? 'bg-[#6e0ad6] text-white border-[#6e0ad6] shadow-xl'
+                : 'bg-white text-[#6e0ad6] border-[#6e0ad6] hover:bg-[#6e0ad6] hover:text-white'
+              }`}
           >
             Registro por primera vez
-          </button>
+          </motion.button>
         </div>
 
         {/* Footer */}

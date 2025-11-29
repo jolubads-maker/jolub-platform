@@ -1,4 +1,4 @@
-   import { create } from 'zustand';
+import { create } from 'zustand';
 import { ChatLog, ChatMessage } from '../src/types';
 import { apiService } from '../services/apiService';
 
@@ -24,38 +24,68 @@ export const useChatStore = create<ChatState>((set, get) => ({
     loadUserChats: async (userId) => {
         try {
             const userChats = await apiService.getUserChats(userId);
-            const chatMap = new Map<string, ChatLog>();
 
-            userChats.forEach((chatParticipant: any) => {
-                const chat = chatParticipant.chat;
-                chatMap.set(chat.id, {
-                    id: chat.id,
-                    participantIds: chat.participants.map((p: any) => p.userId),
-                    messages: chat.messages.map((msg: any) => ({
+            set(state => {
+                const newLogs = new Map(state.chatLogs); // Start with existing logs to preserve history
+
+                userChats.forEach((chatParticipant: any) => {
+                    const chat = chatParticipant.chat;
+                    const existingLog = newLogs.get(chat.id);
+
+                    const newMessages = chat.messages.map((msg: any) => ({
                         id: msg.id,
                         text: msg.text,
                         sender: msg.sender as 'user' | 'seller' | 'buyer',
                         userId: msg.userId,
                         timestamp: new Date(msg.timestamp || new Date())
-                    })),
-                    lastMessage: chat.messages[0] ? {
-                        id: chat.messages[0].id,
-                        text: chat.messages[0].text,
-                        sender: chat.messages[0].sender as 'user' | 'seller' | 'buyer',
-                        userId: chat.messages[0].userId,
-                        timestamp: new Date(chat.messages[0].timestamp || new Date())
-                    } : undefined,
-                    ad: chat.ad ? {
-                        id: chat.ad.id,
-                        uniqueCode: chat.ad.uniqueCode,
-                        title: chat.ad.title,
-                        price: chat.ad.price,
-                        media: chat.ad.media
-                    } : undefined
-                });
-            });
+                    }));
 
-            set({ chatLogs: chatMap });
+                    // CRITICAL FIX: Preserve existing messages if we have more than the summary
+                    // This prevents the dashboard update from wiping out the full chat history
+                    let mergedMessages = newMessages;
+
+                    // DEBUG LOGS
+                    if (existingLog) {
+                        console.log(`[STORE] Merging chat ${chat.id}. Existing: ${existingLog.messages.length}, New: ${newMessages.length}`);
+                    }
+
+                    if (existingLog && existingLog.messages.length > newMessages.length) {
+                        mergedMessages = existingLog.messages;
+
+                        // Optional: Ensure the latest message from summary is in our history
+                        // (Socket usually handles this, but good for consistency)
+                        const lastNewMsg = newMessages[newMessages.length - 1];
+                        if (lastNewMsg && !mergedMessages.some(m => m.id === lastNewMsg.id)) {
+                            console.log(`[STORE] Appending new message to history: ${lastNewMsg.text}`);
+                            mergedMessages = [...mergedMessages, lastNewMsg];
+                        }
+                    } else {
+                        if (existingLog) console.log(`[STORE] Overwriting history with new messages (Existing was smaller or equal)`);
+                    }
+
+                    newLogs.set(chat.id, {
+                        id: chat.id,
+                        participantIds: chat.participants.map((p: any) => p.userId),
+                        messages: mergedMessages,
+                        lastMessage: chat.messages[0] ? {
+                            id: chat.messages[0].id,
+                            text: chat.messages[0].text,
+                            sender: chat.messages[0].sender as 'user' | 'seller' | 'buyer',
+                            userId: chat.messages[0].userId,
+                            timestamp: new Date(chat.messages[0].timestamp || new Date())
+                        } : undefined,
+                        ad: chat.ad ? {
+                            id: chat.ad.id,
+                            uniqueCode: chat.ad.uniqueCode,
+                            title: chat.ad.title,
+                            price: chat.ad.price,
+                            media: chat.ad.media
+                        } : undefined
+                    });
+                });
+
+                return { chatLogs: newLogs };
+            });
         } catch (error) {
             console.error('Error loading chats:', error);
         }

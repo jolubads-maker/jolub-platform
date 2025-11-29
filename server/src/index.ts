@@ -2,7 +2,6 @@ import 'dotenv/config';
 import express from 'express';
 import { createServer } from 'http';
 import cors from 'cors';
-import rateLimit from 'express-rate-limit';
 import prisma from './database';
 import { initSocket } from './socket';
 
@@ -13,21 +12,24 @@ import adsRoutes from './routes/ads.routes';
 import chatRoutes from './routes/chat.routes';
 import favoritesRoutes from './routes/favorites.routes';
 import uploadRoutes from './routes/upload.routes';
+import healthRoutes from './routes/health.routes';
 import { errorHandler } from './middleware/errorHandler';
 
 const app = express();
 
 // Security: Rate Limiting
-const limiter = rateLimit({
-    windowMs: 15 * 60 * 1000, // 15 minutes
-    max: process.env.NODE_ENV === 'production' ? 10000 : 10000, // Relaxed limit: 10000 requests per 15 min
-    standardHeaders: true,
-    legacyHeaders: false,
-    message: 'Too many requests from this IP, please try again after 15 minutes'
+import { rateLimiter } from './middleware/rateLimiter';
+
+// ...
+
+// Global Request Logger
+app.use((req, res, next) => {
+    console.log(`📥 [REQUEST] ${req.method} ${req.url}`);
+    next();
 });
 
-// Apply rate limiting to all requests
-app.use(limiter);
+// Security: Rate Limiting (Redis)
+app.use(rateLimiter);
 
 // Middleware
 app.use(express.json({ limit: '10mb' }));
@@ -60,7 +62,7 @@ app.use(cors({
         }
 
         // Allow local network IPs in development
-        if (process.env.NODE_ENV !== 'production' && origin.startsWith('http://192.168.')) {
+        if (process.env.NODE_ENV !== 'production' && (origin.startsWith('http://192.168.') || origin.startsWith('http://10.'))) {
             return callback(null, true);
         }
 
@@ -76,8 +78,9 @@ app.use('/api', authRoutes);
 app.use('/api', usersRoutes);
 app.use('/api/ads', adsRoutes);
 app.use('/api', chatRoutes);
-app.use('/api/favorites', favoritesRoutes);
+app.use('/api', favoritesRoutes);
 app.use('/api', uploadRoutes);
+app.use('/api', healthRoutes);
 
 // Error Handling Middleware (Must be last)
 app.use(errorHandler);
@@ -103,5 +106,15 @@ server.on('error', (e: any) => {
     } else {
         logger.error(`❌ Server error: ${e}`);
     }
+    process.exit(1);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+    logger.error('Unhandled Rejection at:', promise, 'reason:', reason);
+    // Application specific logging, throwing an error, or other logic here
+});
+
+process.on('uncaughtException', (error) => {
+    logger.error('Uncaught Exception:', error);
     process.exit(1);
 });

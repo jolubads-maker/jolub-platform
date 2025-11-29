@@ -33,8 +33,15 @@ export interface Media {
 export type AdCategory =
   | 'Bienes raíces'
   | 'Vehículos'
+  | 'Electrónica'
+  | 'Hogar'
+  | 'Moda'
+  | 'Deportes'
+  | 'Juguetes'
+  | 'Libros'
+  | 'Servicios profesionales'
   | 'Articulos Varios'
-  | 'Servicios profesionales';
+  | 'Otros';
 
 export interface Ad {
   id: number;
@@ -55,6 +62,7 @@ export interface Ad {
   expiresAt?: Date | string;
   createdAt?: Date | string;
   updatedAt?: Date | string;
+  seller?: User;
 }
 
 export type AdFormData = Omit<Ad, 'id' | 'sellerId' | 'views' | 'isFavorite' | 'uniqueCode'>;

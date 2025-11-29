@@ -42,15 +42,26 @@ interface SyncUserBody {
     password?: string;
 }
 
+import jwt from 'jsonwebtoken';
+
+const JWT_SECRET = process.env.JWT_SECRET || 'supersecretkey_change_in_production';
+
+const signToken = (id: number) => {
+    return jwt.sign({ id }, JWT_SECRET, { expiresIn: '7d' });
+};
+
 export const syncUser = async (req: Request, res: Response) => {
     try {
+        console.log('🔄 [SYNC] Iniciando syncUser...');
         const { name, avatar, email, provider, providerId, username, ip, country, password } = req.body as SyncUserBody;
 
         if (!name || typeof name !== 'string' || name.trim().length < 2) {
+            console.log('❌ [SYNC] Nombre inválido');
             return res.status(400).json({ error: 'El nombre debe tener al menos 2 caracteres' });
         }
 
         if (avatar && (typeof avatar !== 'string' || !avatar.startsWith('http'))) {
+            console.log('❌ [SYNC] Avatar inválido');
             return res.status(400).json({ error: 'Avatar debe ser una URL válida' });
         }
 
@@ -58,29 +69,36 @@ export const syncUser = async (req: Request, res: Response) => {
         const sanitizedEmail = email ? email.trim().toLowerCase().substring(0, 255) : null;
         const sanitizedUsername = username ? username.trim().toLowerCase().substring(0, 50) : null;
 
+        console.log(`🔄 [SYNC] Procesando usuario: ${sanitizedEmail || sanitizedName}`);
+
         // Hash password if manual provider
         let hashedPassword: string | null = null;
         if (provider === 'manual' && password) {
+            console.log('🔄 [SYNC] Hashing password...');
             hashedPassword = await bcrypt.hash(password, 10);
         }
 
         // Find or create user logic
         let user = null;
         if (providerId) {
+            console.log('🔄 [SYNC] Buscando por providerId...');
             user = await prisma.user.findFirst({
                 where: { providerId, provider: provider || 'manual' }
             });
         }
 
         if (!user && sanitizedEmail) {
+            console.log('🔄 [SYNC] Buscando por email...');
             user = await prisma.user.findFirst({ where: { email: sanitizedEmail } });
         }
 
         if (!user && sanitizedUsername) {
+            console.log('🔄 [SYNC] Buscando por username...');
             user = await prisma.user.findFirst({ where: { username: sanitizedUsername } });
         }
 
         if (!user) {
+            console.log('🔄 [SYNC] Creando nuevo usuario...');
             const uniqueId = `USER-${Date.now()}${Math.floor(Math.random() * 1000)}`;
             const defaultAvatar = avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${sanitizedEmail || uniqueId}`;
 
@@ -103,6 +121,7 @@ export const syncUser = async (req: Request, res: Response) => {
                 }
             });
         } else {
+            console.log(`🔄 [SYNC] Actualizando usuario existente: ${user.id}`);
             const updateData: any = {
                 email: sanitizedEmail || user.email,
                 provider: provider || user.provider,
@@ -122,26 +141,33 @@ export const syncUser = async (req: Request, res: Response) => {
             });
         }
 
-        res.json(user);
+        console.log('🔄 [SYNC] Generando token...');
+        const token = signToken(user.id);
+
+        // CRITICAL: Save token to DB for Socket.io auth
+        await prisma.user.update({
+            where: { id: user.id },
+            data: { sessionToken: token }
+        });
+
+        const { password: _, ...userWithoutPassword } = user;
+
+        console.log('✅ [SYNC] Completado exitosamente');
+        res.json({ ...userWithoutPassword, sessionToken: token });
+
     } catch (err) {
+        console.error(`❌ [SYNC] Error crítico: ${err}`);
         logger.error(`Error creating user: ${err}`);
         res.status(500).json({ error: 'Error creando usuario' });
     }
 };
 
-
-
 export const generateSessionToken = async (req: Request, res: Response) => {
+    // Deprecated but kept for compatibility if needed, though we should switch to JWT
     try {
         const { id } = req.params;
-        const sessionToken = crypto.randomBytes(32).toString('hex');
-
-        await prisma.user.update({
-            where: { id: Number(id) },
-            data: { sessionToken }
-        });
-
-        res.json({ sessionToken });
+        const token = signToken(Number(id));
+        res.json({ sessionToken: token });
     } catch (err) {
         logger.error(`Error generating token: ${err}`);
         res.status(500).json({ error: 'Error generando token' });
@@ -152,15 +178,17 @@ export const authenticateWithToken = async (req: Request, res: Response) => {
     try {
         const { sessionToken } = req.body as { sessionToken?: string };
         if (!sessionToken) {
-            return res.status(400).json({ error: 'Token de sesión requerido' });
+            return res.status(400).json({ error: 'Token requerido' });
         }
 
+        const decoded: any = jwt.verify(sessionToken, JWT_SECRET);
+
         const user = await prisma.user.findUnique({
-            where: { sessionToken }
+            where: { id: decoded.id }
         });
 
         if (!user) {
-            return res.status(401).json({ error: 'Token inválido' });
+            return res.status(401).json({ error: 'Usuario no encontrado' });
         }
 
         await prisma.user.update({
@@ -168,10 +196,12 @@ export const authenticateWithToken = async (req: Request, res: Response) => {
             data: { isOnline: true, lastSeen: new Date() }
         });
 
-        res.json(user);
+        const { password: _, ...userWithoutPassword } = user;
+        // Return token back to keep client in sync if needed, or just user
+        res.json({ ...userWithoutPassword, sessionToken });
     } catch (err) {
         logger.error(`Error authenticating with token: ${err}`);
-        res.status(500).json({ error: 'Error de autenticación' });
+        res.status(401).json({ error: 'Token inválido o expirado' });
     }
 };
 
@@ -257,22 +287,8 @@ export const verifyPhoneCode = async (req: Request, res: Response) => {
 
         await prisma.verificationCode.delete({ where: { id: verificationCode.id } });
 
-        // Find user by phone number
-        const user = await prisma.user.findFirst({ where: { phone: phoneNumber } });
-
-        if (!user) {
-            return res.status(404).json({ error: 'Usuario no encontrado para este número' });
-        }
-
-        const updatedUser = await prisma.user.update({
-            where: { id: user.id },
-            data: {
-                phoneVerified: true,
-                points: { increment: 20 }
-            }
-        });
-
-        res.json({ ok: true, message: 'Teléfono verificado exitosamente (+20 Puntos)', user: updatedUser });
+        // Just return success, frontend will handle user update
+        res.json({ ok: true, message: 'Teléfono verificado exitosamente' });
     } catch (err) {
         logger.error(`Error verifying phone code: ${err}`);
         res.status(500).json({ error: 'Error verificando código' });
@@ -554,16 +570,22 @@ export const login = async (req: Request, res: Response) => {
             return res.status(401).json({ error: 'Credenciales inválidas' });
         }
 
-        // Update online status
+        // CRITICAL FIX: Do NOT return the password hash to the frontend.
+        const token = signToken(user.id);
+
+        // Update online status AND session token
         await prisma.user.update({
             where: { id: user.id },
-            data: { isOnline: true, lastSeen: new Date() }
+            data: {
+                isOnline: true,
+                lastSeen: new Date(),
+                sessionToken: token // CRITICAL: Save token for Socket.io auth
+            }
         });
 
-        // CRITICAL FIX: Do NOT return the password hash to the frontend.
         const { password: _, ...userWithoutPassword } = user;
 
-        res.json(userWithoutPassword);
+        res.json({ ...userWithoutPassword, sessionToken: token });
     } catch (err) {
         logger.error(`Error logging in: ${err}`);
         res.status(500).json({ error: 'Error al iniciar sesión' });
@@ -580,5 +602,24 @@ export const checkEmail = async (req: Request, res: Response) => {
     } catch (err) {
         logger.error(`Error in checkEmail: ${err}`);
         res.status(500).json({ error: 'Error en el servidor' });
+    }
+};
+export const logout = async (req: Request, res: Response) => {
+    try {
+        const { userId } = req.body;
+        if (userId) {
+            await prisma.user.update({
+                where: { id: Number(userId) },
+                data: {
+                    isOnline: false,
+                    lastSeen: new Date(),
+                    sessionToken: null // Clear session token
+                }
+            });
+        }
+        res.json({ ok: true, message: 'Sesión cerrada' });
+    } catch (err) {
+        console.error('Error logging out:', err);
+        res.status(500).json({ error: 'Error al cerrar sesión' });
     }
 };

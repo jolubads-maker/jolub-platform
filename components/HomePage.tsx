@@ -13,7 +13,7 @@ const HomePage: React.FC = () => {
   const navigate = useNavigate();
 
   // Global State
-  const { currentUser, logout, users } = useAuthStore();
+  const { currentUser, logout } = useAuthStore();
   const { ads, incrementViews } = useAdStore();
 
   // Local State
@@ -54,7 +54,7 @@ const HomePage: React.FC = () => {
     }, 300);
 
     return () => clearTimeout(searchTimeout);
-  }, [searchQuery, ads, users]);
+  }, [searchQuery, ads]);
 
   const saveSearchToHistory = (query: string) => {
     if (!query.trim()) return;
@@ -134,9 +134,7 @@ const HomePage: React.FC = () => {
     }
   }, [currentUser, filteredAds, navigate]);
 
-  const getSellerInfo = useCallback((sellerId: number) => {
-    return users.find(u => u.id === sellerId);
-  }, [users]);
+
 
   const handleSelectAd = useCallback(async (adId: number) => {
     await incrementViews(adId);
@@ -332,7 +330,7 @@ const HomePage: React.FC = () => {
                     <AdCard
                       key={ad.id}
                       ad={ad}
-                      seller={getSellerInfo(ad.sellerId)}
+                      seller={ad.seller}
                       onSelect={() => handleSelectAd(ad.id)}
                       currentUser={currentUser}
                       onToggleFavorite={handleToggleFavorite}

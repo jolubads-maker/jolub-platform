@@ -4,12 +4,55 @@ import prisma from '../database';
 export const getUsers = async (req: Request, res: Response) => {
     try {
         const users = await prisma.user.findMany({
-            orderBy: { createdAt: 'desc' }
+            orderBy: { createdAt: 'desc' },
+            select: {
+                id: true,
+                name: true,
+                username: true,
+                avatar: true,
+                isOnline: true,
+                lastSeen: true,
+                createdAt: true,
+                points: true,
+                phoneVerified: true,
+                emailVerified: true
+            }
         });
         res.json(users);
     } catch (err) {
         console.error('Error getting users:', err);
         res.status(500).json({ error: 'Error getting users' });
+    }
+};
+
+export const getUserById = async (req: Request, res: Response) => {
+    try {
+        const { id } = req.params;
+        const user = await prisma.user.findUnique({
+            where: { id: Number(id) },
+            select: {
+                id: true,
+                name: true,
+                username: true,
+                avatar: true,
+                isOnline: true,
+                lastSeen: true,
+                createdAt: true,
+                points: true,
+                phoneVerified: true,
+                emailVerified: true,
+                // Don't expose sensitive data like password, email, phone unless authorized
+            }
+        });
+
+        if (!user) {
+            return res.status(404).json({ error: 'Usuario no encontrado' });
+        }
+
+        res.json(user);
+    } catch (err) {
+        console.error('Error getting user:', err);
+        res.status(500).json({ error: 'Error getting user' });
     }
 };
 
@@ -121,8 +164,16 @@ export const getUserFavorites = async (req: Request, res: Response) => {
             include: {
                 ad: {
                     include: {
-                        media: true,
-                        seller: true
+                        media: { take: 1 },
+                        seller: {
+                            select: {
+                                id: true,
+                                name: true,
+                                avatar: true,
+                                isOnline: true,
+                                phoneVerified: true
+                            }
+                        }
                     }
                 }
             },
@@ -141,11 +192,13 @@ export const getUserFavorites = async (req: Request, res: Response) => {
     }
 };
 
-export const addFavorite = async (req: Request, res: Response) => {
+export const addFavorite = async (req: any, res: Response) => {
     try {
-        const { userId, adId } = req.body;
-        if (!userId || !adId) {
-            return res.status(400).json({ error: 'userId y adId son requeridos' });
+        const userId = req.user.id;
+        const { adId } = req.body;
+
+        if (!adId) {
+            return res.status(400).json({ error: 'adId es requerido' });
         }
 
         const favorite = await prisma.favorite.create({
@@ -161,11 +214,13 @@ export const addFavorite = async (req: Request, res: Response) => {
     }
 };
 
-export const removeFavorite = async (req: Request, res: Response) => {
+export const removeFavorite = async (req: any, res: Response) => {
     try {
-        const { userId, adId } = req.query;
-        if (!userId || !adId) {
-            return res.status(400).json({ error: 'userId y adId son requeridos' });
+        const userId = req.user.id;
+        const { adId } = req.query;
+
+        if (!adId) {
+            return res.status(400).json({ error: 'adId es requerido' });
         }
 
         await prisma.favorite.deleteMany({

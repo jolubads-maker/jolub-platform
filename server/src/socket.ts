@@ -7,6 +7,9 @@ interface SocketUser {
     username: string | null;
 }
 
+import { createAdapter } from '@socket.io/redis-adapter';
+import redis from './config/redis';
+
 export const initSocket = (httpServer: HttpServer, allowedOrigins: string[]) => {
     const io = new Server(httpServer, {
         cors: {
@@ -23,11 +26,33 @@ export const initSocket = (httpServer: HttpServer, allowedOrigins: string[]) => 
         }
     });
 
+    const pubClient = redis;
+    const subClient = redis.duplicate();
+
+    // Prevent crash on Redis error
+    pubClient.on('error', (err) => {
+        console.error('❌ Redis Pub Client Error:', err);
+    });
+    subClient.on('error', (err) => {
+        console.error('❌ Redis Sub Client Error:', err);
+    });
+
+    // Only use Redis adapter in production or if explicitly enabled
+    if (process.env.NODE_ENV === 'production') {
+        io.adapter(createAdapter(pubClient, subClient));
+        console.log('🔌 Socket.io usando Redis Adapter');
+    } else {
+        console.log('⚠️ Socket.io corriendo en memoria (Modo Desarrollo)');
+    }
+
     // Socket.io Security Middleware
     io.use(async (socket, next) => {
         try {
             const token = socket.handshake.auth.token;
+            console.log('🔐 Socket Auth Attempt:', { socketId: socket.id, token: token ? `${token.substring(0, 10)}...` : 'MISSING' });
+
             if (!token) {
+                console.error('❌ Socket Auth Failed: No token provided');
                 return next(new Error('Authentication error: No token provided'));
             }
 
@@ -36,8 +61,11 @@ export const initSocket = (httpServer: HttpServer, allowedOrigins: string[]) => 
             });
 
             if (!user) {
+                console.error('❌ Socket Auth Failed: Invalid token (User not found)', { token: `${token.substring(0, 10)}...` });
                 return next(new Error('Authentication error: Invalid token'));
             }
+
+            console.log('✅ Socket Auth Success:', { userId: user.id, username: user.username });
 
             // Attach user to socket
             socket.data.user = user;
@@ -134,7 +162,8 @@ export const initSocket = (httpServer: HttpServer, allowedOrigins: string[]) => 
                 // 4. Emitir a la sala del chat
                 io.to(chatId).emit('receive_message', {
                     ...newMessage,
-                    timestamp: newMessage.createdAt
+                    timestamp: newMessage.createdAt,
+                    tempId: data.tempId // Echo back the tempId for optimistic UI reconciliation
                 });
 
                 // 5. Emitir notificación al destinatario (si no es el remitente)
@@ -202,8 +231,19 @@ export const initSocket = (httpServer: HttpServer, allowedOrigins: string[]) => 
             }
         });
 
-        socket.on('disconnect', () => {
+        socket.on('disconnect', async () => {
             console.log(`❌ Cliente desconectado: ${socket.id}`);
+            if (user) {
+                try {
+                    await prisma.user.update({
+                        where: { id: user.id },
+                        data: { isOnline: false, lastSeen: new Date() }
+                    });
+                    console.log(`🔴 Usuario ${user.username} marcado como desconectado`);
+                } catch (err) {
+                    console.error('Error updating user offline status:', err);
+                }
+            }
         });
     });
 

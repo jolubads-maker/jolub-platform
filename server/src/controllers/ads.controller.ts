@@ -22,9 +22,10 @@ export const getAds = async (req: Request, res: Response) => {
         }
 
         if (search) {
+            const searchQuery = String(search).split(' ').join(' & ');
             where.OR = [
-                { title: { contains: String(search), mode: 'insensitive' } },
-                { description: { contains: String(search), mode: 'insensitive' } },
+                { title: { search: searchQuery } },
+                { description: { search: searchQuery } },
                 { uniqueCode: { contains: String(search), mode: 'insensitive' } }
             ];
         }
@@ -147,24 +148,32 @@ export const searchAds = async (req: Request, res: Response) => {
             return res.status(400).json({ error: 'Query de b├║squeda requerida' });
         }
 
-        const query = String(q);
+        const searchQuery = String(q).split(' ').join(' & ');
         const ads = await prisma.ad.findMany({
             where: {
                 OR: [
-                    { title: { contains: query, mode: 'insensitive' } },
-                    { description: { contains: query, mode: 'insensitive' } },
-                    { details: { contains: query, mode: 'insensitive' } },
-                    { uniqueCode: { contains: query, mode: 'insensitive' } },
+                    { title: { search: searchQuery } },
+                    { description: { search: searchQuery } },
+                    { details: { search: searchQuery } },
+                    { uniqueCode: { contains: String(q), mode: 'insensitive' } },
                     {
                         seller: {
-                            name: { contains: query, mode: 'insensitive' }
+                            name: { contains: String(q), mode: 'insensitive' }
                         }
                     }
                 ]
             },
             include: {
-                media: true,
-                seller: true
+                media: { take: 1 },
+                seller: {
+                    select: {
+                        id: true,
+                        name: true,
+                        avatar: true,
+                        isOnline: true,
+                        phoneVerified: true
+                    }
+                }
             },
             orderBy: { createdAt: 'desc' }
         });

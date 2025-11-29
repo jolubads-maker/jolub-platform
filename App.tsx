@@ -15,6 +15,7 @@ const Register = lazy(() => import('./components/Register'));
 const ResetPassword = lazy(() => import('./components/ResetPassword'));
 const HomePage = lazy(() => import('./components/HomePage'));
 const Dashboard = lazy(() => import('./components/Dashboard'));
+const ConnectionStatus = lazy(() => import('./components/ConnectionStatus'));
 
 // Loading Component
 const LoadingScreen = () => (
@@ -36,7 +37,6 @@ const AdDetailWrapper: React.FC = () => {
   const { uniqueCode } = useParams();
   const navigate = useNavigate();
   const { ads, loading, fetchAdByUniqueCode } = useAdStore();
-  const { users } = useAuthStore();
   const { currentUser } = useAuthStore();
 
   useEffect(() => {
@@ -51,9 +51,7 @@ const AdDetailWrapper: React.FC = () => {
     return ads.find(a => uniqueCode.includes(a.uniqueCode) || a.uniqueCode === uniqueCode);
   }, [ads, uniqueCode]);
 
-  const seller = useMemo(() =>
-    ad ? users.find(u => u.id === ad.sellerId) : undefined
-    , [ad, users]);
+  const seller = useMemo(() => ad?.seller, [ad]);
 
   const handleStartChat = (sellerId: number) => {
     if (!currentUser) {
@@ -110,7 +108,6 @@ const App: React.FC = () => {
   const authLoading = useAuthStore(state => state.loading);
   const isCheckingSession = useAuthStore(state => state.isCheckingSession);
   const verifySession = useAuthStore(state => state.verifySession);
-  const fetchUsers = useAuthStore(state => state.fetchUsers);
   const authError = useAuthStore(state => state.error);
   const setAuthError = useAuthStore(state => state.setError);
 
@@ -122,11 +119,11 @@ const App: React.FC = () => {
   // Cargar datos iniciales
   useEffect(() => {
     const init = async () => {
-      await Promise.all([
-        fetchUsers(),
-        fetchAds(),
-        verifySession()
-      ]);
+      // 1. Verificar sesión primero (Bloqueante para la UI)
+      await verifySession();
+
+      // 2. Cargar datos en segundo plano (No bloqueante)
+      fetchAds();
     };
     init();
   }, []);
@@ -154,6 +151,7 @@ const App: React.FC = () => {
     <GoogleOAuthProvider clientId={OAUTH_CONFIG.GOOGLE_CLIENT_ID}>
       <div className="min-h-screen bg-gray-900 text-gray-100 font-sans">
         <Toaster position="top-center" richColors />
+        <ConnectionStatus />
         {authError && (
           <div className="fixed top-4 right-4 bg-red-600 text-white px-6 py-3 rounded-lg shadow-lg z-50 flex items-center justify-between max-w-md">
             <span>{authError}</span>
@@ -245,7 +243,7 @@ const ChatRouteWrapper: React.FC = () => {
   const navigate = useNavigate();
   const state = location.state as { sellerId?: number, buyerId?: number } | null;
 
-  const { currentUser, users } = useAuthStore();
+  const { currentUser, getUserById } = useAuthStore();
   const chatLogs = useChatStore(state => state.chatLogs);
   const sendMessage = useChatStore(state => state.sendMessage);
   const addMessage = useChatStore(state => state.addMessage);
@@ -259,9 +257,15 @@ const ChatRouteWrapper: React.FC = () => {
   }
 
   const sellerId = state?.sellerId || (chatLog?.participantIds.find(id => id !== currentUser.id));
-  const chatSeller = users.find(u => u.id === sellerId);
+  const [chatSeller, setChatSeller] = React.useState<User | undefined>(undefined);
 
-  if (!chatSeller) return <div>Error: Vendedor no encontrado</div>;
+  React.useEffect(() => {
+    if (sellerId) {
+      getUserById(sellerId).then(setChatSeller);
+    }
+  }, [sellerId]);
+
+  if (!chatSeller) return <LoadingScreen />;
 
   return (
     <ChatView

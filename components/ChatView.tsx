@@ -5,6 +5,7 @@ import { io, Socket } from 'socket.io-client';
 import { getSocketUrl } from '../config/api.config';
 import { useChatStore } from '../store/useChatStore';
 import { apiService } from '../services/apiService';
+import { connectSocket } from '../services/socketService';
 
 // X Icon Component
 const XMarkIcon = ({ className }: { className?: string }) => (
@@ -20,7 +21,7 @@ interface ChatViewProps {
   chatLog?: ChatLog; // Make optional as we might create it
   onSendMessage?: (message: string) => void;
   isOverlay?: boolean;
-  ad?: Ad; // Optional ad context
+  ad?: Partial<Ad>; // Optional ad context
   onClose?: () => void; // Optional close handler for drawer
 }
 
@@ -36,6 +37,17 @@ const ChatView: React.FC<ChatViewProps> = ({ seller, buyer, onBack, chatLog: ini
   const markAsRead = useChatStore(state => state.markAsRead);
   const [initialLoad, setInitialLoad] = useState(true);
   const [isLoading, setIsLoading] = useState(!initialChatLog);
+  const [isSending, setIsSending] = useState(false);
+  const [isConnected, setIsConnected] = useState(false);
+
+  // Rating Modal State
+  const [showRatingModal, setShowRatingModal] = useState(false);
+  const [rating, setRating] = useState(10);
+  const [isRatingSubmitting, setIsRatingSubmitting] = useState(false);
+
+  // Ad Detail Modal State
+  const [showAdDetailModal, setShowAdDetailModal] = useState(false);
+  const [selectedMediaIndex, setSelectedMediaIndex] = useState(0);
 
   const scrollToBottom = (smooth = true) => {
     messagesEndRef.current?.scrollIntoView({ behavior: smooth ? 'smooth' : 'auto' });
@@ -92,23 +104,39 @@ const ChatView: React.FC<ChatViewProps> = ({ seller, buyer, onBack, chatLog: ini
   // Sync state with props when initialChatLog changes (e.g. from Dashboard)
   useEffect(() => {
     if (initialChatLog) {
-      setChatLog(initialChatLog);
-      setMessages(initialChatLog.messages || []);
-      setIsBlocked(initialChatLog.isBlocked || false);
-      setBlockedBy(initialChatLog.blockedBy || null);
+      // Only reset state if we are switching to a DIFFERENT chat
+      // If it's the same chat, we might be receiving an update from the parent (Dashboard)
+      // but we don't want to overwrite our local state (which might have optimistic messages)
+      // unless the parent has MORE messages than we do.
+
+      setChatLog(prev => {
+        if (prev?.id !== initialChatLog.id) {
+          // New chat selected: Reset everything
+          setMessages(initialChatLog.messages || []);
+          setIsBlocked(initialChatLog.isBlocked || false);
+          setBlockedBy(initialChatLog.blockedBy || null);
+          return initialChatLog;
+        } else {
+          // Same chat: Optional merge logic could go here, but for now
+          // we trust our local socket/optimistic state more than the parent re-render
+          // to avoid "flicker" or disappearing messages.
+
+          // However, if the parent has significantly more messages (e.g. initial load finished),
+          // we might want to update.
+          if ((initialChatLog.messages?.length || 0) > messages.length) {
+            setMessages(initialChatLog.messages || []);
+          }
+          return prev; // Keep current object reference if mostly same
+        }
+      });
     }
   }, [initialChatLog]);
 
   // Sincronizar mensajes si cambian las props (carga inicial) y buscar historial completo
   useEffect(() => {
     if (chatLog && chatLog.id) {
-      // Only fetch history if it's a real chat (not draft) - checking if we have messages or if we know it exists
-      // Actually, we can try to fetch, but if it's draft it will return empty or 404.
-      // Better to rely on the initChat check.
-
       if (messages.length > 0) {
         // Don't overwrite if we already have messages from prop sync above
-        // setMessages(chatLog.messages || []); 
       }
       setIsBlocked(chatLog.isBlocked || false);
       setBlockedBy(chatLog.blockedBy || null);
@@ -137,39 +165,61 @@ const ChatView: React.FC<ChatViewProps> = ({ seller, buyer, onBack, chatLog: ini
   useEffect(() => {
     if (!chatLog) return;
 
-    // Inicializar conexión de Socket.io usando la URL correcta
-    const socketUrl = getSocketUrl();
-    console.log('🔌 Conectando socket a:', socketUrl);
+    // Inicializar conexión de Socket.io usando el servicio compartido
+    const socket = connectSocket(buyer.sessionToken);
+    socketRef.current = socket;
 
-    socketRef.current = io(socketUrl, {
-      transports: ['websocket'],
-      reconnection: true,
-      auth: {
-        token: buyer.sessionToken
-      }
-    });
+    // Update connection state
+    const updateConnectionStatus = () => {
+      setIsConnected(socket.connected);
+    };
 
-    socketRef.current.on('connect', () => {
-      console.log('✅ Socket conectado:', socketRef.current?.id);
-      socketRef.current?.emit('join_chat', chatLog.id);
-      socketRef.current?.emit('mark_read', { chatId: chatLog.id, userId: buyer.id });
+    socket.on('connect', () => {
+      console.log('✅ Socket conectado:', socket.id);
+      setIsConnected(true);
+      socket.emit('join_chat', chatLog.id);
+      socket.emit('mark_read', { chatId: chatLog.id, userId: buyer.id });
       markAsRead(chatLog.id); // Update local store
     });
 
-    socketRef.current.on('receive_message', (newMessage: ChatMessage) => {
+    socket.on('disconnect', () => {
+      console.log('❌ Socket desconectado');
+      setIsConnected(false);
+    });
+
+    socket.on('connect_error', (err) => {
+      console.error('❌ Error de conexión Socket.io:', err);
+      setIsConnected(false);
+    });
+
+    socket.on('receive_message', (newMessage: any) => {
       console.log('📩 [CLIENT] Mensaje recibido del servidor:', newMessage);
       setMessages((prevMessages) => {
+        // 1. If message with same real ID exists, ignore (duplicate)
         if (prevMessages.some(m => m.id === newMessage.id)) return prevMessages;
+
+        // 2. If message has a tempId, check if we have a matching optimistic message
+        if (newMessage.tempId) {
+          const tempIndex = prevMessages.findIndex(m => m.id === newMessage.tempId);
+          if (tempIndex !== -1) {
+            // Replace optimistic message with real one
+            const newMessages = [...prevMessages];
+            newMessages[tempIndex] = newMessage;
+            return newMessages;
+          }
+        }
+
+        // 3. Otherwise, append new message
         return [...prevMessages, newMessage];
       });
 
-      socketRef.current?.emit('mark_read', { chatId: chatLog.id, userId: buyer.id });
+      socket.emit('mark_read', { chatId: chatLog.id, userId: buyer.id });
       markAsRead(chatLog.id); // Update local store
       // Auto-scroll on new message
       setTimeout(scrollToBottom, 100);
     });
 
-    socketRef.current.on('messages_read', (data: { chatId: string, readerId: number }) => {
+    socket.on('messages_read', (data: { chatId: string, readerId: number }) => {
       if (data.chatId === chatLog.id && data.readerId !== buyer.id) {
         setMessages(prev => prev.map(msg =>
           msg.userId === buyer.id ? { ...msg, isRead: true } : msg
@@ -177,12 +227,15 @@ const ChatView: React.FC<ChatViewProps> = ({ seller, buyer, onBack, chatLog: ini
       }
     });
 
-    socketRef.current.on('chat_blocked', (data: { chatId: string, blockedBy: number }) => {
+    socket.on('chat_blocked', (data: { chatId: string, blockedBy: number }) => {
       if (data.chatId === chatLog.id) {
         setIsBlocked(true);
         setBlockedBy(data.blockedBy);
       }
     });
+
+    // Initial check
+    setIsConnected(socket.connected);
 
     return () => {
       if (socketRef.current) {
@@ -206,55 +259,86 @@ const ChatView: React.FC<ChatViewProps> = ({ seller, buyer, onBack, chatLog: ini
 
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!inputValue.trim() || !chatLog) return;
+    if (!inputValue.trim() || !chatLog || isSending) return;
 
-    console.log('handleSendMessage chatLog:', chatLog);
-    console.log('handleSendMessage participantIds:', chatLog.participantIds);
-    console.log('handleSendMessage adId:', ad?.id);
+    setIsSending(true);
+
+    // Optimistic UI Update
+    const tempId = `temp-${Date.now()}`;
+    const tempMessage: ChatMessage = {
+      id: tempId,
+      chatId: chatLog.id,
+      userId: buyer.id,
+      text: inputValue,
+      sender: 'buyer',
+      timestamp: new Date(),
+      isRead: false
+    };
+
+    // Add temp message immediately
+    setMessages(prev => [...prev, tempMessage]);
+    const messageText = inputValue; // Store text for emit
+    setInputValue(''); // Clear input immediately
+    scrollToBottom();
 
     // Ensure chat exists in DB before sending via socket
-    // If it was a draft, create it now
     try {
-      // We can optimistically send, but socket logic might fail if chat doesn't exist.
-      // Or we can ensure creation here.
-      // Since we modified createOrGetChat to support checkOnly, we can call it with checkOnly: false
-      // to ensure it exists.
       await apiService.createOrGetChat(chatLog.participantIds, ad?.id, { checkOnly: false });
     } catch (err) {
       console.error("Error ensuring chat exists:", err);
-      return; // Don't send if creation failed
+      setIsSending(false);
+      // Remove temp message if failed
+      setMessages(prev => prev.filter(m => m.id !== tempMessage.id));
+      alert('Error de conexión. Intenta de nuevo.');
+      return;
     }
 
-    if (socketRef.current) {
+    if (socketRef.current && socketRef.current.connected) {
       const messageData = {
         chatId: chatLog.id,
         userId: buyer.id,
-        text: inputValue,
-        sender: 'buyer'
+        text: messageText,
+        sender: 'buyer',
+        tempId: tempId // Send tempId to server
       };
 
+      // Timeout safety to prevent infinite loading state
+      const timeoutId = setTimeout(() => {
+        setIsSending(false);
+        alert('El servidor tardó demasiado en responder. Por favor, verifica tu conexión.');
+      }, 10000); // 10 seconds timeout
+
       socketRef.current.emit('send_message', messageData, (response: any) => {
+        clearTimeout(timeoutId);
+        setIsSending(false); // Enable input after ACK
+
         if (response.status !== 'ok') {
           if (response.error === 'Chat is blocked') {
             setIsBlocked(true);
             alert('No puedes enviar mensajes porque el chat está bloqueado.');
+            // Remove optimistic message if failed
+            setMessages(prev => prev.filter(m => m.id !== tempMessage.id));
+          } else {
+            // Other error
+            console.error("Socket error:", response.error);
+            setMessages(prev => prev.filter(m => m.id !== tempMessage.id));
+            alert('Error enviando mensaje.');
+          }
+        } else {
+          // Success: Update temp message with real ID if needed
+          if (response.message) {
+            setMessages(prev => prev.map(m => m.id === tempMessage.id ? response.message : m));
           }
         }
       });
+    } else {
+      setIsSending(false);
+      setMessages(prev => prev.filter(m => m.id !== tempMessage.id));
+      alert('No hay conexión con el servidor. Intentando reconectar...');
     }
 
-    setInputValue('');
-    if (onSendMessage) onSendMessage(inputValue);
+    if (onSendMessage) onSendMessage(messageText);
   };
-
-  // Rating Modal State
-  const [showRatingModal, setShowRatingModal] = useState(false);
-  const [rating, setRating] = useState(10);
-  const [isRatingSubmitting, setIsRatingSubmitting] = useState(false);
-
-  // Ad Detail Modal State
-  const [showAdDetailModal, setShowAdDetailModal] = useState(false);
-  const [selectedMediaIndex, setSelectedMediaIndex] = useState(0);
 
   const handleBlockToggle = () => {
     if (isBlocked && blockedBy === buyer.id) {
@@ -320,8 +404,16 @@ const ChatView: React.FC<ChatViewProps> = ({ seller, buyer, onBack, chatLog: ini
               </div>
               <div>
                 <h2 className="text-base font-bold text-white leading-tight">{seller.name}</h2>
-                <p className="text-xs text-white/60">
-                  {seller.isOnline ? 'En línea' : 'Desconectado'}
+                <p className="text-xs text-white/60 flex items-center gap-1">
+                  {seller.isOnline ? (
+                    <span className="text-green-400">En línea</span>
+                  ) : (
+                    <span>Desconectado</span>
+                  )}
+                  {/* Solo mostrar si realmente hay un error de conexión persistente */}
+                  {!isConnected && (
+                    <span className="text-orange-400 text-[10px] ml-1">(Reconectando...)</span>
+                  )}
                 </p>
               </div>
             </div>
@@ -441,24 +533,29 @@ const ChatView: React.FC<ChatViewProps> = ({ seller, buyer, onBack, chatLog: ini
             </div>
           ) : (
             <form onSubmit={handleSendMessage} className="flex items-center space-x-2">
-              <div className="flex-1 bg-white/5 rounded-full flex items-center px-4 py-2 border border-white/10 focus-within:bg-white/10 transition-colors">
+              <div className={`flex-1 bg-white/5 rounded-full flex items-center px-4 py-2 border border-white/10 transition-colors ${isSending ? 'opacity-50 cursor-not-allowed' : 'focus-within:bg-white/10'}`}>
                 <input
                   type="text"
                   value={inputValue}
                   onChange={(e) => setInputValue(e.target.value)}
-                  placeholder="Escribe un mensaje..."
-                  className="flex-1 bg-transparent text-white placeholder-white/40 outline-none text-sm"
+                  placeholder={isSending ? "Enviando..." : "Escribe un mensaje..."}
+                  disabled={isSending}
+                  className="flex-1 bg-transparent text-white placeholder-white/40 outline-none text-sm disabled:cursor-not-allowed"
                 />
               </div>
               <button
                 type="submit"
-                disabled={!inputValue.trim()}
-                className={`p-3 rounded-full transition-all transform hover:scale-105 flex items-center justify-center ${inputValue.trim()
-                  ? 'bg-[#4b0997] hover:bg-[#5b06b6] text-white shadow-lg shadow-purple-900/50'
+                disabled={!inputValue.trim() || isSending}
+                className={`p-3 rounded-full transition-all transform flex items-center justify-center ${inputValue.trim() && !isSending
+                  ? 'bg-[#4b0997] hover:bg-[#5b06b6] hover:scale-105 text-white shadow-lg shadow-purple-900/50'
                   : 'bg-white/10 text-white/30 cursor-default'
                   }`}
               >
-                <SendIcon className="w-5 h-5" />
+                {isSending ? (
+                  <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                ) : (
+                  <SendIcon className="w-5 h-5" />
+                )}
               </button>
             </form>
           )}
@@ -478,8 +575,8 @@ const ChatView: React.FC<ChatViewProps> = ({ seller, buyer, onBack, chatLog: ini
                   key={i}
                   onClick={() => setRating(i)}
                   className={`w-8 h-8 rounded-full font-bold text-sm transition-all ${rating === i
-                      ? 'bg-[#6e0ad6] text-white scale-110 shadow-lg'
-                      : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                    ? 'bg-[#6e0ad6] text-white scale-110 shadow-lg'
+                    : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
                     }`}
                 >
                   {i}

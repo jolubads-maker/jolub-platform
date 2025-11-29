@@ -15,7 +15,7 @@ interface AdCardProps {
 }
 
 const AdCard: React.FC<AdCardProps> = memo(({ ad, seller, onSelect, currentUser, onToggleFavorite, variant = 'default', onHighlight }) => {
-  const firstMedia = ad.media[0];
+  const firstMedia = ad.media?.[0];
 
   const handleFavoriteClick = (e: React.MouseEvent) => {
     e.stopPropagation();

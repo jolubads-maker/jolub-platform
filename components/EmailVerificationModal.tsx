@@ -10,11 +10,18 @@ interface EmailVerificationModalProps {
 
 const EmailVerificationModal: React.FC<EmailVerificationModalProps> = ({ currentUser, onEmailVerified, onClose }) => {
     const [step, setStep] = useState<'initial' | 'enterCode'>('initial');
-    const [email, setEmail] = useState(currentUser.email || '');
+    const [email, setEmail] = useState(currentUser?.email || '');
     const [code, setCode] = useState('');
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
     const [success, setSuccess] = useState('');
+
+    // Sync email with currentUser when it loads
+    React.useEffect(() => {
+        if (currentUser?.email) {
+            setEmail(currentUser.email);
+        }
+    }, [currentUser]);
 
     const handleSendCode = async () => {
         setError('');

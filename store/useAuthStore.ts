@@ -14,6 +14,7 @@ interface AuthState {
     setCurrentUser: (user: User | null) => void;
     setUsers: (users: User[]) => void;
     fetchUsers: () => Promise<void>;
+    getUserById: (userId: number) => Promise<User | undefined>;
     login: (userInfo: any) => Promise<User | void>;
     logout: () => Promise<void>;
     verifySession: () => Promise<void>;
@@ -43,30 +44,85 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         }
     },
 
+    getUserById: async (userId: number) => {
+        const { users } = get();
+        const existingUser = users.find(u => u.id === userId);
+        if (existingUser) return existingUser;
+
+        try {
+            // We need an endpoint for getting a single user. 
+            // Assuming apiService.getUser(id) exists or we can use getUsers temporarily if endpoint missing
+            // But for now let's assume we need to implement it in apiService too.
+            // Wait, apiService.getUsers() gets ALL. 
+            // Let's check apiService.ts again. It only has getUsers().
+            // I will add getUser(id) to apiService as well.
+            const user = await apiService.getUser(userId);
+            set(state => ({ users: [...state.users, user] }));
+            return user;
+        } catch (error) {
+            console.error(`Error fetching user ${userId}:`, error);
+            return undefined;
+        }
+    },
+
     login: async (userInfo) => {
         try {
+            // Optimization: If userInfo already has ID and SessionToken (Manual Login), skip sync
+            if (userInfo.id && userInfo.sessionToken) {
+                set({ loading: true, error: null });
+
+                // Optimistic update
+                const userWithOnline = { ...userInfo, isOnline: true };
+
+                set(state => {
+                    const existingUserIndex = state.users.findIndex(u => u.id === userWithOnline.id);
+                    let newUsers = [...state.users];
+                    if (existingUserIndex >= 0) {
+                        newUsers[existingUserIndex] = userWithOnline;
+                    } else {
+                        newUsers.push(userWithOnline);
+                    }
+                    return { currentUser: userWithOnline, users: newUsers, loading: false };
+                });
+
+                localStorage.setItem('currentUser', JSON.stringify(userWithOnline));
+                localStorage.setItem('sessionToken', userWithOnline.sessionToken);
+
+                // Update online status in background
+                apiService.updateUserOnlineStatus(userWithOnline.id, true).catch(err => {
+                    console.error('Background online status update failed:', err);
+                });
+
+                return userWithOnline;
+            }
+
             set({ loading: true, error: null });
             const user = await apiService.createOrUpdateUser(userInfo);
             const sessionToken = await apiService.generateSessionToken(user.id);
 
-            // Update online status
-            const updatedUser = await apiService.updateUserOnlineStatus(user.id, true);
+            // Optimistic update: Set user immediately to unblock UI
+            const userWithOnline = { ...user, isOnline: true };
 
             set(state => {
-                const existingUserIndex = state.users.findIndex(u => u.id === updatedUser.id);
+                const existingUserIndex = state.users.findIndex(u => u.id === user.id);
                 let newUsers = [...state.users];
                 if (existingUserIndex >= 0) {
-                    newUsers[existingUserIndex] = updatedUser;
+                    newUsers[existingUserIndex] = userWithOnline;
                 } else {
-                    newUsers.push(updatedUser);
+                    newUsers.push(userWithOnline);
                 }
-                return { currentUser: updatedUser, users: newUsers, loading: false };
+                return { currentUser: userWithOnline, users: newUsers, loading: false };
             });
 
-            localStorage.setItem('currentUser', JSON.stringify(updatedUser));
+            localStorage.setItem('currentUser', JSON.stringify(userWithOnline));
             localStorage.setItem('sessionToken', sessionToken);
 
-            return updatedUser;
+            // Update online status in background (Fire and forget)
+            apiService.updateUserOnlineStatus(user.id, true).catch(err => {
+                console.error('Background online status update failed:', err);
+            });
+
+            return userWithOnline;
         } catch (error: any) {
             set({ error: error.message || 'Error logging in', loading: false });
             throw error;
@@ -77,9 +133,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         const { currentUser } = get();
         if (currentUser) {
             try {
-                await apiService.updateUserOnlineStatus(currentUser.id, false);
+                await apiService.logout(currentUser.id);
             } catch (error) {
-                console.error('Error setting offline status:', error);
+                console.error('Error logging out:', error);
             }
         }
 
