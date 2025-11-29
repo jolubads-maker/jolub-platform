@@ -5,46 +5,81 @@ const API_BASE = getApiUrl();
 console.log('🌐 API URL configurada:', API_BASE);
 
 class ApiService {
-  private getHeaders(): HeadersInit {
-    const token = localStorage.getItem('sessionToken');
-    const headers: HeadersInit = {
+  private async request(endpoint: string, options: RequestInit = {}): Promise<Response> {
+    const defaultHeaders: HeadersInit = {
       'Content-Type': 'application/json',
     };
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`;
+
+    // If body is FormData, let browser set Content-Type
+    if (options.body instanceof FormData) {
+      delete (defaultHeaders as any)['Content-Type'];
     }
-    return headers;
+
+    const config: RequestInit = {
+      ...options,
+      headers: {
+        ...defaultHeaders,
+        ...options.headers,
+      },
+      credentials: 'include', // CRITICAL: Send cookies with request
+    };
+
+    // Add timeout to prevent hanging
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 seconds for uploads
+    config.signal = controller.signal;
+
+    try {
+      const response = await fetch(`${API_BASE}${endpoint}`, config);
+      clearTimeout(timeoutId);
+      return response;
+    } catch (error: any) {
+      clearTimeout(timeoutId);
+      if (error.name === 'AbortError') {
+        throw new Error('La petición excedió el tiempo de espera (timeout)');
+      }
+      throw error;
+    }
+  }
+
+  async uploadFile(formData: FormData): Promise<{ url: string }> {
+    const response = await this.request('/upload', {
+      method: 'POST',
+      body: formData
+    });
+    if (!response.ok) throw new Error('Error subiendo archivo');
+    return response.json();
   }
 
   // Usuarios
   async getUsers(): Promise<User[]> {
-    const response = await fetch(`${API_BASE}/users`);
+    const response = await this.request('/users');
     if (!response.ok) throw new Error('Error obteniendo usuarios');
     return response.json();
   }
 
   async getUser(userId: number): Promise<User> {
-    const response = await fetch(`${API_BASE}/users/${userId}`);
+    const response = await this.request(`/users/${userId}`);
     if (!response.ok) throw new Error('Error obteniendo usuario');
     return response.json();
   }
 
   async checkUsernameAvailability(username: string): Promise<boolean> {
-    const response = await fetch(`${API_BASE}/check-username?username=${encodeURIComponent(username)}`);
+    const response = await this.request(`/check-username?username=${encodeURIComponent(username)}`);
     if (!response.ok) throw new Error('Error verificando username');
     const data = await response.json();
     return data.available;
   }
 
   async checkEmailAvailability(email: string): Promise<boolean> {
-    const response = await fetch(`${API_BASE}/check-email?email=${encodeURIComponent(email)}`);
+    const response = await this.request(`/check-email?email=${encodeURIComponent(email)}`);
     if (!response.ok) throw new Error('Error verificando email');
     const data = await response.json();
     return data.available;
   }
 
   async getIpInfo(): Promise<{ ip: string; country: string; city?: string; region?: string }> {
-    const response = await fetch(`${API_BASE}/get-ip-info`);
+    const response = await this.request('/get-ip-info');
     if (!response.ok) throw new Error('Error obteniendo información de IP');
     return response.json();
   }
@@ -61,9 +96,8 @@ class ApiService {
     password?: string;
   }): Promise<User> {
     console.log('📡 POST /api/auth/sync', userData);
-    const response = await fetch(`${API_BASE}/auth/sync`, {
+    const response = await this.request('/auth/sync', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(userData)
     });
     console.log('📡 Response status:', response.status, response.statusText);
@@ -78,9 +112,8 @@ class ApiService {
   }
 
   async updateUserOnlineStatus(userId: number, isOnline: boolean): Promise<User> {
-    const response = await fetch(`${API_BASE}/users/${userId}/online-status`, {
+    const response = await this.request(`/users/${userId}/online-status`, {
       method: 'PUT',
-      headers: this.getHeaders(),
       body: JSON.stringify({ isOnline })
     });
     if (!response.ok) throw new Error('Error actualizando estado');
@@ -88,9 +121,8 @@ class ApiService {
   }
 
   async verifyUserPhone(userId: number, phoneNumber: string): Promise<User> {
-    const response = await fetch(`${API_BASE}/users/${userId}/verify-phone`, {
+    const response = await this.request(`/users/${userId}/verify-phone`, {
       method: 'PUT',
-      headers: this.getHeaders(),
       body: JSON.stringify({ phoneNumber })
     });
     if (!response.ok) throw new Error('Error verificando teléfono');
@@ -98,9 +130,8 @@ class ApiService {
   }
 
   async updatePrivacy(userId: number, settings: { showEmail?: boolean; showPhone?: boolean }): Promise<User> {
-    const response = await fetch(`${API_BASE}/users/${userId}/privacy`, {
+    const response = await this.request(`/users/${userId}/privacy`, {
       method: 'PUT',
-      headers: this.getHeaders(),
       body: JSON.stringify(settings)
     });
     if (!response.ok) throw new Error('Error actualizando privacidad');
@@ -108,9 +139,8 @@ class ApiService {
   }
 
   async rateUser(userId: number, points: number): Promise<User> {
-    const response = await fetch(`${API_BASE}/users/${userId}/rate`, {
+    const response = await this.request(`/users/${userId}/rate`, {
       method: 'POST',
-      headers: this.getHeaders(),
       body: JSON.stringify({ points })
     });
     if (!response.ok) throw new Error('Error calificando usuario');
@@ -119,13 +149,13 @@ class ApiService {
 
   // Anuncios
   async getAds(): Promise<Ad[]> {
-    const response = await fetch(`${API_BASE}/ads`);
+    const response = await this.request('/ads');
     if (!response.ok) throw new Error('Error obteniendo anuncios');
     return response.json();
   }
 
   async getAdByUniqueCode(uniqueCode: string): Promise<Ad> {
-    const response = await fetch(`${API_BASE}/ads/code/${uniqueCode}`);
+    const response = await this.request(`/ads/code/${uniqueCode}`);
     if (!response.ok) throw new Error('Error obteniendo anuncio');
     return response.json();
   }
@@ -138,9 +168,8 @@ class ApiService {
     sellerId: number;
     media: Array<{ type: 'image' | 'video'; url: string }>;
   }): Promise<Ad> {
-    const response = await fetch(`${API_BASE}/ads`, {
+    const response = await this.request('/ads', {
       method: 'POST',
-      headers: this.getHeaders(),
       body: JSON.stringify(adData)
     });
     if (!response.ok) throw new Error('Error creando anuncio');
@@ -148,7 +177,7 @@ class ApiService {
   }
 
   async incrementAdViews(adId: number): Promise<Ad> {
-    const response = await fetch(`${API_BASE}/ads/${adId}/view`, {
+    const response = await this.request(`/ads/${adId}/view`, {
       method: 'PUT'
     });
     if (!response.ok) throw new Error('Error incrementando vistas');
@@ -157,17 +186,14 @@ class ApiService {
 
   // Chats
   async getUserChats(userId: number): Promise<ChatLog[]> {
-    const response = await fetch(`${API_BASE}/users/${userId}/chats`, {
-      headers: this.getHeaders()
-    });
+    const response = await this.request(`/users/${userId}/chats`);
     if (!response.ok) throw new Error('Error obteniendo chats');
     return response.json();
   }
 
   async createOrGetChat(participantIds: number[], adId?: number, options?: { checkOnly?: boolean }): Promise<ChatLog | null> {
-    const response = await fetch(`${API_BASE}/chats`, {
+    const response = await this.request('/chats', {
       method: 'POST',
-      headers: this.getHeaders(),
       body: JSON.stringify({ participantIds, adId, checkOnly: options?.checkOnly })
     });
     if (!response.ok) throw new Error('Error creando chat');
@@ -175,9 +201,8 @@ class ApiService {
   }
 
   async sendMessage(chatId: string, userId: number, text: string, sender: string): Promise<ChatMessage> {
-    const response = await fetch(`${API_BASE}/chats/${chatId}/messages`, {
+    const response = await this.request(`/chats/${chatId}/messages`, {
       method: 'POST',
-      headers: this.getHeaders(),
       body: JSON.stringify({ userId, text, sender })
     });
     if (!response.ok) throw new Error('Error enviando mensaje');
@@ -185,18 +210,15 @@ class ApiService {
   }
 
   async getChatMessages(chatId: string): Promise<ChatMessage[]> {
-    const response = await fetch(`${API_BASE}/chats/${chatId}/messages`, {
-      headers: this.getHeaders()
-    });
+    const response = await this.request(`/chats/${chatId}/messages`);
     if (!response.ok) throw new Error('Error obteniendo mensajes');
     return response.json();
   }
 
   // Verificación SMS
   async sendVerificationCode(phoneNumber: string): Promise<{ ok: boolean; message?: string }> {
-    const response = await fetch(`${API_BASE}/send-code`, {
+    const response = await this.request('/send-code', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ phoneNumber })
     });
     const data = await response.json();
@@ -205,9 +227,8 @@ class ApiService {
   }
 
   async verifyCode(phoneNumber: string, code: string): Promise<{ ok: boolean; message?: string }> {
-    const response = await fetch(`${API_BASE}/verify-code`, {
+    const response = await this.request('/verify-code', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ phoneNumber, code })
     });
     const data = await response.json();
@@ -217,10 +238,13 @@ class ApiService {
 
   // Autenticación OAuth
   async authenticateWithToken(sessionToken: string): Promise<User | null> {
-    const response = await fetch(`${API_BASE}/auth/token`, {
+    // Note: sessionToken might be empty if we rely purely on cookies now, 
+    // but keeping the signature for compatibility if needed.
+    // Actually, we can just send an empty body or check /users/me
+
+    const response = await this.request('/auth/token', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ sessionToken })
+      body: JSON.stringify({ sessionToken }) // Still sending it if available, but backend checks cookie too
     });
 
     if (response.status === 401 || response.status === 403) {
@@ -236,9 +260,8 @@ class ApiService {
 
   async generateSessionToken(userId: number): Promise<string> {
     console.log('📡 POST /api/users/${userId}/session-token');
-    const response = await fetch(`${API_BASE}/users/${userId}/session-token`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' }
+    const response = await this.request(`/users/${userId}/session-token`, {
+      method: 'POST'
     });
     console.log('📡 Response status:', response.status);
     if (!response.ok) {
@@ -252,9 +275,8 @@ class ApiService {
   }
 
   async logout(userId: number): Promise<void> {
-    const response = await fetch(`${API_BASE}/auth/logout`, {
+    const response = await this.request('/auth/logout', {
       method: 'POST',
-      headers: this.getHeaders(),
       body: JSON.stringify({ userId })
     });
     if (!response.ok) throw new Error('Error cerrando sesión');
@@ -262,7 +284,7 @@ class ApiService {
 
   // Búsqueda de anuncios
   async searchAds(query: string): Promise<Ad[]> {
-    const response = await fetch(`${API_BASE}/ads/search?q=${encodeURIComponent(query)}`);
+    const response = await this.request(`/ads/search?q=${encodeURIComponent(query)}`);
     if (!response.ok) throw new Error('Error buscando anuncios');
     return response.json();
   }
@@ -271,9 +293,8 @@ class ApiService {
 
   // Agregar favorito
   async addFavorite(userId: number, adId: number): Promise<void> {
-    const response = await fetch(`${API_BASE}/favorites`, {
+    const response = await this.request('/favorites', {
       method: 'POST',
-      headers: this.getHeaders(),
       body: JSON.stringify({ userId, adId })
     });
     if (!response.ok) throw new Error('Error agregando favorito');
@@ -281,18 +302,15 @@ class ApiService {
 
   // Eliminar favorito
   async removeFavorite(userId: number, adId: number): Promise<void> {
-    const response = await fetch(`${API_BASE}/favorites?userId=${userId}&adId=${adId}`, {
-      method: 'DELETE',
-      headers: this.getHeaders()
+    const response = await this.request(`/favorites?userId=${userId}&adId=${adId}`, {
+      method: 'DELETE'
     });
     if (!response.ok) throw new Error('Error eliminando favorito');
   }
 
   // Obtener favoritos de un usuario
   async getUserFavorites(userId: number): Promise<Ad[]> {
-    const response = await fetch(`${API_BASE}/users/${userId}/favorites`, {
-      headers: this.getHeaders()
-    });
+    const response = await this.request(`/users/${userId}/favorites`);
     if (!response.ok) throw new Error('Error obteniendo favoritos');
     return response.json();
   }
@@ -315,9 +333,7 @@ class ApiService {
       if (filters.search) params.append('search', filters.search);
     }
 
-    const response = await fetch(`${API_BASE}/ads?${params.toString()}`, {
-      headers: this.getHeaders()
-    });
+    const response = await this.request(`/ads?${params.toString()}`);
     if (!response.ok) throw new Error('Error obteniendo anuncios');
     return response.json();
   }

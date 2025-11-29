@@ -79,7 +79,7 @@ app.use('/api/favorites', favoritesRoutes);
 app.use('/api', uploadRoutes);
 
 // Error Handling Middleware (Must be last)
-app.use(errorHandler);
+app.use(errorHandler as any);
 
 export default app;
 export { allowedOrigins };

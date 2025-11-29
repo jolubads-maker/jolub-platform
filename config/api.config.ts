@@ -7,21 +7,30 @@ export const API_CONFIG = {
 };
 
 // Determinar la URL correcta según el entorno
+// Determinar la URL correcta según el entorno
 export const getApiUrl = () => {
+  const hostname = window.location.hostname;
+
   // PRIORIDAD 1: Detectar si estamos en localhost o red local (desarrollo)
-  // Esto debe ir PRIMERO para forzar el uso del proxy de Vite (/api) y evitar problemas de CORS/Firewall
-  const isLocalhost = window.location.hostname === 'localhost' ||
-    window.location.hostname === '127.0.0.1' ||
-    window.location.hostname.startsWith('192.168.') ||
-    window.location.hostname.startsWith('10.');
+  const isLocalhost = hostname === 'localhost' ||
+    hostname === '127.0.0.1' ||
+    hostname.startsWith('192.168.') ||
+    hostname.startsWith('10.');
 
   if (isLocalhost) {
-    console.log('🔧 Detectado desarrollo (LAN/Localhost) - Usando proxy /api');
+    // Si es una IP de red local (ej: 192.168.0.19), conectamos directo al puerto 4000
+    // para evitar problemas con el proxy de Vite que a veces falla en LAN.
+    if (hostname.startsWith('192.168.') || hostname.startsWith('10.')) {
+      console.log(`🔧 Detectado LAN (${hostname}) - Conectando directo al puerto 4000`);
+      return `http://${hostname}:4000/api`;
+    }
+
+    // Para localhost/127.0.0.1 seguimos usando el proxy por comodidad
+    console.log('🔧 Detectado Localhost - Usando proxy /api');
     return '/api';
   }
 
-  // PRIORIDAD 2: Variable de entorno (si existe y está configurada)
-  // PERO: Ignorar si apunta a localhost y NO estamos en localhost (evita errores de build local desplegado)
+  // PRIORIDAD 2: Variable de entorno
   if (import.meta.env.VITE_API_URL && import.meta.env.VITE_API_URL !== '') {
     const envUrlIsLocal = import.meta.env.VITE_API_URL.includes('localhost') ||
       import.meta.env.VITE_API_URL.includes('127.0.0.1');
@@ -29,28 +38,29 @@ export const getApiUrl = () => {
     if (!envUrlIsLocal) {
       console.log('🔧 Usando VITE_API_URL:', import.meta.env.VITE_API_URL);
       return import.meta.env.VITE_API_URL;
-    } else {
-      console.warn('⚠️ VITE_API_URL apunta a localhost pero estamos en producción. Ignorando variable de entorno.');
     }
   }
 
-  // PRIORIDAD 3: Producción (Hardcoded fallback)
+  // PRIORIDAD 3: Producción
   console.log('🔧 Detectado producción - Usando URL de producción hardcoded');
   return API_CONFIG.PRODUCTION_API_URL;
 };
 
-// Obtener la URL base para Sockets (sin /api y sin proxy de Vercel)
+// Obtener la URL base para Sockets
 export const getSocketUrl = () => {
-  const isLocalhost = window.location.hostname === 'localhost' ||
-    window.location.hostname === '127.0.0.1' ||
-    window.location.hostname.startsWith('192.168.');
+  const hostname = window.location.hostname;
+  const isLocalhost = hostname === 'localhost' ||
+    hostname === '127.0.0.1' ||
+    hostname.startsWith('192.168.');
 
   if (isLocalhost) {
-    // Use relative path to let Vite proxy handle it (fixes port 4000 firewall issues)
+    // Si es LAN, conectar directo al puerto 4000
+    if (hostname.startsWith('192.168.') || hostname.startsWith('10.')) {
+      return `http://${hostname}:4000`;
+    }
+    // Localhost usa proxy
     return '';
   }
 
-  // En producción, devolver la URL directa del backend (Render)
-  // Quitamos '/api' de la URL de producción si está presente
   return API_CONFIG.PRODUCTION_API_URL.replace('/api', '');
 };

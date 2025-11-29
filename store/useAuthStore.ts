@@ -50,12 +50,6 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         if (existingUser) return existingUser;
 
         try {
-            // We need an endpoint for getting a single user. 
-            // Assuming apiService.getUser(id) exists or we can use getUsers temporarily if endpoint missing
-            // But for now let's assume we need to implement it in apiService too.
-            // Wait, apiService.getUsers() gets ALL. 
-            // Let's check apiService.ts again. It only has getUsers().
-            // I will add getUser(id) to apiService as well.
             const user = await apiService.getUser(userId);
             set(state => ({ users: [...state.users, user] }));
             return user;
@@ -67,8 +61,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
     login: async (userInfo) => {
         try {
-            // Optimization: If userInfo already has ID and SessionToken (Manual Login), skip sync
-            if (userInfo.id && userInfo.sessionToken) {
+            // Optimization: If userInfo already has ID (Manual Login), skip sync
+            if (userInfo.id) {
                 set({ loading: true, error: null });
 
                 // Optimistic update
@@ -86,7 +80,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
                 });
 
                 localStorage.setItem('currentUser', JSON.stringify(userWithOnline));
-                localStorage.setItem('sessionToken', userWithOnline.sessionToken);
+                // localStorage.setItem('sessionToken', userWithOnline.sessionToken); // REMOVED
 
                 // Update online status in background
                 apiService.updateUserOnlineStatus(userWithOnline.id, true).catch(err => {
@@ -98,7 +92,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
             set({ loading: true, error: null });
             const user = await apiService.createOrUpdateUser(userInfo);
-            const sessionToken = await apiService.generateSessionToken(user.id);
+            // const sessionToken = await apiService.generateSessionToken(user.id); // REMOVED
 
             // Optimistic update: Set user immediately to unblock UI
             const userWithOnline = { ...user, isOnline: true };
@@ -115,7 +109,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
             });
 
             localStorage.setItem('currentUser', JSON.stringify(userWithOnline));
-            localStorage.setItem('sessionToken', sessionToken);
+            // localStorage.setItem('sessionToken', sessionToken); // REMOVED
 
             // Update online status in background (Fire and forget)
             apiService.updateUserOnlineStatus(user.id, true).catch(err => {
@@ -139,7 +133,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
             }
         }
 
-        localStorage.removeItem('sessionToken');
+        // localStorage.removeItem('sessionToken'); // REMOVED
         localStorage.removeItem('currentUser');
         localStorage.removeItem('phoneVerification');
 
@@ -147,43 +141,24 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     },
 
     verifySession: async () => {
-        const sessionToken = localStorage.getItem('sessionToken');
-        if (sessionToken) {
-            try {
-                const user = await apiService.authenticateWithToken(sessionToken);
-                if (user) {
-                    set({ currentUser: user });
-                    // Also refresh users list to ensure we have latest data
-                    get().fetchUsers();
-                } else {
-                    // Invalid token
-                    localStorage.removeItem('sessionToken');
-                    localStorage.removeItem('currentUser');
-                    set({ currentUser: null });
-                }
-            } catch (error) {
-                console.error('Session verification failed (Server Error):', error);
-                // Do NOT logout on server error (429, 500). 
-                // Only logout if we explicitly got null (401/403) handled above.
-                // We keep the local user state if possible, or just stop checking.
-            } finally {
-                set({ isCheckingSession: false });
+        // Try to authenticate with cookie only
+        try {
+            // Pass empty string or null, apiService will send empty body but include cookie
+            const user = await apiService.authenticateWithToken('');
+            if (user) {
+                set({ currentUser: user });
+                // Also refresh users list to ensure we have latest data
+                get().fetchUsers();
+            } else {
+                // Invalid session
+                localStorage.removeItem('currentUser');
+                set({ currentUser: null });
             }
-        } else {
-            // Fallback to legacy local storage if needed, or just clear
-            const savedUser = localStorage.getItem('currentUser');
-            if (savedUser) {
-                try {
-                    // We don't trust local storage without token validation for security
-                    // But for UX we might keep it briefly. 
-                    // Ideally, we clear it if no token.
-                    // For this fix, we will clear it to enforce token auth.
-                    localStorage.removeItem('currentUser');
-                } catch (e) {
-                    localStorage.removeItem('currentUser');
-                }
-            }
-            set({ currentUser: null, isCheckingSession: false });
+        } catch (error) {
+            console.error('Session verification failed (Server Error):', error);
+            // Do NOT logout on server error (429, 500). 
+        } finally {
+            set({ isCheckingSession: false });
         }
     },
 
@@ -235,20 +210,17 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
         try {
             // 2. Background Re-fetch to ensure consistency
-            const sessionToken = localStorage.getItem('sessionToken');
-            if (sessionToken) {
-                const updatedUser = await apiService.authenticateWithToken(sessionToken);
-                if (updatedUser) {
-                    set(state => ({
-                        currentUser: updatedUser,
-                        users: state.users.map(u => u.id === updatedUser.id ? updatedUser : u)
-                    }));
-                    localStorage.setItem('currentUser', JSON.stringify(updatedUser));
-                }
+            // Just call verifySession to refresh from cookie
+            const updatedUser = await apiService.authenticateWithToken('');
+            if (updatedUser) {
+                set(state => ({
+                    currentUser: updatedUser,
+                    users: state.users.map(u => u.id === updatedUser.id ? updatedUser : u)
+                }));
+                localStorage.setItem('currentUser', JSON.stringify(updatedUser));
             }
         } catch (error) {
             console.error('Error syncing user status after email verification:', error);
-            // We don't revert here because the verification *did* succeed (this function is called on success)
         }
     },
 

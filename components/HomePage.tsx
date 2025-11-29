@@ -28,10 +28,12 @@ const HomePage: React.FC = () => {
   });
   const [searchHistory, setSearchHistory] = useState<string[]>([]);
 
-  // Initialize filteredAds with all ads when ads change
+  // Initialize filteredAds with all ads when ads change, BUT only if not searching
   useEffect(() => {
-    setFilteredAds(ads);
-  }, [ads]);
+    if (!searchQuery && filters.category === 'Todas' && filters.minPrice === 0 && filters.maxPrice === 100000 && !filters.location) {
+      setFilteredAds(ads);
+    }
+  }, [ads, searchQuery, filters]);
 
   useEffect(() => {
     const history = localStorage.getItem('searchHistory');
@@ -321,7 +323,6 @@ const HomePage: React.FC = () => {
           {/* Grid Container with Background */}
           <div className="bg-gray-50 rounded-2xl p-6">
             <motion.div
-              layout
               className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-4 gap-4 md:gap-5"
             >
               <AnimatePresence>

@@ -146,13 +146,14 @@ const Dashboard: React.FC = () => {
     setSelectedMediaIndex((idx) => (idx + 1) % total);
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
     console.log('Logout initiated');
-    localStorage.removeItem('sessionToken');
-    localStorage.removeItem('currentUser');
-    localStorage.removeItem('phoneVerification');
-    logout().catch(err => console.error('Background logout error:', err));
-    window.location.href = '/';
+    try {
+      await logout();
+    } catch (err) {
+      console.error('Logout error:', err);
+    }
+    navigate('/');
   };
 
   const handlePhoneVerified = async (phoneNumber: string) => {

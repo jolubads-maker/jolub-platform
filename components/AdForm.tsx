@@ -2,16 +2,13 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { AdFormData, Media, AdCategory } from '../src/types';
 import PaperclipIcon from './icons/PaperclipIcon';
+import { apiService } from '../services/apiService';
 import { notify } from '../services/notificationService';
 
 interface AdFormProps {
   onCancel: () => void;
   onSubmit: (formData: AdFormData) => void;
 }
-
-// 🔧 CONFIGURACIÓN CLOUDINARY
-const CLOUDINARY_CLOUD_NAME = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
-const CLOUDINARY_UPLOAD_PRESET = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
 
 // 📂 CATEGORÍAS Y SUBCATEGORÍAS
 const CATEGORIES_DATA: Record<AdCategory, string[]> = {
@@ -65,18 +62,13 @@ const AdForm: React.FC<AdFormProps> = ({ onCancel, onSubmit }) => {
     setSubcategory('');
   }, [category]);
 
-  const uploadToCloudinary = async (file: File): Promise<string> => {
+  const uploadToR2 = async (file: File): Promise<string> => {
     const formData = new FormData();
     formData.append('file', file);
-    formData.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
 
     try {
-      const response = await fetch(
-        `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`,
-        { method: 'POST', body: formData }
-      );
-      const data = await response.json();
-      return data.secure_url;
+      const response = await apiService.uploadFile(formData);
+      return response.url;
     } catch (error) {
       console.error('Error subiendo imagen:', error);
       throw error;

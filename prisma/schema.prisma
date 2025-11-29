@@ -3,7 +3,7 @@
 
 generator client {
   provider = "prisma-client-js"
-  previewFeatures = ["fullTextSearchPostgres"]
+  previewFeatures = ["fullTextSearch"]
 }
 
 datasource db {
@@ -70,6 +70,7 @@ model Ad {
 
   @@index([category]) // Índice para búsquedas rápidas por categoría
   @@index([price]) // Índice para filtros de precio
+  @@index([title, description]) // Índice Full Text Search
   @@map("ads")
 }
 

@@ -5,6 +5,15 @@ import nodemailer from 'nodemailer';
 import twilio from 'twilio';
 import bcrypt from 'bcryptjs';
 import logger from '../utils/logger';
+import jwt from 'jsonwebtoken';
+
+// Enforce JWT_SECRET
+if (!process.env.JWT_SECRET) {
+    logger.error('FATAL: JWT_SECRET is not defined.');
+    process.exit(1);
+}
+
+const JWT_SECRET = process.env.JWT_SECRET;
 
 // Rate limiting map
 const RATE_LIMIT_WINDOW = 60 * 60 * 1000; // 1 hour
@@ -42,12 +51,17 @@ interface SyncUserBody {
     password?: string;
 }
 
-import jwt from 'jsonwebtoken';
-
-const JWT_SECRET = process.env.JWT_SECRET || 'supersecretkey_change_in_production';
-
 const signToken = (id: number) => {
     return jwt.sign({ id }, JWT_SECRET, { expiresIn: '7d' });
+};
+
+const setAuthCookie = (res: Response, token: string) => {
+    res.cookie('jwt', token, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'strict',
+        maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
+    });
 };
 
 export const syncUser = async (req: Request, res: Response) => {
@@ -144,16 +158,20 @@ export const syncUser = async (req: Request, res: Response) => {
         console.log('🔄 [SYNC] Generando token...');
         const token = signToken(user.id);
 
-        // CRITICAL: Save token to DB for Socket.io auth
+        // CRITICAL: Save token to DB for Socket.io auth (still needed for socket handshake if using query auth)
+        // But for HTTP requests we use cookie
         await prisma.user.update({
             where: { id: user.id },
             data: { sessionToken: token }
         });
 
+        setAuthCookie(res, token);
+
         const { password: _, ...userWithoutPassword } = user;
 
         console.log('✅ [SYNC] Completado exitosamente');
-        res.json({ ...userWithoutPassword, sessionToken: token });
+        // Don't send token in body
+        res.json({ ...userWithoutPassword });
 
     } catch (err) {
         console.error(`❌ [SYNC] Error crítico: ${err}`);
@@ -167,6 +185,8 @@ export const generateSessionToken = async (req: Request, res: Response) => {
     try {
         const { id } = req.params;
         const token = signToken(Number(id));
+        // Also set cookie here just in case
+        setAuthCookie(res, token);
         res.json({ sessionToken: token });
     } catch (err) {
         logger.error(`Error generating token: ${err}`);
@@ -175,13 +195,16 @@ export const generateSessionToken = async (req: Request, res: Response) => {
 };
 
 export const authenticateWithToken = async (req: Request, res: Response) => {
+    console.log('🔍 [AUTH] authenticateWithToken called');
     try {
-        const { sessionToken } = req.body as { sessionToken?: string };
-        if (!sessionToken) {
-            return res.status(400).json({ error: 'Token requerido' });
+        // Try to get token from cookie first, then body (for backward compatibility during migration)
+        const token = req.cookies.jwt || req.body.sessionToken;
+
+        if (!token) {
+            return res.status(401).json({ error: 'Token requerido' });
         }
 
-        const decoded: any = jwt.verify(sessionToken, JWT_SECRET);
+        const decoded: any = jwt.verify(token, JWT_SECRET);
 
         const user = await prisma.user.findUnique({
             where: { id: decoded.id }
@@ -197,8 +220,11 @@ export const authenticateWithToken = async (req: Request, res: Response) => {
         });
 
         const { password: _, ...userWithoutPassword } = user;
-        // Return token back to keep client in sync if needed, or just user
-        res.json({ ...userWithoutPassword, sessionToken });
+
+        // Refresh cookie
+        setAuthCookie(res, token);
+
+        res.json({ ...userWithoutPassword });
     } catch (err) {
         logger.error(`Error authenticating with token: ${err}`);
         res.status(401).json({ error: 'Token inválido o expirado' });
@@ -570,22 +596,26 @@ export const login = async (req: Request, res: Response) => {
             return res.status(401).json({ error: 'Credenciales inválidas' });
         }
 
-        // CRITICAL FIX: Do NOT return the password hash to the frontend.
+        // Generate token
         const token = signToken(user.id);
 
-        // Update online status AND session token
+        // Update online status AND session token (for socket)
         await prisma.user.update({
             where: { id: user.id },
             data: {
                 isOnline: true,
                 lastSeen: new Date(),
-                sessionToken: token // CRITICAL: Save token for Socket.io auth
+                sessionToken: token
             }
         });
 
+        // Set HTTP-Only Cookie
+        setAuthCookie(res, token);
+
         const { password: _, ...userWithoutPassword } = user;
 
-        res.json({ ...userWithoutPassword, sessionToken: token });
+        // Don't send token in body
+        res.json({ ...userWithoutPassword });
     } catch (err) {
         logger.error(`Error logging in: ${err}`);
         res.status(500).json({ error: 'Error al iniciar sesión' });
@@ -617,6 +647,14 @@ export const logout = async (req: Request, res: Response) => {
                 }
             });
         }
+
+        // Clear cookie with same options as set
+        res.clearCookie('jwt', {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === 'production',
+            sameSite: 'strict'
+        });
+
         res.json({ ok: true, message: 'Sesión cerrada' });
     } catch (err) {
         console.error('Error logging out:', err);

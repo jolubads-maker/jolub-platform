@@ -21,6 +21,6 @@ export const syncUserSchema = z.object({
 
 export const tokenSchema = z.object({
     body: z.object({
-        sessionToken: z.string().min(1, { message: 'Token requerido' })
+        sessionToken: z.string().optional()
     })
 });

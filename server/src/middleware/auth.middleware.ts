@@ -7,28 +7,37 @@ interface AuthRequest extends Request {
 }
 
 export const authenticateJWT = async (req: AuthRequest, res: Response, next: NextFunction) => {
-    const authHeader = req.headers.authorization;
+    // 1. Try cookie first (Secure)
+    let token = req.cookies?.jwt;
 
-    if (authHeader) {
-        const token = authHeader.split(' ')[1];
-        const secret = process.env.JWT_SECRET || 'supersecretkey_change_in_production';
+    // 2. Fallback to Authorization header (Mobile/Legacy)
+    if (!token && req.headers.authorization) {
+        token = req.headers.authorization.split(' ')[1];
+    }
 
-        try {
-            const decoded: any = jwt.verify(token, secret);
+    if (!token) {
+        return res.status(401).json({ error: 'Token de autorización requerido' });
+    }
 
-            // Optional: Check if user still exists in DB
-            const user = await prisma.user.findUnique({ where: { id: decoded.id } });
+    const secret = process.env.JWT_SECRET;
+    if (!secret) {
+        console.error('FATAL: JWT_SECRET is not defined in middleware.');
+        return res.status(500).json({ error: 'Error de configuración del servidor' });
+    }
 
-            if (!user) {
-                return res.status(403).json({ error: 'Usuario no encontrado o inactivo' });
-            }
+    try {
+        const decoded: any = jwt.verify(token, secret);
 
-            req.user = user;
-            next();
-        } catch (err) {
-            return res.status(403).json({ error: 'Token inválido o expirado' });
+        // Optional: Check if user still exists in DB
+        const user = await prisma.user.findUnique({ where: { id: decoded.id } });
+
+        if (!user) {
+            return res.status(403).json({ error: 'Usuario no encontrado o inactivo' });
         }
-    } else {
-        res.status(401).json({ error: 'Token de autorización requerido' });
+
+        req.user = user;
+        next();
+    } catch (err) {
+        return res.status(403).json({ error: 'Token inválido o expirado' });
     }
 };

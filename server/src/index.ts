@@ -2,6 +2,8 @@ import 'dotenv/config';
 import express from 'express';
 import { createServer } from 'http';
 import cors from 'cors';
+import helmet from 'helmet';
+import cookieParser from 'cookie-parser';
 import prisma from './database';
 import { initSocket } from './socket';
 
@@ -17,6 +19,9 @@ import { errorHandler } from './middleware/errorHandler';
 
 const app = express();
 
+// Security: Helmet (Secure Headers)
+// app.use(helmet());
+
 // Security: Rate Limiting
 import { rateLimiter } from './middleware/rateLimiter';
 
@@ -29,11 +34,12 @@ app.use((req, res, next) => {
 });
 
 // Security: Rate Limiting (Redis)
-app.use(rateLimiter);
+// app.use(rateLimiter);
 
 // Middleware
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+app.use(cookieParser());
 
 // CORS Security
 // CORS Security
@@ -82,6 +88,20 @@ app.use('/api', favoritesRoutes);
 app.use('/api', uploadRoutes);
 app.use('/api', healthRoutes);
 
+// Serve static files in production
+if (process.env.NODE_ENV === 'production') {
+    const path = require('path');
+    // Serve frontend static files
+    app.use(express.static(path.join(__dirname, '../dist')));
+
+    // Handle SPA routing - return index.html for any unknown route (except /api)
+    app.get('*', (req, res) => {
+        if (!req.path.startsWith('/api')) {
+            res.sendFile(path.join(__dirname, '../dist/index.html'));
+        }
+    });
+}
+
 // Error Handling Middleware (Must be last)
 app.use(errorHandler);
 
@@ -94,8 +114,8 @@ import logger from './utils/logger';
 
 // ...
 
-const server = httpServer.listen(PORT, () => {
-    logger.info(`API server on http://localhost:${PORT}`);
+const server = httpServer.listen(Number(PORT), '0.0.0.0', () => {
+    logger.info(`API server on http://0.0.0.0:${PORT}`);
     logger.info(`📊 Base de datos conectada (Neon Tech / PostgreSQL)`);
     logger.info(`🚀 Socket.io listo (Secure Mode)`);
 });

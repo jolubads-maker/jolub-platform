@@ -1,9 +1,30 @@
 ﻿import { Request, Response } from 'express';
 import prisma from '../database';
 
+import redis from '../config/redis';
+
 export const getAds = async (req: Request, res: Response) => {
+    console.time('getAds Total');
     try {
         const { category, minPrice, maxPrice, location, search, userId } = req.query;
+
+        // 1. Generate Cache Key
+        const queryParams = new URLSearchParams(req.query as any).toString();
+        const cacheKey = `ads:list:${queryParams}`;
+
+        // 2. Check Redis Cache
+        // Skip Redis in development to avoid timeouts if connection is poor
+        if (process.env.NODE_ENV === 'production' && redis.status === 'ready') {
+            console.time('Redis Get');
+            const cachedData = await redis.get(cacheKey);
+            console.timeEnd('Redis Get');
+
+            if (cachedData) {
+                console.log('⚡ Serving ads from Redis cache');
+                console.timeEnd('getAds Total');
+                return res.json(JSON.parse(cachedData));
+            }
+        }
 
         const where: any = {};
 
@@ -22,31 +43,29 @@ export const getAds = async (req: Request, res: Response) => {
         }
 
         if (search) {
-            const searchQuery = String(search).split(' ').join(' & ');
+            const searchQuery = String(search).trim();
             where.OR = [
                 { title: { search: searchQuery } },
                 { description: { search: searchQuery } },
-                { uniqueCode: { contains: String(search), mode: 'insensitive' } }
+                { uniqueCode: { contains: searchQuery, mode: 'insensitive' } },
+                { seller: { name: { contains: searchQuery, mode: 'insensitive' } } }
             ];
         }
 
         if (req.query.sellerId) {
-            // Filter by sellerId if specifically requested
             where.sellerId = Number(req.query.sellerId);
         }
-
-        // userId is used for favorites check, NOT for filtering by default
-
 
         // Pagination
         const page = parseInt(req.query.page as string) || 1;
         const limit = parseInt(req.query.limit as string) || 20;
         const skip = (page - 1) * limit;
 
+        console.time('DB Query');
         const ads = await prisma.ad.findMany({
             where,
             include: {
-                media: { take: 1 }, // Optimize: only fetch 1 image for list view
+                media: { take: 1 },
                 seller: {
                     select: {
                         id: true,
@@ -65,6 +84,7 @@ export const getAds = async (req: Request, res: Response) => {
             take: limit,
             skip
         });
+        console.timeEnd('DB Query');
 
         const formattedAds = ads.map(ad => ({
             ...ad,
@@ -72,6 +92,14 @@ export const getAds = async (req: Request, res: Response) => {
             favorites: undefined
         }));
 
+        // 3. Store in Redis Cache
+        if (process.env.NODE_ENV === 'production' && redis.status === 'ready') {
+            console.time('Redis Set');
+            await redis.setex(cacheKey, 60, JSON.stringify(formattedAds));
+            console.timeEnd('Redis Set');
+        }
+
+        console.timeEnd('getAds Total');
         res.json(formattedAds);
     } catch (err) {
         console.error('Error getting ads:', err);
@@ -190,7 +218,19 @@ export const incrementAdViews = async (req: Request, res: Response) => {
         const { id } = req.params;
         const ad = await prisma.ad.update({
             where: { id: Number(id) },
-            data: { views: { increment: 1 } }
+            data: { views: { increment: 1 } },
+            include: {
+                media: true,
+                seller: {
+                    select: {
+                        id: true,
+                        name: true,
+                        avatar: true,
+                        isOnline: true,
+                        phoneVerified: true
+                    }
+                }
+            }
         });
         res.json(ad);
     } catch (err) {

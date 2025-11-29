@@ -1,28 +1,16 @@
 import { Request, Response } from 'express';
-import { v2 as cloudinary } from 'cloudinary';
+import { uploadFile } from '../services/storage.service';
 
-cloudinary.config({
-    cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-    api_key: process.env.CLOUDINARY_API_KEY,
-    api_secret: process.env.CLOUDINARY_API_SECRET
-});
-
-export const signUpload = (req: Request, res: Response) => {
+export const uploadImage = async (req: Request, res: Response) => {
     try {
-        const timestamp = Math.round((new Date()).getTime() / 1000);
-        const signature = cloudinary.utils.api_sign_request({
-            timestamp: timestamp,
-            folder: 'marketplace_ads',
-        }, process.env.CLOUDINARY_API_SECRET!);
+        if (!req.file) {
+            return res.status(400).json({ error: 'No se proporcionó ningún archivo' });
+        }
 
-        res.json({
-            signature,
-            timestamp,
-            cloudName: process.env.CLOUDINARY_CLOUD_NAME,
-            apiKey: process.env.CLOUDINARY_API_KEY
-        });
-    } catch (error) {
-        console.error('Error generating signature:', error);
-        res.status(500).json({ error: 'Error generando firma' });
+        const url = await uploadFile(req.file);
+        res.json({ url });
+    } catch (error: any) {
+        console.error('Error uploading image:', error);
+        res.status(500).json({ error: 'Error al subir la imagen', details: error.message });
     }
 };
