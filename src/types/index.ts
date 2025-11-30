@@ -3,6 +3,7 @@ import { Chat } from '@google/genai';
 export interface User {
   id: number;
   uniqueId?: string; // ID único generado para el dashboard dinámico (ej: "USER-123456789")
+  role?: 'USER' | 'ADMIN';
   username?: string;
   name: string;
   avatar: string;

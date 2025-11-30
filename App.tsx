@@ -17,6 +17,12 @@ const HomePage = lazy(() => import('./components/HomePage'));
 const Dashboard = lazy(() => import('./components/Dashboard'));
 const ConnectionStatus = lazy(() => import('./components/ConnectionStatus'));
 
+// Admin Components
+const AdminLayout = lazy(() => import('./components/admin/AdminLayout'));
+const DashboardOverview = lazy(() => import('./components/admin/DashboardOverview'));
+const UsersTable = lazy(() => import('./components/admin/UsersTable'));
+const AdsTable = lazy(() => import('./components/admin/AdsTable'));
+
 // Loading Component
 const LoadingScreen = () => (
   <div className="min-h-screen bg-[#6e0ad6] text-white font-sans flex items-center justify-center">
@@ -229,6 +235,13 @@ const App: React.FC = () => {
             } />
 
             <Route path="/chat/:chatId" element={<ChatRouteWrapper />} />
+
+            {/* Admin Routes */}
+            <Route path="/admin" element={<AdminLayout />}>
+              <Route index element={<DashboardOverview />} />
+              <Route path="users" element={<UsersTable />} />
+              <Route path="ads" element={<AdsTable />} />
+            </Route>
           </Routes>
         </Suspense>
       </div>

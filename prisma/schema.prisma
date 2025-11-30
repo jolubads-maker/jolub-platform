@@ -11,9 +11,15 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+enum Role {
+  USER
+  ADMIN
+}
+
 model User {
   id            Int      @id @default(autoincrement())
   uniqueId      String?  @unique // ID único para dashboard dinámico (ej: "USER-123456789")
+  role          Role     @default(USER) // Rol del usuario
   username      String?  @unique // Nombre de usuario único
   name          String
   avatar        String
@@ -40,6 +46,7 @@ model User {
   sentMessages  Message[] @relation("SentMessages")
   chatParticipants ChatParticipant[]
   favorites     Favorite[] // Anuncios favoritos del usuario
+  transactions  Transaction[] // Transacciones del usuario
 
   @@map("users")
 }
@@ -67,6 +74,7 @@ model Ad {
   media       Media[]
   chatLogs    ChatLog[] @relation("AdChats")
   favorites   Favorite[] // Usuarios que marcaron como favorito
+  transactions Transaction[] // Transacciones relacionadas con el anuncio
 
   @@index([category]) // Índice para búsquedas rápidas por categoría
   @@index([price]) // Índice para filtros de precio
@@ -157,4 +165,22 @@ model Favorite {
 
   @@unique([userId, adId]) // Un usuario solo puede marcar un anuncio como favorito una vez
   @@map("favorites")
+}
+
+model Transaction {
+  id        Int      @id @default(autoincrement())
+  amount    Float
+  currency  String   @default("USD")
+  type      String   // 'feature_ad' | 'subscription' | 'commission'
+  status    String   // 'pending' | 'completed' | 'failed'
+  reference String?  // ID de referencia (ej: PayPal Order ID)
+  createdAt DateTime @default(now())
+
+  // Relaciones
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id])
+  adId      Int?
+  ad        Ad?      @relation(fields: [adId], references: [id])
+
+  @@map("transactions")
 }

@@ -55,11 +55,15 @@ const HeroCarousel: React.FC = () => {
                     transition={{ duration: 0.8 }}
                     className="absolute inset-0"
                 >
-                    <div
-                        className="absolute inset-0 bg-cover bg-center"
-                        style={{ backgroundImage: `url(${slides[current].image})` }}
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent" />
+                    <div className="absolute inset-0">
+                        <img
+                            src={slides[current].image}
+                            alt={slides[current].title}
+                            loading="lazy"
+                            className="w-full h-full object-cover"
+                        />
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent" />
+                    </div>
                 </motion.div>
             </AnimatePresence>
 

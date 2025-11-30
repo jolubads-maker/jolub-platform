@@ -1,14 +1,37 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, Suspense } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { Ad } from '../src/types';
 import AdCard from './AdCard';
-import AdFilters, { FilterValues } from './AdFilters';
 import { apiService } from '../services/apiService';
 import { useAuthStore } from '../store/useAuthStore';
 import { useAdStore } from '../store/useAdStore';
 import UserStatusBadge from './UserStatusBadge';
-import HeroCarousel from './HeroCarousel';
+
+// Lazy Load Components
+const HeroCarousel = React.lazy(() => import('./HeroCarousel'));
+const AdFilters = React.lazy(() => import('./AdFilters'));
+const AdminLoginModal = React.lazy(() => import('./admin/AdminLoginModal'));
+import { FilterValues } from './AdFilters';
+
+const CLASSIFIED_CATEGORIES = [
+  {
+    title: "Bienes raíces",
+    subcategories: ["Casa", "Apartamentos", "Negocios / Bodegas", "Terrenos"]
+  },
+  {
+    title: "Vehículos",
+    subcategories: ["Automóvil", "Camionetas / Sub", "Motos", "Camiones / Buses", "Botes / Lanchas"]
+  },
+  {
+    title: "Articulos Varios",
+    subcategories: ["Celulares/Tablet/SmartWatch", "Computadoras", "Articulos del Hogar", "Ropa Adulto", "Ropa Adolecentes", "Ropa Niños", "Articulos personales"]
+  },
+  {
+    title: "Servicios profesionales",
+    subcategories: ["Abogados", "Ingenieros", "Contabilidad / Auditoría", "Médicos", "Veterinaria", "Publicidad", "Otros servicios"]
+  }
+];
 
 const HomePage: React.FC = () => {
   const navigate = useNavigate();
@@ -23,17 +46,38 @@ const HomePage: React.FC = () => {
   const [isSearching, setIsSearching] = useState(false);
   const [filters, setFilters] = useState<FilterValues>({
     category: 'Todas',
+    subcategory: '',
     minPrice: 0,
     maxPrice: 100000,
     location: ''
   });
   const [searchHistory, setSearchHistory] = useState<string[]>([]);
   const [showSearchDropdown, setShowSearchDropdown] = useState(false);
+  const [showClassifieds, setShowClassifieds] = useState(false);
+  const [showAdminModal, setShowAdminModal] = useState(false);
+  const [isAdminIP, setIsAdminIP] = useState(false);
   const searchRef = useRef<HTMLDivElement>(null);
+  const classifiedsRef = useRef<HTMLDivElement>(null);
+
+  // Check IP for Admin Access
+  useEffect(() => {
+    const checkIP = async () => {
+      try {
+        const response = await fetch('https://api.ipify.org?format=json');
+        const data = await response.json();
+        if (data.ip === '190.143.254.190') {
+          setIsAdminIP(true);
+        }
+      } catch (error) {
+        console.error('Error checking IP:', error);
+      }
+    };
+    checkIP();
+  }, []);
 
   // Initialize filteredAds with all ads when ads change, BUT only if not searching
   useEffect(() => {
-    if (!searchQuery && filters.category === 'Todas' && filters.minPrice === 0 && filters.maxPrice === 100000 && !filters.location) {
+    if (!searchQuery && filters.category === 'Todas' && !filters.subcategory && filters.minPrice === 0 && filters.maxPrice === 100000 && !filters.location) {
       setFilteredAds(ads);
     }
   }, [ads, searchQuery, filters]);
@@ -44,10 +88,13 @@ const HomePage: React.FC = () => {
       setSearchHistory(JSON.parse(history));
     }
 
-    // Click outside to close search dropdown
+    // Click outside to close search dropdown and classifieds menu
     const handleClickOutside = (event: MouseEvent) => {
       if (searchRef.current && !searchRef.current.contains(event.target as Node)) {
         setShowSearchDropdown(false);
+      }
+      if (classifiedsRef.current && !classifiedsRef.current.contains(event.target as Node)) {
+        setShowClassifieds(false);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
@@ -100,6 +147,10 @@ const HomePage: React.FC = () => {
         results = results.filter(ad => ad.category === currentFilters.category);
       }
 
+      if (currentFilters.subcategory) {
+        results = results.filter(ad => ad.subcategory === currentFilters.subcategory);
+      }
+
       if (currentFilters.minPrice > 0) {
         results = results.filter(ad => ad.price >= currentFilters.minPrice);
       }
@@ -109,7 +160,7 @@ const HomePage: React.FC = () => {
       }
 
       if (currentFilters.location) {
-        results = results.filter(ad => ad.location.toLowerCase().includes(currentFilters.location.toLowerCase()));
+        results = results.filter(ad => ad.location?.toLowerCase().includes(currentFilters.location.toLowerCase()));
       }
 
       setFilteredAds(results);
@@ -130,6 +181,7 @@ const HomePage: React.FC = () => {
   const handleResetFilters = useCallback(() => {
     const defaultFilters = {
       category: 'Todas',
+      subcategory: '',
       minPrice: 0,
       maxPrice: 100000,
       location: ''
@@ -174,24 +226,81 @@ const HomePage: React.FC = () => {
   }, [ads, incrementViews, navigate]);
 
   return (
-    <div className="min-h-screen bg-gray-50 text-gray-900 font-sans selection:bg-olx-purple/30 relative">
+    <div className="min-h-screen bg-[#4b0997] text-white font-sans selection:bg-olx-orange/30 relative">
 
-      {/* GLASSMORPHISM HEADER */}
-      <header className="sticky top-0 z-50 w-full bg-white/80 backdrop-blur-xl border-b border-white/20 shadow-sm transition-all duration-300">
+      {/* HEADER - WHITE BG, PURPLE TEXT */}
+      <header className="sticky top-0 z-50 w-full bg-white shadow-md transition-all duration-300">
         <div className="container mx-auto px-4 md:px-8 h-20 flex items-center justify-between gap-4 md:gap-8">
 
-          {/* LOGO */}
-          <div className="flex-shrink-0 cursor-pointer flex items-center gap-1" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}>
-            <div className="w-10 h-10 bg-gradient-to-br from-olx-orange to-orange-600 rounded-xl flex items-center justify-center shadow-lg transform rotate-3 hover:rotate-0 transition-all">
-              <span className="text-white font-black text-2xl">J</span>
+          {/* LOGO & CLASSIFIEDS */}
+          <div className="flex items-center gap-6">
+            {/* LOGO */}
+            <div className="flex-shrink-0 cursor-pointer flex items-center gap-1" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}>
+              <div className="w-10 h-10 bg-gradient-to-br from-olx-orange to-orange-600 rounded-xl flex items-center justify-center shadow-lg transform rotate-3 hover:rotate-0 transition-all">
+                <span className="text-white font-black text-2xl">J</span>
+              </div>
+              <span className="text-[#4b0997] font-black text-2xl tracking-tight hidden sm:block mx-1">OLU</span>
+              <div className="w-10 h-10 bg-gradient-to-br from-olx-orange to-orange-600 rounded-xl flex items-center justify-center shadow-lg transform -rotate-3 hover:rotate-0 transition-all">
+                <span className="text-white font-black text-2xl">B</span>
+              </div>
             </div>
-            <span className="text-gray-800 font-black text-2xl tracking-tight hidden sm:block">OLUB</span>
+
+            {/* CLASSIFIEDS BUTTON */}
+            <div className="relative" ref={classifiedsRef}>
+              <button
+                onClick={() => setShowClassifieds(!showClassifieds)}
+                className="flex items-center gap-2 text-[#4b0997] hover:text-[#3a0778] font-bold transition-colors px-3 py-2 rounded-lg hover:bg-gray-100"
+              >
+                <span>Clasificados</span>
+                <svg className={`w-5 h-5 transition-transform duration-300 ${showClassifieds ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+              </button>
+
+              {/* MEGA MENU */}
+              <AnimatePresence>
+                {showClassifieds && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                    transition={{ duration: 0.2 }}
+                    className="absolute top-full left-0 mt-4 w-[800px] bg-white text-gray-800 rounded-2xl shadow-2xl p-8 z-50 grid grid-cols-4 gap-8 border border-gray-100"
+                  >
+                    {CLASSIFIED_CATEGORIES.map((category, index) => (
+                      <div key={index} className="space-y-4">
+                        <h3 className="font-bold text-[#4b0997] text-lg border-b border-gray-100 pb-2">{category.title}</h3>
+                        <div className="space-y-2">
+                          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Subcategoría:</p>
+                          <ul className="space-y-1">
+                            {category.subcategories.map((sub, idx) => (
+                              <li key={idx}>
+                                <button
+                                  onClick={() => {
+                                    setFilters(prev => ({ ...prev, category: category.title }));
+                                    setShowClassifieds(false);
+                                    navigate('/search?category=' + encodeURIComponent(category.title));
+                                  }}
+                                  className="text-sm text-gray-600 hover:text-olx-orange hover:translate-x-1 transition-all block text-left w-full"
+                                >
+                                  {sub}
+                                </button>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      </div>
+                    ))}
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
           </div>
 
-          {/* SMART SEARCH BAR */}
-          <div className="flex-1 max-w-2xl relative" ref={searchRef}>
-            <div className="relative flex items-center w-full h-12 bg-gray-100/50 hover:bg-white border border-transparent hover:border-gray-200 rounded-full overflow-hidden transition-all focus-within:ring-2 focus-within:ring-olx-purple/20 focus-within:bg-white focus-within:shadow-lg">
-              <div className="pl-4 text-gray-400">
+          {/* SMART SEARCH BAR - PURPLE BG, WHITE TEXT */}
+          <div className="flex-1 max-w-xl relative hidden lg:block" ref={searchRef}>
+            <div className="relative flex items-center w-full h-12 bg-[#4b0997] hover:bg-[#3a0778] border border-transparent rounded-full overflow-hidden transition-all shadow-inner">
+              <div className="pl-4 text-white/70">
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                 </svg>
@@ -199,7 +308,7 @@ const HomePage: React.FC = () => {
               <input
                 type="text"
                 placeholder="¿Qué estás buscando hoy?"
-                className="w-full h-full px-3 text-gray-700 placeholder-gray-400 bg-transparent border-none outline-none text-base"
+                className="w-full h-full px-3 text-white placeholder-white/70 bg-transparent border-none outline-none text-base font-medium"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 onKeyPress={(e) => e.key === 'Enter' && saveSearchToHistory(searchQuery)}
@@ -208,7 +317,7 @@ const HomePage: React.FC = () => {
               {searchQuery && (
                 <button
                   onClick={() => { setSearchQuery(''); setShowSearchDropdown(false); }}
-                  className="pr-4 text-gray-400 hover:text-gray-600"
+                  className="pr-4 text-white/70 hover:text-white"
                 >
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -224,7 +333,7 @@ const HomePage: React.FC = () => {
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: 10 }}
-                  className="absolute top-full left-0 right-0 mt-2 bg-white rounded-2xl shadow-2xl border border-gray-100 overflow-hidden z-50"
+                  className="absolute top-full left-0 right-0 mt-2 bg-white rounded-2xl shadow-2xl border border-gray-100 overflow-hidden z-50 text-gray-800"
                 >
                   <div className="p-2">
                     {filteredAds.length > 0 ? (
@@ -239,7 +348,7 @@ const HomePage: React.FC = () => {
                             <img src={ad.images[0] || 'https://via.placeholder.com/50'} alt={ad.title} className="w-10 h-10 rounded-lg object-cover" />
                             <div>
                               <div className="text-sm font-medium text-gray-800 line-clamp-1">{ad.title}</div>
-                              <div className="text-xs text-olx-purple font-bold">${ad.price.toLocaleString()}</div>
+                              <div className="text-xs text-[#4b0997] font-bold">${ad.price.toLocaleString()}</div>
                             </div>
                           </div>
                         ))}
@@ -255,9 +364,17 @@ const HomePage: React.FC = () => {
 
           {/* ACTIONS */}
           <div className="flex items-center gap-3 sm:gap-6">
+            {isAdminIP && (
+              <button
+                onClick={() => setShowAdminModal(true)}
+                className="hidden lg:block text-xs font-bold text-red-500 bg-red-100 px-3 py-1 rounded-full hover:bg-red-200 transition-colors"
+              >
+                Acceso Admin
+              </button>
+            )}
             {currentUser ? (
               <>
-                <button onClick={() => navigate(`/dashboard/${currentUser.uniqueId || 'USER-' + currentUser.id}`)} className="hidden md:flex items-center gap-2 text-gray-600 hover:text-olx-purple transition-colors font-medium">
+                <button onClick={() => navigate(`/dashboard/${currentUser.uniqueId || 'USER-' + currentUser.id}`)} className="hidden md:flex items-center gap-2 text-[#4b0997] hover:text-[#3a0778] transition-colors font-bold">
                   <span>Mis Anuncios</span>
                 </button>
 
@@ -267,24 +384,27 @@ const HomePage: React.FC = () => {
                   isOnline={currentUser.isOnline}
                   showName={false}
                   onClick={() => navigate(`/dashboard/${currentUser.uniqueId || 'USER-' + currentUser.id}`)}
-                  className="cursor-pointer"
+                  className="cursor-pointer text-[#4b0997]"
                 />
 
                 <button
                   onClick={() => navigate('/publicar')}
-                  className="bg-gray-900 hover:bg-black text-white px-5 py-2.5 rounded-full font-bold shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-0.5 text-sm sm:text-base"
+                  className="bg-olx-orange hover:bg-orange-600 text-white px-5 py-2.5 rounded-full font-bold shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-0.5 text-sm sm:text-base"
                 >
                   + Vender
                 </button>
               </>
             ) : (
               <>
-                <button onClick={() => navigate('/login')} className="text-gray-600 hover:text-gray-900 font-medium transition-colors hidden sm:block">
+                <button
+                  onClick={() => navigate('/login')}
+                  className="bg-[#4b0997] hover:bg-[#3a0778] text-white px-6 py-2.5 rounded-full font-bold shadow-md hover:shadow-lg transition-all hidden sm:block"
+                >
                   Entrar
                 </button>
                 <button
                   onClick={() => navigate('/login')}
-                  className="bg-gray-900 hover:bg-black text-white px-6 py-2.5 rounded-full font-bold shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-0.5 text-sm sm:text-base"
+                  className="bg-olx-orange hover:bg-orange-600 text-white px-6 py-2.5 rounded-full font-bold shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-0.5 text-sm sm:text-base"
                 >
                   Vender
                 </button>
@@ -298,11 +418,15 @@ const HomePage: React.FC = () => {
       <main className="container mx-auto px-4 py-8 max-w-7xl">
 
         {/* HERO CAROUSEL */}
-        <HeroCarousel />
+        <Suspense fallback={<div className="h-96 bg-gray-100 rounded-3xl animate-pulse mb-12" />}>
+          <HeroCarousel />
+        </Suspense>
 
         {/* FILTERS */}
         <div className="mb-8 sticky top-24 z-30">
-          <AdFilters onFilterChange={handleFilterChange} onReset={handleResetFilters} />
+          <Suspense fallback={<div className="h-20 bg-gray-100 rounded-xl animate-pulse" />}>
+            <AdFilters onFilterChange={handleFilterChange} onReset={handleResetFilters} />
+          </Suspense>
         </div>
 
         {/* MASONRY GRID */}
@@ -326,16 +450,16 @@ const HomePage: React.FC = () => {
               <motion.div
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
-                className="flex flex-col items-center justify-center py-20 bg-white rounded-3xl shadow-sm border border-gray-100"
+                className="flex flex-col items-center justify-center py-20 bg-white/5 rounded-3xl shadow-sm border border-white/10 backdrop-blur-sm"
               >
-                <div className="p-6 rounded-full bg-gray-50 mb-4">
-                  <svg className="w-12 h-12 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <div className="p-6 rounded-full bg-white/10 mb-4">
+                  <svg className="w-12 h-12 text-white/50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                   </svg>
                 </div>
-                <h3 className="text-xl font-bold text-gray-800">No encontramos lo que buscas</h3>
-                <p className="text-gray-500 mt-2">Intenta con otros términos o elimina los filtros.</p>
-                <button onClick={handleResetFilters} className="mt-6 text-olx-purple font-semibold hover:underline">
+                <h3 className="text-xl font-bold text-white">No encontramos lo que buscas</h3>
+                <p className="text-white/60 mt-2">Intenta con otros términos o elimina los filtros.</p>
+                <button onClick={handleResetFilters} className="mt-6 text-olx-orange font-semibold hover:underline">
                   Ver todos los anuncios
                 </button>
               </motion.div>
@@ -344,23 +468,28 @@ const HomePage: React.FC = () => {
         </div>
       </main>
 
-      {/* FOOTER */}
+      {/* FOOTER - WHITE BG, BLACK TEXT */}
       <footer className="bg-white border-t border-gray-100 mt-20 py-12">
         <div className="container mx-auto px-4 text-center">
-          <div className="flex items-center justify-center gap-2 mb-4 opacity-50">
-            <div className="w-8 h-8 bg-gray-200 rounded-lg flex items-center justify-center">
-              <span className="text-gray-500 font-black text-lg">J</span>
+          <div className="flex items-center justify-center gap-2 mb-4">
+            {/* LOGO IDENTICAL TO HEADER */}
+            <div className="w-10 h-10 bg-gradient-to-br from-olx-orange to-orange-600 rounded-xl flex items-center justify-center shadow-lg transform rotate-3">
+              <span className="text-white font-black text-2xl">J</span>
             </div>
-            <span className="text-gray-400 font-black text-xl tracking-tight">OLUB</span>
+            <span className="text-[#4b0997] font-black text-2xl tracking-tight mx-1">OLU</span>
+            <div className="w-10 h-10 bg-gradient-to-br from-olx-orange to-orange-600 rounded-xl flex items-center justify-center shadow-lg transform -rotate-3">
+              <span className="text-white font-black text-2xl">B</span>
+            </div>
           </div>
-          <p className="text-gray-400 text-sm">© 2026 JOLUB Marketplace. Designed for the Future.</p>
+          <p className="text-gray-800 text-sm font-medium">© 2026 JOLUB Marketplace. Designed for the Future.</p>
         </div>
       </footer>
-    </div>
+
+      <Suspense fallback={null}>
+        <AdminLoginModal isOpen={showAdminModal} onClose={() => setShowAdminModal(false)} />
+      </Suspense>
+    </div >
   );
 };
 
 export default HomePage;
-
-
-

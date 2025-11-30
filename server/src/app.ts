@@ -1,7 +1,10 @@
 import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
+import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
+import * as Sentry from "@sentry/node";
+import { ProfilingIntegration } from "@sentry/profiling-node";
 import { errorHandler } from './middleware/errorHandler';
 
 // Routes
@@ -11,8 +14,34 @@ import adsRoutes from './routes/ads.routes';
 import chatRoutes from './routes/chat.routes';
 import favoritesRoutes from './routes/favorites.routes';
 import uploadRoutes from './routes/upload.routes';
+import healthRoutes from './routes/health.routes';
+import adminRoutes from './routes/admin.routes';
 
 const app = express();
+
+// Initialize Sentry
+Sentry.init({
+    dsn: process.env.SENTRY_DSN,
+    integrations: [
+        // enable HTTP calls tracing
+        new Sentry.Integrations.Http({ tracing: true }),
+        // enable Express.js tracing
+        new Sentry.Integrations.Express({ app }),
+        new ProfilingIntegration(),
+    ],
+    // Performance Monitoring
+    tracesSampleRate: 1.0,
+    // Set sampling rate for profiling - this is relative to tracesSampleRate
+    profilesSampleRate: 1.0,
+});
+
+// The request handler must be the first middleware on the app
+app.use(Sentry.Handlers.requestHandler());
+// TracingHandler creates a trace for every incoming request
+app.use(Sentry.Handlers.tracingHandler());
+
+// Security: Helmet (Secure HTTP Headers)
+app.use(helmet());
 
 // Security: Rate Limiting
 const limiter = rateLimit({
@@ -35,9 +64,6 @@ const allowedOrigins = [
     'http://localhost:3000',
     'http://localhost:5173',
     'http://127.0.0.1:3000',
-    'http://192.168.0.16:81', // Specific user IP
-    'http://192.168.0.19', // Local network testing
-    'http://192.168.0.19:80',
     'https://www.jolub.com',
     'https://jolub.com',
     process.env.CLIENT_URL
@@ -58,7 +84,7 @@ app.use(cors({
             return callback(null, true);
         }
 
-        // Allow local network IPs in development
+        // Allow local network IPs in development ONLY
         if (process.env.NODE_ENV !== 'production' && origin.startsWith('http://192.168.')) {
             return callback(null, true);
         }
@@ -77,6 +103,11 @@ app.use('/api/ads', adsRoutes);
 app.use('/api', chatRoutes);
 app.use('/api/favorites', favoritesRoutes);
 app.use('/api', uploadRoutes);
+app.use('/api', healthRoutes);
+app.use('/api/admin', adminRoutes);
+
+// The error handler must be before any other error middleware and after all controllers
+app.use(Sentry.Handlers.errorHandler());
 
 // Error Handling Middleware (Must be last)
 app.use(errorHandler as any);
