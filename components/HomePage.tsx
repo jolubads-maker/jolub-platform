@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { Ad } from '../src/types';
@@ -8,6 +8,7 @@ import { apiService } from '../services/apiService';
 import { useAuthStore } from '../store/useAuthStore';
 import { useAdStore } from '../store/useAdStore';
 import UserStatusBadge from './UserStatusBadge';
+import HeroCarousel from './HeroCarousel';
 
 const HomePage: React.FC = () => {
   const navigate = useNavigate();
@@ -27,6 +28,8 @@ const HomePage: React.FC = () => {
     location: ''
   });
   const [searchHistory, setSearchHistory] = useState<string[]>([]);
+  const [showSearchDropdown, setShowSearchDropdown] = useState(false);
+  const searchRef = useRef<HTMLDivElement>(null);
 
   // Initialize filteredAds with all ads when ads change, BUT only if not searching
   useEffect(() => {
@@ -40,16 +43,27 @@ const HomePage: React.FC = () => {
     if (history) {
       setSearchHistory(JSON.parse(history));
     }
+
+    // Click outside to close search dropdown
+    const handleClickOutside = (event: MouseEvent) => {
+      if (searchRef.current && !searchRef.current.contains(event.target as Node)) {
+        setShowSearchDropdown(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
   useEffect(() => {
     if (!searchQuery.trim()) {
       // Re-apply filters if search is cleared
       applyFilters(filters, '');
+      setShowSearchDropdown(false);
       return;
     }
 
     setIsSearching(true);
+    setShowSearchDropdown(true);
     const searchTimeout = setTimeout(() => {
       applyFilters(filters, searchQuery);
       setIsSearching(false);
@@ -63,29 +77,44 @@ const HomePage: React.FC = () => {
     const newHistory = [query, ...searchHistory.filter(q => q !== query)].slice(0, 10);
     setSearchHistory(newHistory);
     localStorage.setItem('searchHistory', JSON.stringify(newHistory));
+    setShowSearchDropdown(false);
   };
 
   const applyFilters = async (currentFilters: FilterValues, query: string) => {
     setIsSearching(true);
     try {
-      const params = new URLSearchParams();
-      if (currentFilters.category !== 'Todas') params.append('category', currentFilters.category);
-      if (currentFilters.minPrice > 0) params.append('minPrice', currentFilters.minPrice.toString());
-      if (currentFilters.maxPrice < 100000) params.append('maxPrice', currentFilters.maxPrice.toString());
-      if (currentFilters.location) params.append('location', currentFilters.location);
-      if (query) params.append('search', query);
-      if (currentUser) params.append('userId', currentUser.id.toString()); // For favorites check
+      // Local filtering for immediate feedback (since we have ads in store)
+      // Ideally this should be server-side for large datasets, but for now hybrid is fine
+      let results = ads;
 
-      // Use the API service to fetch filtered ads
-      // We need to ensure apiService has a method for this or use fetch directly
-      const response = await fetch(`/api/ads?${params.toString()}`);
-      if (!response.ok) throw new Error('Error fetching ads');
+      if (query) {
+        const lowerQuery = query.toLowerCase();
+        results = results.filter(ad =>
+          ad.title.toLowerCase().includes(lowerQuery) ||
+          ad.description.toLowerCase().includes(lowerQuery) ||
+          ad.category.toLowerCase().includes(lowerQuery)
+        );
+      }
 
-      const data = await response.json();
-      setFilteredAds(data);
+      if (currentFilters.category !== 'Todas') {
+        results = results.filter(ad => ad.category === currentFilters.category);
+      }
+
+      if (currentFilters.minPrice > 0) {
+        results = results.filter(ad => ad.price >= currentFilters.minPrice);
+      }
+
+      if (currentFilters.maxPrice < 100000) {
+        results = results.filter(ad => ad.price <= currentFilters.maxPrice);
+      }
+
+      if (currentFilters.location) {
+        results = results.filter(ad => ad.location.toLowerCase().includes(currentFilters.location.toLowerCase()));
+      }
+
+      setFilteredAds(results);
     } catch (error) {
       console.error('Error filtering ads:', error);
-      // Fallback to local filtering if API fails? Or just show error?
     } finally {
       setIsSearching(false);
     }
@@ -96,7 +125,7 @@ const HomePage: React.FC = () => {
     setIsSearching(true);
     await applyFilters(newFilters, searchQuery);
     setIsSearching(false);
-  }, [searchQuery]);
+  }, [searchQuery, ads]);
 
   const handleResetFilters = useCallback(() => {
     const defaultFilters = {
@@ -136,8 +165,6 @@ const HomePage: React.FC = () => {
     }
   }, [currentUser, filteredAds, navigate]);
 
-
-
   const handleSelectAd = useCallback(async (adId: number) => {
     await incrementViews(adId);
     const ad = ads.find(a => a.id === adId);
@@ -146,105 +173,118 @@ const HomePage: React.FC = () => {
     }
   }, [ads, incrementViews, navigate]);
 
-  const handleLogout = async () => {
-    await logout();
-    navigate('/');
-  };
-
-  const [isNavVisible, setIsNavVisible] = useState(true);
-  const [lastScrollY, setLastScrollY] = useState(0);
-
-  useEffect(() => {
-    const handleScroll = () => {
-      const currentScrollY = window.scrollY;
-
-      if (currentScrollY < 10) {
-        setIsNavVisible(true);
-      } else if (currentScrollY > lastScrollY && currentScrollY > 100) {
-        setIsNavVisible(false); // Scrolling down
-      } else if (currentScrollY < lastScrollY) {
-        setIsNavVisible(true); // Scrolling up
-      }
-
-      setLastScrollY(currentScrollY);
-    };
-
-    window.addEventListener('scroll', handleScroll, { passive: true });
-    return () => window.removeEventListener('scroll', handleScroll);
-  }, [lastScrollY]);
-
   return (
-    <div className="min-h-screen bg-background text-olx-dark font-sans selection:bg-olx-purple/30 relative overflow-hidden">
+    <div className="min-h-screen bg-gray-50 text-gray-900 font-sans selection:bg-olx-purple/30 relative">
 
-      {/* HEADER OLX STYLE */}
-      <header className="sticky top-0 z-50 w-full bg-olx-purple shadow-md">
-        <div className="container mx-auto px-10 md:px-40 h-20 flex items-center justify-between gap-8">
+      {/* GLASSMORPHISM HEADER */}
+      <header className="sticky top-0 z-50 w-full bg-white/80 backdrop-blur-xl border-b border-white/20 shadow-sm transition-all duration-300">
+        <div className="container mx-auto px-4 md:px-8 h-20 flex items-center justify-between gap-4 md:gap-8">
 
           {/* LOGO */}
           <div className="flex-shrink-0 cursor-pointer flex items-center gap-1" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}>
-            <div className="w-12 h-12 bg-[#ea580c] rounded-lg flex items-center justify-center shadow-lg">
-              <span className="text-white font-black text-3xl">J</span>
+            <div className="w-10 h-10 bg-gradient-to-br from-olx-orange to-orange-600 rounded-xl flex items-center justify-center shadow-lg transform rotate-3 hover:rotate-0 transition-all">
+              <span className="text-white font-black text-2xl">J</span>
             </div>
-            <span className="text-white font-black text-2xl tracking-widest mx-1">OLU</span>
-            <div className="w-12 h-12 bg-[#ea580c] rounded-lg flex items-center justify-center shadow-lg">
-              <span className="text-white font-black text-3xl">B</span>
-            </div>
+            <span className="text-gray-800 font-black text-2xl tracking-tight hidden sm:block">OLUB</span>
           </div>
 
-          {/* SEARCH BAR */}
-          <div className="flex-1 max-w-3xl hidden md:block">
-            <div className="relative flex items-center w-full h-12 bg-white rounded-lg overflow-hidden shadow-sm focus-within:ring-2 focus-within:ring-olx-orange transition-all">
+          {/* SMART SEARCH BAR */}
+          <div className="flex-1 max-w-2xl relative" ref={searchRef}>
+            <div className="relative flex items-center w-full h-12 bg-gray-100/50 hover:bg-white border border-transparent hover:border-gray-200 rounded-full overflow-hidden transition-all focus-within:ring-2 focus-within:ring-olx-purple/20 focus-within:bg-white focus-within:shadow-lg">
+              <div className="pl-4 text-gray-400">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+              </div>
               <input
                 type="text"
-                placeholder="Buscar..."
-                className="w-full h-full px-4 text-gray-700 placeholder-gray-400 border-none outline-none text-lg"
+                placeholder="¿Qué estás buscando hoy?"
+                className="w-full h-full px-3 text-gray-700 placeholder-gray-400 bg-transparent border-none outline-none text-base"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 onKeyPress={(e) => e.key === 'Enter' && saveSearchToHistory(searchQuery)}
+                onFocus={() => searchQuery && setShowSearchDropdown(true)}
               />
-              <button
-                className="h-full px-6 bg-white hover:bg-gray-50 text-olx-purple transition-colors"
-                onClick={() => saveSearchToHistory(searchQuery)}
-              >
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                </svg>
-              </button>
+              {searchQuery && (
+                <button
+                  onClick={() => { setSearchQuery(''); setShowSearchDropdown(false); }}
+                  className="pr-4 text-gray-400 hover:text-gray-600"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              )}
             </div>
+
+            {/* PREDICTIVE DROPDOWN */}
+            <AnimatePresence>
+              {showSearchDropdown && (filteredAds.length > 0 || searchHistory.length > 0) && (
+                <motion.div
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: 10 }}
+                  className="absolute top-full left-0 right-0 mt-2 bg-white rounded-2xl shadow-2xl border border-gray-100 overflow-hidden z-50"
+                >
+                  <div className="p-2">
+                    {filteredAds.length > 0 ? (
+                      <>
+                        <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider px-3 py-2">Resultados Sugeridos</div>
+                        {filteredAds.slice(0, 5).map(ad => (
+                          <div
+                            key={ad.id}
+                            onClick={() => handleSelectAd(ad.id)}
+                            className="flex items-center gap-3 p-2 hover:bg-gray-50 rounded-xl cursor-pointer transition-colors"
+                          >
+                            <img src={ad.images[0] || 'https://via.placeholder.com/50'} alt={ad.title} className="w-10 h-10 rounded-lg object-cover" />
+                            <div>
+                              <div className="text-sm font-medium text-gray-800 line-clamp-1">{ad.title}</div>
+                              <div className="text-xs text-olx-purple font-bold">${ad.price.toLocaleString()}</div>
+                            </div>
+                          </div>
+                        ))}
+                      </>
+                    ) : (
+                      <div className="p-4 text-center text-gray-500 text-sm">No se encontraron resultados exactos.</div>
+                    )}
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
 
           {/* ACTIONS */}
-          <div className="flex items-center gap-6 text-white font-semibold">
+          <div className="flex items-center gap-3 sm:gap-6">
             {currentUser ? (
               <>
-                <button onClick={() => navigate(`/dashboard/${currentUser.uniqueId || 'USER-' + currentUser.id}`)} className="hover:text-gray-200 transition-colors hidden sm:block">
-                  Mis Anuncios
+                <button onClick={() => navigate(`/dashboard/${currentUser.uniqueId || 'USER-' + currentUser.id}`)} className="hidden md:flex items-center gap-2 text-gray-600 hover:text-olx-purple transition-colors font-medium">
+                  <span>Mis Anuncios</span>
                 </button>
 
                 <UserStatusBadge
                   avatar={currentUser.avatar}
                   name={currentUser.name}
                   isOnline={currentUser.isOnline}
-                  showName
+                  showName={false}
                   onClick={() => navigate(`/dashboard/${currentUser.uniqueId || 'USER-' + currentUser.id}`)}
-                  className="text-white"
+                  className="cursor-pointer"
                 />
 
                 <button
                   onClick={() => navigate('/publicar')}
-                  className="bg-olx-orange hover:bg-orange-600 text-white px-8 py-2.5 rounded-full font-bold shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-0.5"
+                  className="bg-gray-900 hover:bg-black text-white px-5 py-2.5 rounded-full font-bold shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-0.5 text-sm sm:text-base"
                 >
-                  Vender
+                  + Vender
                 </button>
               </>
             ) : (
               <>
-                <button onClick={() => navigate('/login')} className="hover:text-gray-200 transition-colors">
+                <button onClick={() => navigate('/login')} className="text-gray-600 hover:text-gray-900 font-medium transition-colors hidden sm:block">
                   Entrar
                 </button>
                 <button
                   onClick={() => navigate('/login')}
-                  className="bg-olx-orange hover:bg-orange-600 text-white px-8 py-2.5 rounded-full font-bold shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-0.5"
+                  className="bg-gray-900 hover:bg-black text-white px-6 py-2.5 rounded-full font-bold shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-0.5 text-sm sm:text-base"
                 >
                   Vender
                 </button>
@@ -255,120 +295,72 @@ const HomePage: React.FC = () => {
       </header>
 
       {/* MAIN CONTENT */}
-      <main className="relative z-10 container mx-auto px-4 py-8 max-w-7xl">
+      <main className="container mx-auto px-4 py-8 max-w-7xl">
 
-        {/* HERO SECTION */}
-        <div className="text-center mb-12">
-          <motion.h2
-            initial={{ opacity: 0, y: 30 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8, delay: 0.2 }}
-            className="text-5xl md:text-7xl font-black text-gray-800 mb-6 tracking-tighter leading-[1.1]"
-          >
-            Donde Encuentras y Vendes <br className="hidden md:block" />
-            <span className="text-olx-purple">
-              lo que Necesitas
-            </span>
-          </motion.h2>
+        {/* HERO CAROUSEL */}
+        <HeroCarousel />
 
-          <motion.p
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ duration: 0.8, delay: 0.4 }}
-            className="text-lg md:text-xl text-gray-600 max-w-2xl mx-auto mb-8"
-          >
-            El marketplace de nueva generación. Compra, vende e intercambia con una experiencia fluida y segura.
-          </motion.p>
-
-          {/* PROMO BANNER */}
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ duration: 0.6, delay: 0.5 }}
-            className="w-full max-w-5xl mx-auto h-48 md:h-64 bg-gradient-to-r from-olx-purple to-indigo-600 rounded-2xl shadow-lg flex items-center justify-center relative overflow-hidden mt-8"
-          >
-            <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-10"></div>
-            <div className="text-center text-white z-10 px-4">
-              <h3 className="text-3xl md:text-4xl font-bold mb-2">¡Vende lo que ya no usas!</h3>
-              <p className="text-lg opacity-90">Es fácil, rápido y seguro.</p>
-              <button onClick={() => currentUser ? navigate('/publicar') : navigate('/login')} className="mt-6 bg-olx-orange hover:bg-orange-600 text-white px-8 py-3 rounded-full font-bold shadow-md transition-transform transform hover:scale-105">
-                Publicar Anuncio Gratis
-              </button>
-            </div>
-          </motion.div>
-        </div>   {/* SEARCH HISTORY */}
-        {!searchQuery && searchHistory.length > 0 && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="mt-6 flex flex-wrap justify-center gap-2"
-          >
-            {searchHistory.map((term, index) => (
-              <button
-                key={index}
-                onClick={() => setSearchQuery(term)}
-                className="px-4 py-1.5 bg-surface/50 hover:bg-surface text-gray-400 hover:text-primary text-sm rounded-full border border-white/5 transition-all"
-              >
-                {term}
-              </button>
-            ))}
-          </motion.div>
-        )}
-
-
-        {/* FILTERS & GRID */}
-        <div className="space-y-8">
+        {/* FILTERS */}
+        <div className="mb-8 sticky top-24 z-30">
           <AdFilters onFilterChange={handleFilterChange} onReset={handleResetFilters} />
+        </div>
 
-          {/* Grid Container with Background */}
-          <div className="bg-gray-50 rounded-2xl p-6">
-            <motion.div
-              className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-4 gap-4 md:gap-5"
-            >
-              <AnimatePresence>
-                {filteredAds.length > 0 ? (
-                  filteredAds.map((ad) => (
+        {/* MASONRY GRID */}
+        <div className="min-h-[400px]">
+          <AnimatePresence mode='popLayout'>
+            {filteredAds.length > 0 ? (
+              <div className="columns-1 sm:columns-2 md:columns-3 lg:columns-4 gap-4 space-y-4">
+                {filteredAds.map((ad) => (
+                  <div key={ad.id} className="break-inside-avoid mb-4">
                     <AdCard
-                      key={ad.id}
                       ad={ad}
                       seller={ad.seller}
                       onSelect={() => handleSelectAd(ad.id)}
                       currentUser={currentUser}
                       onToggleFavorite={handleToggleFavorite}
                     />
-                  ))
-                ) : (
-                  <motion.div
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    className="col-span-full text-center py-20"
-                  >
-                    <div className="inline-block p-6 rounded-full bg-white mb-4">
-                      <svg className="w-12 h-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9.172 16.172a4 4 0 015.656 0M9 12h6m-6-4h6m2 5.291A7.962 7.962 0 0112 15c-2.34 0-4.29-1.009-5.824-2.709M15 6.291A7.962 7.962 0 0012 5c-2.34 0-4.29 1.009-5.824 2.709" />
-                      </svg>
-                    </div>
-                    <h3 className="text-xl font-bold text-gray-600">No se encontraron resultados</h3>
-                    <p className="text-gray-500 mt-2">Intenta ajustar tu búsqueda o filtros.</p>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </motion.div>
-          </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                className="flex flex-col items-center justify-center py-20 bg-white rounded-3xl shadow-sm border border-gray-100"
+              >
+                <div className="p-6 rounded-full bg-gray-50 mb-4">
+                  <svg className="w-12 h-12 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                  </svg>
+                </div>
+                <h3 className="text-xl font-bold text-gray-800">No encontramos lo que buscas</h3>
+                <p className="text-gray-500 mt-2">Intenta con otros términos o elimina los filtros.</p>
+                <button onClick={handleResetFilters} className="mt-6 text-olx-purple font-semibold hover:underline">
+                  Ver todos los anuncios
+                </button>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
-      </main >
+      </main>
 
       {/* FOOTER */}
-      < footer className="relative z-10 border-t border-white/5 bg-surface/30 backdrop-blur-lg mt-20 py-12" >
+      <footer className="bg-white border-t border-gray-100 mt-20 py-12">
         <div className="container mx-auto px-4 text-center">
-          <h2 className="text-2xl font-black text-gray-700 dark:text-gray-300 mb-4">JOLUB</h2>
-          <p className="text-gray-500 text-sm">© 2026 JOLUB Marketplace. Designed with JE UI.</p>
+          <div className="flex items-center justify-center gap-2 mb-4 opacity-50">
+            <div className="w-8 h-8 bg-gray-200 rounded-lg flex items-center justify-center">
+              <span className="text-gray-500 font-black text-lg">J</span>
+            </div>
+            <span className="text-gray-400 font-black text-xl tracking-tight">OLUB</span>
+          </div>
+          <p className="text-gray-400 text-sm">© 2026 JOLUB Marketplace. Designed for the Future.</p>
         </div>
-      </footer >
-    </div >
+      </footer>
+    </div>
   );
 };
 
 export default HomePage;
+
 
 

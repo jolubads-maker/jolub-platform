@@ -1,13 +1,23 @@
-import Redis from 'ioredis';
-import logger from '../utils/logger';
+import { Redis } from 'ioredis';
+import logger from '../utils/logger.js';
 
 const REDIS_URL = process.env.REDIS_URL || 'redis://localhost:6379';
 
 const redis = new Redis(REDIS_URL, {
     maxRetriesPerRequest: null,
-    retryStrategy(times) {
+    enableReadyCheck: false, // Permite reconexión más rápida en algunos entornos
+    commandTimeout: 3000, // Timeout de 3s para comandos para evitar cuelgues
+    retryStrategy(times: number) {
         const delay = Math.min(times * 50, 2000);
         return delay;
+    },
+    reconnectOnError: (err: Error) => {
+        const targetError = 'READONLY';
+        if (err.message.includes(targetError)) {
+            // Only reconnect when the error starts with "READONLY"
+            return true;
+        }
+        return false;
     }
 });
 
@@ -15,13 +25,17 @@ redis.on('connect', () => {
     logger.info('✅ Redis conectado');
 });
 
-redis.on('error', (err) => {
-    // In production, we want to know about this. In dev, it's expected if no Redis is running.
+redis.on('ready', () => {
+    logger.info('🚀 Redis listo para recibir comandos');
+});
+
+redis.on('error', (err: Error) => {
+    // Evitar crash en producción, pero loguear el error
     if (process.env.NODE_ENV === 'production') {
-        logger.error('❌ Error de conexión Redis:', err);
+        logger.error('❌ Error de conexión Redis:', err.message);
     } else {
-        // Suppress verbose errors in dev
-        // logger.warn('⚠️ Redis no conectado (Modo Desarrollo)');
+        // En desarrollo, loguear warning para no ensuciar consola si no se usa
+        // logger.warn('⚠️ Redis error (Dev):', err.message);
     }
 });
 
