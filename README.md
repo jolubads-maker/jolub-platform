@@ -4,26 +4,18 @@
 
 Marketplace moderno con autenticación OAuth, chat directo entre usuarios, y gestión de anuncios.
 
-🌐 **Demo en vivo**: https://anuncios-omega.vercel.app
+🌐 **Demo en vivo**: https://www.jolub.com
 
 ## ✨ Características
 
-- 🔐 Autenticación con Google OAuth (o Modo Demo)
+- 🔐 Autenticación 
 - 💬 Chat directo entre usuarios (solo cuando están en línea)
 - 📱 Gestión de anuncios con multimedia
 - 👥 Sistema de usuarios y perfiles
 - 📊 Dashboard de usuario con métricas
 - 🔔 Verificación de teléfono con Twilio
 - ⚡ Prisma Optimize para monitoreo de rendimiento
-- 🎨 Interfaz moderna y responsiva con UI blanco/azul
-
-## ⚠️ IMPORTANTE: Configuración de Google OAuth
-
-**Si ves un error 400 al registrarte**, lee el archivo [`CONFIGURACION-GOOGLE-OAUTH.md`](CONFIGURACION-GOOGLE-OAUTH.md) para configurar los URIs de redirección.
-
-**Alternativa:** La aplicación incluye un **Modo Demo** que se activa automáticamente si OAuth falla.
-
-View your app in AI Studio: https://ai.studio/apps/drive/1NL4V-fhed82GSzDRn0LHiUpLfYCiStVl
+-
 
 ## 🚀 Ejecutar Localmente
 
@@ -143,25 +135,7 @@ marketplace-jolub/
 └── ...
 ```
 
-## 🔧 Solución de Problemas
-
-### Error 400 en Google OAuth
-Ver guía completa: [`CONFIGURACION-GOOGLE-OAUTH.md`](CONFIGURACION-GOOGLE-OAUTH.md)
-
-### Error "require is not defined"
-✅ **Ya corregido** - El servidor ahora usa imports ES6 correctamente
-
-### No puedo crear anuncios
-Verifica tu número de teléfono en el Dashboard primero
-
-### El chat no responde
-Verifica que tengas configurado `GEMINI_API_KEY` en tus variables de entorno
-
 ## 📝 Licencia
 
-Este proyecto es de código abierto.
 
-## 🤝 Contribuciones
-
-Las contribuciones son bienvenidas. Por favor, abre un issue o pull request.
 <!-- deployment trigger: 11/27/2025 09:11:35 -->
