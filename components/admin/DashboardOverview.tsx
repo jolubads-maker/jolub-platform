@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line } from 'recharts';
-import { apiService } from '../../services/api';
+import { apiService } from '../../services/apiService';
 
 interface Stats {
     totalUsers: number;

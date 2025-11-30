@@ -31,6 +31,10 @@ export default defineConfig(({ mode }) => {
       alias: {
         '@': path.resolve(__dirname, '.'),
       }
+    },
+    build: {
+      minify: false,
+      sourcemap: true
     }
   };
 });

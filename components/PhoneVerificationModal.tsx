@@ -65,7 +65,11 @@ const PhoneVerificationModal: React.FC<PhoneVerificationModalProps> = ({ onPhone
                 return;
             }
 
-            setSuccess(`Código enviado por SMS a ${phoneNumber}`);
+            if (data.mock) {
+                setSuccess(`MODO DEMO: El código es ${data.code} (Configura TWILIO en el backend para envío real)`);
+            } else {
+                setSuccess(`Código enviado por SMS a ${phoneNumber}`);
+            }
             setStep('enterCode');
             saveToStorage({ countryCode, phone, step: 'enterCode' });
 

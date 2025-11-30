@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { apiService } from '../../services/api';
+import { apiService } from '../../services/apiService';
 import { Ad } from '../../types';
 
 const AdsTable: React.FC = () => {
@@ -71,8 +71,8 @@ const AdsTable: React.FC = () => {
                                 </td>
                                 <td className="px-6 py-4">
                                     <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${new Date(ad.expiresAt!) > new Date()
-                                            ? 'bg-green-100 text-green-800'
-                                            : 'bg-red-100 text-red-800'
+                                        ? 'bg-green-100 text-green-800'
+                                        : 'bg-red-100 text-red-800'
                                         }`}>
                                         {new Date(ad.expiresAt!) > new Date() ? 'Activo' : 'Vencido'}
                                     </span>

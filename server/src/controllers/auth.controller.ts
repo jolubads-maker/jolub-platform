@@ -62,8 +62,8 @@ const signToken = (id: number) => {
 const setAuthCookie = (res: Response, token: string) => {
     res.cookie('jwt', token, {
         httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'strict',
+        secure: process.env.NODE_ENV === 'production', // Must be true for SameSite=None
+        sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax', // 'none' for cross-domain (Vercel -> Render)
         maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
     });
 };

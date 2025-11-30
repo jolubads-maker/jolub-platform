@@ -8,11 +8,12 @@ import { useAuthStore } from '../store/useAuthStore';
 import { useAdStore } from '../store/useAdStore';
 import UserStatusBadge from './UserStatusBadge';
 
+import { FilterValues } from './AdFilters';
+
 // Lazy Load Components
 const HeroCarousel = React.lazy(() => import('./HeroCarousel'));
 const AdFilters = React.lazy(() => import('./AdFilters'));
 const AdminLoginModal = React.lazy(() => import('./admin/AdminLoginModal'));
-import { FilterValues } from './AdFilters';
 
 const CLASSIFIED_CATEGORIES = [
   {
@@ -345,7 +346,7 @@ const HomePage: React.FC = () => {
                             onClick={() => handleSelectAd(ad.id)}
                             className="flex items-center gap-3 p-2 hover:bg-gray-50 rounded-xl cursor-pointer transition-colors"
                           >
-                            <img src={ad.images[0] || 'https://via.placeholder.com/50'} alt={ad.title} className="w-10 h-10 rounded-lg object-cover" />
+                            <img src={ad.media?.[0]?.url || 'https://via.placeholder.com/50'} alt={ad.title} className="w-10 h-10 rounded-lg object-cover" />
                             <div>
                               <div className="text-sm font-medium text-gray-800 line-clamp-1">{ad.title}</div>
                               <div className="text-xs text-[#4b0997] font-bold">${ad.price.toLocaleString()}</div>

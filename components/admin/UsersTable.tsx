@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { apiService } from '../../services/api';
+import { apiService } from '../../services/apiService';
 import { User } from '../../types';
 
 const UsersTable: React.FC = () => {
@@ -69,8 +69,8 @@ const UsersTable: React.FC = () => {
                                 <td className="px-6 py-4 text-sm text-gray-600">{user.email}</td>
                                 <td className="px-6 py-4">
                                     <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${user.role === 'ADMIN'
-                                            ? 'bg-purple-100 text-purple-800'
-                                            : 'bg-gray-100 text-gray-800'
+                                        ? 'bg-purple-100 text-purple-800'
+                                        : 'bg-gray-100 text-gray-800'
                                         }`}>
                                         {user.role || 'USER'}
                                     </span>
