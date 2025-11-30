@@ -16,7 +16,7 @@
     "db:studio": "prisma studio",
     "db:seed": "tsx server/src/scripts/seed.ts",
     "db:migrate": "prisma migrate deploy",
-    "start": "tsx server/src/index.ts",
+    "start": "prisma migrate deploy && tsx server/src/index.ts",
     "start:dev": "tsx server/src/index.ts",
     "postinstall": "prisma generate",
     "deploy": "prisma migrate deploy && npm start"
