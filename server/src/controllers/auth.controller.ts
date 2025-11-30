@@ -26,8 +26,12 @@ const TWILIO_AUTH_TOKEN = process.env.TWILIO_AUTH_TOKEN;
 const TWILIO_PHONE_NUMBER = process.env.TWILIO_PHONE_NUMBER;
 
 let twilioClient: any = null;
-if (TWILIO_ACCOUNT_SID && TWILIO_AUTH_TOKEN) {
-    twilioClient = twilio(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN);
+try {
+    if (TWILIO_ACCOUNT_SID && TWILIO_AUTH_TOKEN) {
+        twilioClient = twilio(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN);
+    }
+} catch (error) {
+    logger.error('Failed to initialize Twilio client:', error);
 }
 
 // Nodemailer setup
