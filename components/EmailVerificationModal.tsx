@@ -42,12 +42,7 @@ const EmailVerificationModal: React.FC<EmailVerificationModalProps> = ({ current
                 return;
             }
 
-            if (data.mock) {
-                setSuccess(`MODO DEMO: El código es ${data.code} (Configura EMAIL_USER en el backend para envío real)`);
-                // For convenience in demo mode, pre-fill code? No, let them read it.
-            } else {
-                setSuccess(`Código enviado por correo a ${email}`);
-            }
+            setSuccess(`Código enviado por correo a ${email}`);
             setStep('enterCode');
         } catch (err: any) {
             setError('Error de conexión. Verifica tu internet.');

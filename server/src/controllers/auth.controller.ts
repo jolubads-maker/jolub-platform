@@ -276,7 +276,10 @@ export const sendPhoneCode = async (req: Request, res: Response) => {
         });
 
         if (!twilioClient) {
-            return res.status(200).json({ mock: true, message: 'Modo demo, sin envío real', code });
+            // In production, this should probably error out if Twilio is critical
+            // But for now, let's just log error and return 500 if not configured
+            logger.error('Twilio client not initialized. Check TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN.');
+            return res.status(500).json({ error: 'Servicio de SMS no configurado en el servidor.' });
         }
 
         await twilioClient.messages.create({
@@ -364,7 +367,8 @@ export const sendEmailCode = async (req: Request, res: Response) => {
         });
 
         if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
-            return res.status(200).json({ mock: true, message: 'Modo demo, código en consola', code });
+            logger.error('Email credentials not configured. Check EMAIL_USER and EMAIL_PASS.');
+            return res.status(500).json({ error: 'Servicio de correo no configurado en el servidor.' });
         }
 
         const htmlContent = `
