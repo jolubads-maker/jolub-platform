@@ -24,14 +24,28 @@ const UsersTable = lazy(() => import('./components/admin/UsersTable'));
 const AdsTable = lazy(() => import('./components/admin/AdsTable'));
 
 // Loading Component
-const LoadingScreen = () => (
-  <div className="min-h-screen bg-[#6e0ad6] text-white font-sans flex items-center justify-center">
-    <div className="text-center">
-      <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-white mx-auto mb-4"></div>
-      <p className="text-xl font-bold tracking-widest">Cargando JOLUB...</p>
+const LoadingScreen = () => {
+  const [showLongWaitMessage, setShowLongWaitMessage] = React.useState(false);
+
+  React.useEffect(() => {
+    const timer = setTimeout(() => setShowLongWaitMessage(true), 3000);
+    return () => clearTimeout(timer);
+  }, []);
+
+  return (
+    <div className="min-h-screen bg-[#6e0ad6] text-white font-sans flex items-center justify-center">
+      <div className="text-center px-4">
+        <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-white mx-auto mb-4"></div>
+        <p className="text-xl font-bold tracking-widest mb-2">Cargando JOLUB...</p>
+        {showLongWaitMessage && (
+          <p className="text-sm text-white/80 animate-pulse">
+            Iniciando servidores seguros... esto puede tomar unos segundos.
+          </p>
+        )}
+      </div>
     </div>
-  </div>
-);
+  );
+};
 
 // Stores
 import { useAuthStore } from './store/useAuthStore';
@@ -125,11 +139,11 @@ const App: React.FC = () => {
   // Cargar datos iniciales
   useEffect(() => {
     const init = async () => {
-      // 1. Verificar sesión primero (Bloqueante para la UI)
-      await verifySession();
-
-      // 2. Cargar datos en segundo plano (No bloqueante)
-      fetchAds();
+      // Run session verification and ads fetch in parallel to reduce load time
+      await Promise.all([
+        verifySession(),
+        fetchAds()
+      ]);
     };
     init();
   }, []);
