@@ -17,7 +17,7 @@ const JWT_SECRET = process.env.JWT_SECRET;
 
 // Rate limiting map
 const RATE_LIMIT_WINDOW = 60 * 60 * 1000; // 1 hour
-const MAX_ATTEMPTS = 3;
+const MAX_ATTEMPTS = 10; // Increased for testing
 const rateLimitMap = new Map<string, { attempts: number[] }>();
 
 // Twilio setup
@@ -204,8 +204,14 @@ export const generateSessionToken = async (req: Request, res: Response) => {
 export const authenticateWithToken = async (req: Request, res: Response) => {
     console.log('🔍 [AUTH] authenticateWithToken called');
     try {
-        // Try to get token from cookie first, then body (for backward compatibility during migration)
-        const token = req.cookies.jwt || req.body.sessionToken;
+        // Try to get token from cookie first, then header, then body
+        let token = req.cookies.jwt;
+        if (!token && req.headers.authorization) {
+            token = req.headers.authorization.split(' ')[1];
+        }
+        if (!token) {
+            token = req.body.sessionToken;
+        }
 
         if (!token) {
             return res.status(401).json({ error: 'Token requerido' });
