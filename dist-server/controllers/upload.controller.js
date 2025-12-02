@@ -1,4 +1,4 @@
-import { uploadFile } from '../services/storage.service';
+import { uploadFile } from '../services/storage.service.js';
 export const uploadImage = async (req, res) => {
     try {
         if (!req.file) {

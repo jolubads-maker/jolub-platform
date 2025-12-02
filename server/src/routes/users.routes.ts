@@ -10,16 +10,16 @@ import {
     updatePrivacy,
     rateUser,
     getUserById
-} from '../controllers/users.controller';
-import { validate } from '../middleware/validate.middleware';
-import { authenticateJWT } from '../middleware/auth.middleware';
+} from '../controllers/users.controller.js';
+import { validate } from '../middleware/validate.middleware.js';
+import { authenticateJWT } from '../middleware/auth.middleware.js';
 import {
     updateUserStatusSchema,
     updateAvatarSchema,
     verifyPhoneSchema,
     updatePrivacySchema,
     rateUserSchema
-} from '../schemas/users.schema';
+} from '../schemas/users.schema.js';
 
 const router = Router();
 

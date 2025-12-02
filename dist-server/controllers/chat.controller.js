@@ -1,4 +1,4 @@
-import prisma from '../database';
+import prisma from '../database.js';
 export const getUserChats = async (req, res) => {
     try {
         const { id } = req.params;

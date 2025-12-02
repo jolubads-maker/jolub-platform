@@ -1,8 +1,8 @@
 import { Router } from 'express';
-import { addFavorite, removeFavorite } from '../controllers/users.controller';
-import { validate } from '../middleware/validate.middleware';
-import { authenticateJWT } from '../middleware/auth.middleware';
-import { addFavoriteSchema, removeFavoriteSchema } from '../schemas/favorites.schema';
+import { addFavorite, removeFavorite } from '../controllers/users.controller.js';
+import { validate } from '../middleware/validate.middleware.js';
+import { authenticateJWT } from '../middleware/auth.middleware.js';
+import { addFavoriteSchema, removeFavoriteSchema } from '../schemas/favorites.schema.js';
 
 const router = Router();
 

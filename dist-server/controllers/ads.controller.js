@@ -1,5 +1,5 @@
-import prisma from '../database';
-import redis from '../config/redis';
+import prisma from '../database.js';
+import redis from '../config/redis.js';
 export const getAds = async (req, res) => {
     console.time('getAds Total');
     try {

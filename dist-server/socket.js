@@ -1,7 +1,7 @@
 import { Server } from 'socket.io';
-import prisma from './database';
+import prisma from './database.js';
 import { createAdapter } from '@socket.io/redis-adapter';
-import redis from './config/redis';
+import redis from './config/redis.js';
 export const initSocket = (httpServer, allowedOrigins) => {
     const io = new Server(httpServer, {
         cors: {
@@ -9,11 +9,13 @@ export const initSocket = (httpServer, allowedOrigins) => {
                 if (!origin)
                     return callback(null, true);
                 if (allowedOrigins.indexOf(origin) !== -1) {
-                    callback(null, true);
+                    return callback(null, true);
                 }
-                else {
-                    callback(new Error('Not allowed by CORS'));
+                // Allow local network IPs in development
+                if (process.env.NODE_ENV !== 'production' && origin.startsWith('http://192.168.')) {
+                    return callback(null, true);
                 }
+                callback(new Error('Not allowed by CORS'));
             },
             methods: ['GET', 'POST'],
             credentials: true
@@ -143,7 +145,7 @@ export const initSocket = (httpServer, allowedOrigins) => {
                     tempId: data.tempId // Echo back the tempId for optimistic UI reconciliation
                 });
                 // 5. Emitir notificación al destinatario (si no es el remitente)
-                const recipientId = chat.participants.find(p => p.userId !== Number(userId))?.userId;
+                const recipientId = chat.participants.find((p) => p.userId !== Number(userId))?.userId;
                 if (recipientId) {
                     const notificationData = {
                         chatId,

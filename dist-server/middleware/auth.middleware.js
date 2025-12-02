@@ -1,5 +1,5 @@
 import jwt from 'jsonwebtoken';
-import prisma from '../database';
+import prisma from '../database.js';
 export const authenticateJWT = async (req, res, next) => {
     // 1. Try cookie first (Secure)
     let token = req.cookies?.jwt;

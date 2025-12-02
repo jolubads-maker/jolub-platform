@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
-import redis from '../config/redis';
-import logger from '../utils/logger';
+import redis from '../config/redis.js';
+import logger from '../utils/logger.js';
 
 const WINDOW_SIZE_IN_SECONDS = 60;
 const MAX_WINDOW_REQUEST_COUNT = 100;

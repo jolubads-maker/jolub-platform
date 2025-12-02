@@ -1,10 +1,10 @@
 import { Request, Response } from 'express';
-import prisma from '../database';
+import prisma from '../database.js';
 import crypto from 'crypto';
 import nodemailer from 'nodemailer';
 import twilio from 'twilio';
 import bcrypt from 'bcryptjs';
-import logger from '../utils/logger';
+import logger from '../utils/logger.js';
 import jwt from 'jsonwebtoken';
 
 // Enforce JWT_SECRET

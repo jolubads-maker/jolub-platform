@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import { z, ZodError } from 'zod';
 // --- SCHEMAS ---
 export const userSchema = z.object({
     name: z.string().min(2, "El nombre debe tener al menos 2 caracteres"),
@@ -39,10 +39,10 @@ export const validate = (schema) => {
             next();
         }
         catch (error) {
-            if (error instanceof z.ZodError) {
+            if (error instanceof ZodError) {
                 return res.status(400).json({
                     error: "Datos inválidos",
-                    details: error.errors.map(e => ({ field: e.path.join('.'), message: e.message }))
+                    details: error.errors.map((e) => ({ field: e.path.join('.'), message: e.message }))
                 });
             }
             next(error);

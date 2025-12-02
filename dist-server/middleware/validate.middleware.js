@@ -13,7 +13,7 @@ export const validate = (schema) => async (req, res, next) => {
         if (error instanceof ZodError) {
             return res.status(400).json({
                 error: 'Error de validación',
-                details: error.errors.map(e => ({
+                details: error.errors.map((e) => ({
                     field: e.path.join('.'),
                     message: e.message
                 }))

@@ -7,8 +7,8 @@ export const GetAdsQuerySchema = z.object({
     location: z.string().optional(),
     search: z.string().optional(),
     userId: z.string().transform(Number).optional(),
-    page: z.string().transform(Number).default('1'),
-    limit: z.string().transform(Number).default('20')
+    page: z.string().default('1').transform(Number),
+    limit: z.string().default('20').transform(Number)
 });
 
 export type GetAdsQuery = z.infer<typeof GetAdsQuerySchema>;

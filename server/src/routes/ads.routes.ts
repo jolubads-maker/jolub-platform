@@ -1,8 +1,8 @@
 import { Router } from 'express';
-import { getAds, createAd, searchAds, incrementAdViews, featureAd, getAdByUniqueCode } from '../controllers/ads.controller';
-import { validate } from '../middleware/validate.middleware';
-import { authenticateJWT } from '../middleware/auth.middleware';
-import { adSchema, featureAdSchema } from '../schemas/ads.schema';
+import { getAds, createAd, searchAds, incrementAdViews, featureAd, getAdByUniqueCode } from '../controllers/ads.controller.js';
+import { validate } from '../middleware/validate.middleware.js';
+import { authenticateJWT } from '../middleware/auth.middleware.js';
+import { adSchema, featureAdSchema } from '../schemas/ads.schema.js';
 
 const router = Router();
 

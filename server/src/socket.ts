@@ -1,6 +1,6 @@
 import { Server, Socket } from 'socket.io';
 import { Server as HttpServer } from 'http';
-import prisma from './database';
+import prisma from './database.js';
 
 interface SocketUser {
     id: number;
@@ -8,7 +8,7 @@ interface SocketUser {
 }
 
 import { createAdapter } from '@socket.io/redis-adapter';
-import redis from './config/redis';
+import redis from './config/redis.js';
 
 export const initSocket = (httpServer: HttpServer, allowedOrigins: string[]) => {
     const io = new Server(httpServer, {
@@ -34,10 +34,10 @@ export const initSocket = (httpServer: HttpServer, allowedOrigins: string[]) => 
     const subClient = redis.duplicate();
 
     // Prevent crash on Redis error
-    pubClient.on('error', (err) => {
+    pubClient.on('error', (err: any) => {
         console.error('❌ Redis Pub Client Error:', err);
     });
-    subClient.on('error', (err) => {
+    subClient.on('error', (err: any) => {
         console.error('❌ Redis Sub Client Error:', err);
     });
 
@@ -171,7 +171,7 @@ export const initSocket = (httpServer: HttpServer, allowedOrigins: string[]) => 
                 });
 
                 // 5. Emitir notificación al destinatario (si no es el remitente)
-                const recipientId = chat.participants.find(p => p.userId !== Number(userId))?.userId;
+                const recipientId = chat.participants.find((p: any) => p.userId !== Number(userId))?.userId;
                 if (recipientId) {
                     const notificationData = {
                         chatId,

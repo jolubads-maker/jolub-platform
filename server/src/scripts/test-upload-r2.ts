@@ -17,7 +17,8 @@ async function main() {
                 email: 'test_r2@example.com',
                 name: 'Test User R2',
                 password: 'password123',
-                username: 'testuser_r2'
+                username: 'testuser_r2',
+                avatar: 'https://example.com/avatar.png'
             }
         });
     }
@@ -60,7 +61,7 @@ async function main() {
 }
 
 main()
-    .catch(e => console.error(e))
+    .catch((e: any) => console.error(e))
     .finally(async () => {
         await prisma.$disconnect();
     });

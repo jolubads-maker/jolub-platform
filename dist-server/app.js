@@ -1,16 +1,46 @@
 import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
+import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
-import { errorHandler } from './middleware/errorHandler';
+import cookieParser from 'cookie-parser';
+// import * as Sentry from "@sentry/node";
+// import { ProfilingIntegration } from "@sentry/profiling-node";
+import { errorHandler } from './middleware/errorHandler.js';
 // Routes
-import authRoutes from './routes/auth.routes';
-import usersRoutes from './routes/users.routes';
-import adsRoutes from './routes/ads.routes';
-import chatRoutes from './routes/chat.routes';
-import favoritesRoutes from './routes/favorites.routes';
-import uploadRoutes from './routes/upload.routes';
+import authRoutes from './routes/auth.routes.js';
+import usersRoutes from './routes/users.routes.js';
+import adsRoutes from './routes/ads.routes.js';
+import chatRoutes from './routes/chat.routes.js';
+import favoritesRoutes from './routes/favorites.routes.js';
+import uploadRoutes from './routes/upload.routes.js';
+import healthRoutes from './routes/health.routes.js';
+import adminRoutes from './routes/admin.routes.js';
 const app = express();
+// Initialize Sentry
+/*
+Sentry.init({
+    dsn: process.env.SENTRY_DSN,
+    integrations: [
+        // enable HTTP calls tracing
+        new Sentry.Integrations.Http({ tracing: true }),
+        // enable Express.js tracing
+        new Sentry.Integrations.Express({ app }),
+        // new ProfilingIntegration(),
+    ],
+    // Performance Monitoring
+    tracesSampleRate: 1.0,
+    // Set sampling rate for profiling - this is relative to tracesSampleRate
+    profilesSampleRate: 1.0,
+});
+
+// The request handler must be the first middleware on the app
+app.use(Sentry.Handlers.requestHandler());
+// TracingHandler creates a trace for every incoming request
+app.use(Sentry.Handlers.tracingHandler());
+*/
+// Security: Helmet (Secure HTTP Headers)
+app.use(helmet());
 // Security: Rate Limiting
 const limiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutes
@@ -22,6 +52,7 @@ const limiter = rateLimit({
 // Apply rate limiting to all requests
 app.use(limiter);
 // Middleware
+app.use(cookieParser());
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 // CORS Security
@@ -29,9 +60,6 @@ const allowedOrigins = [
     'http://localhost:3000',
     'http://localhost:5173',
     'http://127.0.0.1:3000',
-    'http://192.168.0.16:81', // Specific user IP
-    'http://192.168.0.19', // Local network testing
-    'http://192.168.0.19:80',
     'https://www.jolub.com',
     'https://jolub.com',
     process.env.CLIENT_URL
@@ -49,7 +77,7 @@ app.use(cors({
         if (origin.endsWith('.vercel.app')) {
             return callback(null, true);
         }
-        // Allow local network IPs in development
+        // Allow local network IPs in development ONLY
         if (process.env.NODE_ENV !== 'production' && origin.startsWith('http://192.168.')) {
             return callback(null, true);
         }
@@ -66,6 +94,10 @@ app.use('/api/ads', adsRoutes);
 app.use('/api', chatRoutes);
 app.use('/api/favorites', favoritesRoutes);
 app.use('/api', uploadRoutes);
+app.use('/api', healthRoutes);
+app.use('/api/admin', adminRoutes);
+// The error handler must be before any other error middleware and after all controllers
+// app.use(Sentry.Handlers.errorHandler());
 // Error Handling Middleware (Must be last)
 app.use(errorHandler);
 export default app;

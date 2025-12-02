@@ -1,7 +1,7 @@
 import { Router } from 'express';
-import { syncUser, generateSessionToken, authenticateWithToken, sendPhoneCode, verifyPhoneCode, sendEmailCode, verifyEmailCode, getIpInfo, forgotPassword, resetPassword, checkEmail, login, logout } from '../controllers/auth.controller';
-import { validate } from '../middleware/validate.middleware';
-import { loginSchema, syncUserSchema, tokenSchema } from '../schemas/auth.schema';
+import { syncUser, generateSessionToken, authenticateWithToken, sendPhoneCode, verifyPhoneCode, sendEmailCode, verifyEmailCode, getIpInfo, forgotPassword, resetPassword, checkEmail, login, logout } from '../controllers/auth.controller.js';
+import { validate } from '../middleware/validate.middleware.js';
+import { loginSchema, syncUserSchema, tokenSchema } from '../schemas/auth.schema.js';
 const router = Router();
 // User sync (login/register)
 router.post('/auth/sync', validate(syncUserSchema), syncUser);

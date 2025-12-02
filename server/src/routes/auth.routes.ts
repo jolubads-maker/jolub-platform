@@ -11,13 +11,13 @@ import {
     forgotPassword,
     resetPassword,
     checkEmail,
-    checkEmail,
+
     login,
     logout
-} from '../controllers/auth.controller';
+} from '../controllers/auth.controller.js';
 
-import { validate } from '../middleware/validate.middleware';
-import { loginSchema, syncUserSchema, tokenSchema } from '../schemas/auth.schema';
+import { validate } from '../middleware/validate.middleware.js';
+import { loginSchema, syncUserSchema, tokenSchema } from '../schemas/auth.schema.js';
 
 const router = Router();
 

@@ -1,9 +1,9 @@
-import prisma from '../database';
+import prisma from '../database.js';
 import crypto from 'crypto';
 import nodemailer from 'nodemailer';
 import twilio from 'twilio';
 import bcrypt from 'bcryptjs';
-import logger from '../utils/logger';
+import logger from '../utils/logger.js';
 import jwt from 'jsonwebtoken';
 // Enforce JWT_SECRET
 if (!process.env.JWT_SECRET) {
@@ -20,12 +20,20 @@ const TWILIO_ACCOUNT_SID = process.env.TWILIO_ACCOUNT_SID;
 const TWILIO_AUTH_TOKEN = process.env.TWILIO_AUTH_TOKEN;
 const TWILIO_PHONE_NUMBER = process.env.TWILIO_PHONE_NUMBER;
 let twilioClient = null;
-if (TWILIO_ACCOUNT_SID && TWILIO_AUTH_TOKEN) {
-    twilioClient = twilio(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN);
+try {
+    if (TWILIO_ACCOUNT_SID && TWILIO_AUTH_TOKEN) {
+        twilioClient = twilio(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN);
+    }
+}
+catch (error) {
+    logger.error('Failed to initialize Twilio client:', error);
 }
 // Nodemailer setup
+// Nodemailer setup
 const emailTransporter = nodemailer.createTransport({
-    service: 'gmail',
+    host: 'smtp.gmail.com',
+    port: 465,
+    secure: true, // true for 465, false for other ports
     auth: {
         user: process.env.EMAIL_USER,
         pass: process.env.EMAIL_PASS
@@ -37,8 +45,8 @@ const signToken = (id) => {
 const setAuthCookie = (res, token) => {
     res.cookie('jwt', token, {
         httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'strict',
+        secure: process.env.NODE_ENV === 'production', // Must be true for SameSite=None
+        sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax', // 'none' for cross-domain (Vercel -> Render)
         maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
     });
 };
@@ -223,7 +231,8 @@ export const sendPhoneCode = async (req, res) => {
             }
         });
         if (!twilioClient) {
-            return res.status(200).json({ mock: true, message: 'Modo demo, sin envío real', code });
+            logger.error('Twilio client not initialized. Check TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN.');
+            return res.status(500).json({ error: 'Servicio de SMS no configurado en el servidor.' });
         }
         await twilioClient.messages.create({
             to: phoneNumber,
@@ -301,7 +310,8 @@ export const sendEmailCode = async (req, res) => {
             }
         });
         if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
-            return res.status(200).json({ mock: true, message: 'Modo demo, código en consola', code });
+            logger.error('Email credentials not configured. Check EMAIL_USER and EMAIL_PASS.');
+            return res.status(500).json({ error: 'Servicio de correo no configurado en el servidor.' });
         }
         const htmlContent = `
       <div style="font-family: sans-serif; padding: 20px;">
@@ -427,7 +437,8 @@ export const forgotPassword = async (req, res) => {
         });
         const resetLink = `http://localhost:5173/reset-password?token=${token}`;
         if (!process.env.EMAIL_USER) {
-            return res.json({ ok: true, message: 'Modo demo', link: resetLink });
+            logger.error('Email credentials not configured. Check EMAIL_USER.');
+            return res.status(500).json({ error: 'Servicio de correo no configurado en el servidor.' });
         }
         await emailTransporter.sendMail({
             from: `"JOLUB Marketplace" <${process.env.EMAIL_USER}>`,
@@ -557,7 +568,7 @@ export const logout = async (req, res) => {
         res.clearCookie('jwt', {
             httpOnly: true,
             secure: process.env.NODE_ENV === 'production',
-            sameSite: 'strict'
+            sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax'
         });
         res.json({ ok: true, message: 'Sesión cerrada' });
     }
