@@ -143,7 +143,7 @@ export const syncUser = async (req, res) => {
         const { password: _, ...userWithoutPassword } = user;
         console.log('✅ [SYNC] Completado exitosamente');
         // Don't send token in body
-        res.json({ ...userWithoutPassword });
+        res.json({ ...userWithoutPassword, sessionToken: token });
     }
     catch (err) {
         console.error(`❌ [SYNC] Error crítico: ${err}`);
@@ -187,7 +187,7 @@ export const authenticateWithToken = async (req, res) => {
         const { password: _, ...userWithoutPassword } = user;
         // Refresh cookie
         setAuthCookie(res, token);
-        res.json({ ...userWithoutPassword });
+        res.json({ ...userWithoutPassword, sessionToken: token });
     }
     catch (err) {
         logger.error(`Error authenticating with token: ${err}`);
@@ -531,7 +531,7 @@ export const login = async (req, res) => {
         setAuthCookie(res, token);
         const { password: _, ...userWithoutPassword } = user;
         // Don't send token in body
-        res.json({ ...userWithoutPassword });
+        res.json({ ...userWithoutPassword, sessionToken: token });
     }
     catch (err) {
         logger.error(`Error logging in: ${err}`);

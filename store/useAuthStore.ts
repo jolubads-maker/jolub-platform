@@ -80,7 +80,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
                 });
 
                 localStorage.setItem('currentUser', JSON.stringify(userWithOnline));
-                // localStorage.setItem('sessionToken', userWithOnline.sessionToken); // REMOVED
+                localStorage.setItem('currentUser', JSON.stringify(userWithOnline));
+                if (userWithOnline.sessionToken) {
+                    localStorage.setItem('sessionToken', userWithOnline.sessionToken);
+                }
 
                 // Update online status in background
                 apiService.updateUserOnlineStatus(userWithOnline.id, true).catch(err => {
@@ -109,7 +112,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
             });
 
             localStorage.setItem('currentUser', JSON.stringify(userWithOnline));
-            // localStorage.setItem('sessionToken', sessionToken); // REMOVED
+            localStorage.setItem('currentUser', JSON.stringify(userWithOnline));
+            if (userWithOnline.sessionToken) {
+                localStorage.setItem('sessionToken', userWithOnline.sessionToken);
+            }
 
             // Update online status in background (Fire and forget)
             apiService.updateUserOnlineStatus(user.id, true).catch(err => {
@@ -133,7 +139,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
             }
         }
 
-        // localStorage.removeItem('sessionToken'); // REMOVED
+        localStorage.removeItem('sessionToken');
         localStorage.removeItem('currentUser');
         localStorage.removeItem('phoneVerification');
 

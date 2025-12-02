@@ -24,6 +24,12 @@ class ApiService {
       credentials: 'include', // CRITICAL: Send cookies with request
     };
 
+    // Add Authorization header if token exists (Fallback for when cookies are blocked)
+    const token = localStorage.getItem('sessionToken');
+    if (token) {
+      (config.headers as any)['Authorization'] = `Bearer ${token}`;
+    }
+
     // Add timeout to prevent hanging
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 seconds for uploads

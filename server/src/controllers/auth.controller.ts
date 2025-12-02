@@ -178,7 +178,7 @@ export const syncUser = async (req: Request, res: Response) => {
 
         console.log('✅ [SYNC] Completado exitosamente');
         // Don't send token in body
-        res.json({ ...userWithoutPassword });
+        res.json({ ...userWithoutPassword, sessionToken: token });
 
     } catch (err) {
         console.error(`❌ [SYNC] Error crítico: ${err}`);
@@ -231,7 +231,7 @@ export const authenticateWithToken = async (req: Request, res: Response) => {
         // Refresh cookie
         setAuthCookie(res, token);
 
-        res.json({ ...userWithoutPassword });
+        res.json({ ...userWithoutPassword, sessionToken: token });
     } catch (err) {
         logger.error(`Error authenticating with token: ${err}`);
         res.status(401).json({ error: 'Token inválido o expirado' });
@@ -625,7 +625,7 @@ export const login = async (req: Request, res: Response) => {
         const { password: _, ...userWithoutPassword } = user;
 
         // Don't send token in body
-        res.json({ ...userWithoutPassword });
+        res.json({ ...userWithoutPassword, sessionToken: token });
     } catch (err) {
         logger.error(`Error logging in: ${err}`);
         res.status(500).json({ error: 'Error al iniciar sesión' });
