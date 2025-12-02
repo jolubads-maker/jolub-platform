@@ -4,25 +4,35 @@ import bcrypt from 'bcryptjs';
 const prisma = new PrismaClient();
 
 async function main() {
-  const email = 'admin@julob.com';
+  const email = 'admin@jolub.com';
+  const username = 'admin_jolub';
   const password = '123456'; // In production, use strong passwords
   const hashedPassword = await bcrypt.hash(password, 10);
 
-  const existingUser = await prisma.user.findUnique({
-    where: { email },
+  // Check by email OR username
+  const existingUser = await prisma.user.findFirst({
+    where: {
+      OR: [
+        { email },
+        { username }
+      ]
+    },
   });
 
   if (existingUser) {
-    console.log('Admin user already exists. Updating role...');
+    console.log(`Admin user found (ID: ${existingUser.id}). Updating credentials...`);
     await prisma.user.update({
-      where: { email },
+      where: { id: existingUser.id },
       data: {
+        email, // Ensure email is correct
+        username, // Ensure username is correct
         role: 'ADMIN',
-        // Update password just in case
         password: hashedPassword,
+        provider: 'manual', // CRITICAL: Required for password login
+        emailVerified: true
       },
     });
-    console.log('Admin user updated.');
+    console.log('Admin user updated successfully.');
   } else {
     console.log('Creating admin user...');
     await prisma.user.create({
@@ -30,13 +40,14 @@ async function main() {
         email,
         password: hashedPassword,
         name: 'Admin JOLUB',
-        username: 'admin_jolub',
+        username,
         role: 'ADMIN',
+        provider: 'manual', // CRITICAL: Required for password login
         avatar: 'https://ui-avatars.com/api/?name=Admin+JOLUB&background=6e0ad6&color=fff',
         emailVerified: true,
       },
     });
-    console.log('Admin user created.');
+    console.log('Admin user created successfully.');
   }
 }
 

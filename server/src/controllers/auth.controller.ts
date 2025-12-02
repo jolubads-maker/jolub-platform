@@ -677,3 +677,45 @@ export const logout = async (req: Request, res: Response) => {
         res.status(500).json({ error: 'Error al cerrar sesión' });
     }
 };
+export const changePassword = async (req: any, res: Response) => {
+    try {
+        const { currentPassword, newPassword } = req.body;
+        const userId = req.user?.id; // From authenticateJWT
+
+        if (!userId || !currentPassword || !newPassword) {
+            return res.status(400).json({ error: 'Faltan datos requeridos' });
+        }
+
+        if (newPassword.length < 6) {
+            return res.status(400).json({ error: 'La nueva contraseña debe tener al menos 6 caracteres' });
+        }
+
+        const user = await prisma.user.findUnique({ where: { id: userId } });
+
+        if (!user || !user.password) {
+            return res.status(404).json({ error: 'Usuario no encontrado o sin contraseña configurada' });
+        }
+
+        // Verify current password
+        const isMatch = await bcrypt.compare(currentPassword, user.password);
+        if (!isMatch) {
+            return res.status(400).json({ error: 'La contraseña actual es incorrecta' });
+        }
+
+        // Hash new password
+        const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+        // Update password
+        await prisma.user.update({
+            where: { id: userId },
+            data: { password: hashedPassword }
+        });
+
+        logger.info(`[CHANGE PASSWORD] Password updated for user: ${user.email}`);
+        res.json({ ok: true, message: 'Contraseña actualizada exitosamente' });
+
+    } catch (err) {
+        logger.error(`Error changing password: ${err}`);
+        res.status(500).json({ error: 'Error al cambiar la contraseña' });
+    }
+};

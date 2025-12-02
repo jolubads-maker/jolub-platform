@@ -2,17 +2,30 @@ import React from 'react';
 import { Link, Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../../store/useAuthStore';
 
+import ChangePasswordModal from './ChangePasswordModal';
+
 const AdminLayout: React.FC = () => {
-    const { user, logout } = useAuthStore();
+    const { currentUser: user, logout, isCheckingSession, loading } = useAuthStore();
     const navigate = useNavigate();
     const location = useLocation();
+    const [showPasswordModal, setShowPasswordModal] = React.useState(false);
 
     // Protect route
     React.useEffect(() => {
-        if (!user || user.role !== 'ADMIN') {
-            navigate('/');
+        if (!isCheckingSession && !loading) {
+            if (!user || user.role !== 'ADMIN') {
+                navigate('/');
+            }
         }
-    }, [user, navigate]);
+    }, [user, isCheckingSession, loading, navigate]);
+
+    if (isCheckingSession || loading) {
+        return (
+            <div className="min-h-screen flex items-center justify-center bg-gray-100">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#6e0ad6]"></div>
+            </div>
+        );
+    }
 
     if (!user || user.role !== 'ADMIN') {
         return null;
@@ -25,13 +38,18 @@ const AdminLayout: React.FC = () => {
     ];
 
     return (
-        <div className="flex h-screen bg-gray-100 font-sans">
+        <div className="flex h-screen bg-[#6e0ad6] font-sans">
             {/* Sidebar */}
-            <aside className="w-64 bg-[#1e1e2d] text-white flex flex-col shadow-xl">
-                <div className="p-6 border-b border-gray-700">
-                    <h1 className="text-2xl font-display font-bold tracking-wider text-white">
-                        JOLUB <span className="text-[#6e0ad6]">Admin</span>
-                    </h1>
+            <aside className="w-64 bg-white/10 backdrop-blur-lg text-white flex flex-col shadow-2xl border-r border-white/10">
+                <div className="p-6 border-b border-white/10 flex items-center justify-center gap-1">
+                    {/* LOGO IDENTICAL TO HEADER */}
+                    <div className="w-8 h-8 bg-gradient-to-br from-[#ea580c] to-orange-600 rounded-lg flex items-center justify-center shadow-lg transform rotate-3">
+                        <span className="text-white font-black text-lg">J</span>
+                    </div>
+                    <span className="text-white font-black text-lg tracking-tight mx-1">OLU</span>
+                    <div className="w-8 h-8 bg-gradient-to-br from-[#ea580c] to-orange-600 rounded-lg flex items-center justify-center shadow-lg transform -rotate-3">
+                        <span className="text-white font-black text-lg">B</span>
+                    </div>
                 </div>
 
                 <nav className="flex-1 p-4 space-y-2">
@@ -41,12 +59,12 @@ const AdminLayout: React.FC = () => {
                             <Link
                                 key={item.path}
                                 to={item.path}
-                                className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 ${isActive
-                                        ? 'bg-[#6e0ad6] text-white shadow-lg'
-                                        : 'text-gray-400 hover:bg-gray-800 hover:text-white'
+                                className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 group ${isActive
+                                    ? 'bg-white text-[#6e0ad6] shadow-lg'
+                                    : 'text-white/70 hover:bg-white/10 hover:text-white'
                                     }`}
                             >
-                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <svg className={`w-5 h-5 transition-colors ${isActive ? 'text-[#6e0ad6]' : 'text-white/70 group-hover:text-white'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={item.icon} />
                                 </svg>
                                 <span className="font-medium">{item.label}</span>
@@ -55,12 +73,22 @@ const AdminLayout: React.FC = () => {
                     })}
                 </nav>
 
-                <div className="p-4 border-t border-gray-700">
+                <div className="p-4 border-t border-white/10 space-y-2 bg-black/20">
+                    <button
+                        onClick={() => setShowPasswordModal(true)}
+                        className="flex items-center gap-3 px-4 py-3 w-full text-white/70 hover:text-white hover:bg-white/10 rounded-xl transition-colors group"
+                    >
+                        <svg className="w-5 h-5 text-white/70 group-hover:text-white transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
+                        </svg>
+                        <span className="font-medium">Cambiar Contraseña</span>
+                    </button>
+
                     <button
                         onClick={() => { logout(); navigate('/'); }}
-                        className="flex items-center gap-3 px-4 py-3 w-full text-gray-400 hover:text-red-400 hover:bg-gray-800 rounded-lg transition-colors"
+                        className="flex items-center gap-3 px-4 py-3 w-full text-red-300 hover:text-red-200 hover:bg-red-500/20 rounded-xl transition-colors group"
                     >
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <svg className="w-5 h-5 transition-transform group-hover:-translate-x-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
                         </svg>
                         <span className="font-medium">Cerrar Sesión</span>
@@ -69,9 +97,14 @@ const AdminLayout: React.FC = () => {
             </aside>
 
             {/* Main Content */}
-            <main className="flex-1 overflow-y-auto bg-[#f3f5f8] p-8">
+            <main className="flex-1 overflow-y-auto bg-[#6e0ad6] p-8">
                 <Outlet />
             </main>
+
+            <ChangePasswordModal
+                isOpen={showPasswordModal}
+                onClose={() => setShowPasswordModal(false)}
+            />
         </div>
     );
 };

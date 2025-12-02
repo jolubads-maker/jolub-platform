@@ -120,3 +120,18 @@ export const getAds = async (req: Request, res: Response) => {
         res.status(500).json({ message: 'Error al obtener anuncios' });
     }
 };
+export const getRecentTransactions = async (req: Request, res: Response) => {
+    try {
+        const transactions = await prisma.transaction.findMany({
+            take: 5,
+            orderBy: { createdAt: 'desc' },
+            include: {
+                user: { select: { name: true, email: true } },
+                ad: { select: { title: true } }
+            }
+        });
+        res.json(transactions);
+    } catch (error) {
+        res.status(500).json({ message: 'Error al obtener transacciones recientes' });
+    }
+};

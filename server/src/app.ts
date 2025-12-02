@@ -70,6 +70,7 @@ const allowedOrigins = [
     'http://127.0.0.1:3000',
     'https://www.jolub.com',
     'https://jolub.com',
+    'http://192.168.0.3:5173', // Explicitly allow LAN IP
     process.env.CLIENT_URL
 ].filter(Boolean);
 
@@ -88,8 +89,8 @@ app.use(cors({
             return callback(null, true);
         }
 
-        // Allow local network IPs in development ONLY
-        if (process.env.NODE_ENV !== 'production' && origin.startsWith('http://192.168.')) {
+        // Allow local network IPs (always allow in this environment to fix LAN issues)
+        if (origin.startsWith('http://192.168.')) {
             return callback(null, true);
         }
 

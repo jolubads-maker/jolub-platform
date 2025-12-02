@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import { getSocket } from '../services/socketService';
 
 const ConnectionStatus: React.FC = () => {
@@ -29,16 +30,18 @@ const ConnectionStatus: React.FC = () => {
         };
     }, []);
 
+    const location = useLocation();
+
     useEffect(() => {
-        // Show only if there's a problem
-        if (!isOnline || !isSocketConnected) {
+        // Show only if there's a problem AND we are not in admin
+        if ((!isOnline || !isSocketConnected) && !location.pathname.startsWith('/admin')) {
             setShow(true);
         } else {
             // Hide after a delay when everything is fine
             const timer = setTimeout(() => setShow(false), 3000);
             return () => clearTimeout(timer);
         }
-    }, [isOnline, isSocketConnected]);
+    }, [isOnline, isSocketConnected, location.pathname]);
 
     if (!show) return null;
 

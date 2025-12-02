@@ -57,6 +57,49 @@ class ApiService {
     return response.json();
   }
 
+  // Generic HTTP Methods
+  public async get<T>(endpoint: string): Promise<T> {
+    const response = await this.request(endpoint, { method: 'GET' });
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ message: 'Error en la petición' }));
+      throw new Error(error.message || `Error GET ${endpoint}`);
+    }
+    return response.json();
+  }
+
+  public async post<T>(endpoint: string, body?: any): Promise<T> {
+    const response = await this.request(endpoint, {
+      method: 'POST',
+      body: body ? JSON.stringify(body) : undefined
+    });
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ message: 'Error en la petición' }));
+      throw new Error(error.message || `Error POST ${endpoint}`);
+    }
+    return response.json();
+  }
+
+  public async put<T>(endpoint: string, body?: any): Promise<T> {
+    const response = await this.request(endpoint, {
+      method: 'PUT',
+      body: body ? JSON.stringify(body) : undefined
+    });
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ message: 'Error en la petición' }));
+      throw new Error(error.message || `Error PUT ${endpoint}`);
+    }
+    return response.json();
+  }
+
+  public async delete<T>(endpoint: string): Promise<T> {
+    const response = await this.request(endpoint, { method: 'DELETE' });
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ message: 'Error en la petición' }));
+      throw new Error(error.message || `Error DELETE ${endpoint}`);
+    }
+    return response.json();
+  }
+
   // Usuarios
   async getUsers(): Promise<User[]> {
     const response = await this.request('/users');

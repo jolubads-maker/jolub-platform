@@ -13,10 +13,12 @@ import {
     checkEmail,
 
     login,
-    logout
+    logout,
+    changePassword
 } from '../controllers/auth.controller.js';
 
 import { validate } from '../middleware/validate.middleware.js';
+import { authenticateJWT } from '../middleware/auth.middleware.js';
 import { loginSchema, syncUserSchema, tokenSchema } from '../schemas/auth.schema.js';
 
 const router = Router();
@@ -40,6 +42,7 @@ router.post('/verify-email-code', verifyEmailCode);
 router.post('/auth/forgot-password', forgotPassword);
 router.post('/auth/reset-password', resetPassword);
 router.post('/auth/check-email', checkEmail);
+router.post('/auth/change-password', authenticateJWT, changePassword);
 
 // Utils
 router.get('/get-ip-info', getIpInfo);
