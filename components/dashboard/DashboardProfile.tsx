@@ -93,7 +93,7 @@ const DashboardProfile: React.FC<DashboardProfileProps> = ({ currentUser }) => {
                         </div>
                     )}
                     <div className="absolute bottom-1 right-1 w-6 h-6 bg-[#1a1a1a] rounded-full flex items-center justify-center z-20 border-2 border-[#6e0ad6]">
-                        <div className={`w-3 h-3 rounded-full ${currentUser.isOnline ? 'bg-green-500 shadow-[0_0_10px_#22c55e]' : 'bg-gray-500'}`} />
+                        <div className={`w-3 h-3 rounded-full ${currentUser.isOnline ? 'bg-green-500 shadow-[0_0_10px_#22c55e]' : 'bg-[#363636]'}`} />
                     </div>
                 </div>
 

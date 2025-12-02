@@ -16,10 +16,14 @@ export const initSocket = (httpServer: HttpServer, allowedOrigins: string[]) => 
             origin: (origin, callback) => {
                 if (!origin) return callback(null, true);
                 if (allowedOrigins.indexOf(origin) !== -1) {
-                    callback(null, true);
-                } else {
-                    callback(new Error('Not allowed by CORS'));
+                    return callback(null, true);
                 }
+                // Allow local network IPs in development
+                if (process.env.NODE_ENV !== 'production' && origin.startsWith('http://192.168.')) {
+                    return callback(null, true);
+                }
+
+                callback(new Error('Not allowed by CORS'));
             },
             methods: ['GET', 'POST'],
             credentials: true

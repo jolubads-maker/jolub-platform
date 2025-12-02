@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { auth } from '../middleware/auth';
+import { authenticateJWT as auth } from '../middleware/auth.middleware';
 import { adminAuth } from '../middleware/adminAuth';
 import * as adminController from '../controllers/admin.controller';
 

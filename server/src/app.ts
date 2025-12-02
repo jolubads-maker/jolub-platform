@@ -4,23 +4,24 @@ import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import cookieParser from 'cookie-parser';
-import * as Sentry from "@sentry/node";
-import { ProfilingIntegration } from "@sentry/profiling-node";
-import { errorHandler } from './middleware/errorHandler';
+// import * as Sentry from "@sentry/node";
+// import { ProfilingIntegration } from "@sentry/profiling-node";
+import { errorHandler } from './middleware/errorHandler.js';
 
 // Routes
-import authRoutes from './routes/auth.routes';
-import usersRoutes from './routes/users.routes';
-import adsRoutes from './routes/ads.routes';
-import chatRoutes from './routes/chat.routes';
-import favoritesRoutes from './routes/favorites.routes';
-import uploadRoutes from './routes/upload.routes';
-import healthRoutes from './routes/health.routes';
-import adminRoutes from './routes/admin.routes';
+import authRoutes from './routes/auth.routes.js';
+import usersRoutes from './routes/users.routes.js';
+import adsRoutes from './routes/ads.routes.js';
+import chatRoutes from './routes/chat.routes.js';
+import favoritesRoutes from './routes/favorites.routes.js';
+import uploadRoutes from './routes/upload.routes.js';
+import healthRoutes from './routes/health.routes.js';
+import adminRoutes from './routes/admin.routes.js';
 
 const app = express();
 
 // Initialize Sentry
+/*
 Sentry.init({
     dsn: process.env.SENTRY_DSN,
     integrations: [
@@ -28,7 +29,7 @@ Sentry.init({
         new Sentry.Integrations.Http({ tracing: true }),
         // enable Express.js tracing
         new Sentry.Integrations.Express({ app }),
-        new ProfilingIntegration(),
+        // new ProfilingIntegration(),
     ],
     // Performance Monitoring
     tracesSampleRate: 1.0,
@@ -40,6 +41,7 @@ Sentry.init({
 app.use(Sentry.Handlers.requestHandler());
 // TracingHandler creates a trace for every incoming request
 app.use(Sentry.Handlers.tracingHandler());
+*/
 
 // Security: Helmet (Secure HTTP Headers)
 app.use(helmet());
@@ -109,7 +111,7 @@ app.use('/api', healthRoutes);
 app.use('/api/admin', adminRoutes);
 
 // The error handler must be before any other error middleware and after all controllers
-app.use(Sentry.Handlers.errorHandler());
+// app.use(Sentry.Handlers.errorHandler());
 
 // Error Handling Middleware (Must be last)
 app.use(errorHandler as any);

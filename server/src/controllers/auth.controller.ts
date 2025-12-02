@@ -279,8 +279,6 @@ export const sendPhoneCode = async (req: Request, res: Response) => {
         });
 
         if (!twilioClient) {
-            // In production, this should probably error out if Twilio is critical
-            // But for now, let's just log error and return 500 if not configured
             logger.error('Twilio client not initialized. Check TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN.');
             return res.status(500).json({ error: 'Servicio de SMS no configurado en el servidor.' });
         }
@@ -514,7 +512,8 @@ export const forgotPassword = async (req: Request, res: Response) => {
         const resetLink = `http://localhost:5173/reset-password?token=${token}`;
 
         if (!process.env.EMAIL_USER) {
-            return res.json({ ok: true, message: 'Modo demo', link: resetLink });
+            logger.error('Email credentials not configured. Check EMAIL_USER.');
+            return res.status(500).json({ error: 'Servicio de correo no configurado en el servidor.' });
         }
 
         await emailTransporter.sendMail({
@@ -663,7 +662,7 @@ export const logout = async (req: Request, res: Response) => {
         res.clearCookie('jwt', {
             httpOnly: true,
             secure: process.env.NODE_ENV === 'production',
-            sameSite: 'strict'
+            sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax'
         });
 
         res.json({ ok: true, message: 'Sesión cerrada' });

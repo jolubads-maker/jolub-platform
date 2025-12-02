@@ -1,8 +1,15 @@
+import 'dotenv/config';
+import { createServer } from 'http';
+import app, { allowedOrigins } from './app.js';
+import { initSocket } from './socket.js';
+import logger from './utils/logger.js';
 
 const PORT = process.env.PORT || 4000;
-import logger from './utils/logger';
 
-// ...
+const httpServer = createServer(app);
+
+// Initialize Socket.io
+initSocket(httpServer, allowedOrigins as string[]);
 
 const server = httpServer.listen(Number(PORT), '0.0.0.0', () => {
     logger.info(`API server on http://0.0.0.0:${PORT}`);

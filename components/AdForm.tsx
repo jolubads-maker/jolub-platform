@@ -104,7 +104,7 @@ const AdForm: React.FC<AdFormProps> = ({ onCancel, onSubmit }) => {
       setUploading(true);
       try {
         const uploadPromises = validFiles.map(async (file) => {
-          const url = await uploadToCloudinary(file);
+          const url = await uploadToR2(file);
           const type = (file.type.startsWith('image/') ? 'image' : 'video') as 'image' | 'video';
           return { url, type } as Media;
         });

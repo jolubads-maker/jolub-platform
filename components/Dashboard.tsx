@@ -201,7 +201,7 @@ const Dashboard: React.FC = () => {
                   alt={currentUser.name}
                   className="w-10 h-10 rounded-full object-cover border-2 border-white/20 group-hover:border-white transition-all"
                 />
-                <div className={`absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-white ${currentUser.isOnline ? 'bg-green-400' : 'bg-gray-400'}`} />
+                <div className={`absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-white ${currentUser.isOnline ? 'bg-green-500' : 'bg-[#363636]'}`} />
               </div>
             </div>
             <button
