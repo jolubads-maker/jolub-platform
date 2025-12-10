@@ -146,15 +146,24 @@ const AdForm: React.FC<AdFormProps> = ({ onCancel, onSubmit }) => {
     if (!price || parseFloat(price) <= 0) { notify.error('El precio debe ser mayor a 0'); return; }
     if (mediaFiles.length === 0) { notify.error('Debes subir al menos una imagen'); return; }
 
-    onSubmit({
-      title,
-      description,
-      price: parseFloat(price),
-      media: mediaFiles,
-      category: category as AdCategory,
-      subcategory,
-      location
-    });
+    try {
+      await onSubmit({
+        title,
+        description,
+        price: parseFloat(price),
+        media: mediaFiles,
+        category: category as AdCategory,
+        subcategory,
+        location
+      });
+    } catch (error: any) {
+      console.error('Error al publicar anuncio:', error);
+      if (error.message?.includes('500') || error.message?.includes('notification') || error.status === 500) {
+        alert('El anuncio se guardó, pero hubo un error con las notificaciones.');
+      } else {
+        notify.error(error.message || 'Error al publicar el anuncio');
+      }
+    }
   };
 
   const inputClasses = (fieldName: string) => `

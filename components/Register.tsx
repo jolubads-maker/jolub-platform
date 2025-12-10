@@ -135,10 +135,15 @@ const Register: React.FC<RegisterProps> = ({ onRegister, onBackToHome }) => {
         country: ipInfo?.country || 'Unknown'
       };
 
-      onRegister(userInfo);
-    } catch (error) {
+      await onRegister(userInfo);
+    } catch (error: any) {
       console.error('Error en registro:', error);
-      alert('Error al crear la cuenta. Por favor, intenta de nuevo.');
+      // Check for 500 or notification error
+      if (error.message?.includes('500') || error.message?.includes('notification') || error.status === 500) {
+        alert('El servicio de notificaciones no está disponible por el momento, pero tu registro fue exitoso. Intenta ingresar más tarde.');
+      } else {
+        alert(error.message || 'Error al crear la cuenta. Por favor, intenta de nuevo.');
+      }
     } finally {
       setIsLoading(false);
     }

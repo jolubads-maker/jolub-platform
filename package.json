@@ -11,7 +11,7 @@
     "server": "tsx server/src/index.ts",
     "server:dev": "tsx watch server/src/index.ts",
     "dev:all": "concurrently \"npm:server:dev\" \"npm:dev\"",
-    "build": "vite build",
+    "build": "npm run build:server && vite build",
     "build:server": "tsc -p server/tsconfig.json",
     "preview": "vite preview",
     "db:generate": "prisma generate",
@@ -19,7 +19,7 @@
     "db:studio": "prisma studio",
     "db:seed": "tsx server/src/scripts/seed.ts",
     "db:migrate": "prisma migrate deploy",
-    "start": "prisma migrate deploy && tsx server/src/index.ts",
+    "start": "prisma migrate deploy && node dist-server/index.js",
     "start:dev": "tsx server/src/index.ts",
     "postinstall": "prisma generate",
     "deploy": "prisma migrate deploy && npm start"
