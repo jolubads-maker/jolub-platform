@@ -1,7 +1,7 @@
 ﻿import { Request, Response } from 'express';
 import prisma from '../database.js';
 
-import redis from '../config/redis.js';
+import redis, { isRedisEnabled } from '../config/redis.js';
 
 export const getAds = async (req: Request, res: Response) => {
     console.time('getAds Total');
@@ -13,8 +13,8 @@ export const getAds = async (req: Request, res: Response) => {
         const cacheKey = `ads:list:${queryParams}`;
 
         // 2. Check Redis Cache
-        // Skip Redis in development to avoid timeouts if connection is poor
-        if (process.env.NODE_ENV === 'production' && redis.status === 'ready') {
+        // Skip Redis if not available
+        if (isRedisEnabled && redis && redis.status === 'ready') {
             console.time('Redis Get');
             const cachedData = await redis.get(cacheKey);
             console.timeEnd('Redis Get');
@@ -93,7 +93,7 @@ export const getAds = async (req: Request, res: Response) => {
         }));
 
         // 3. Store in Redis Cache
-        if (process.env.NODE_ENV === 'production' && redis.status === 'ready') {
+        if (isRedisEnabled && redis && redis.status === 'ready') {
             console.time('Redis Set');
             await redis.setex(cacheKey, 60, JSON.stringify(formattedAds));
             console.timeEnd('Redis Set');

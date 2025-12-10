@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
-import redis from '../config/redis.js';
+import redis, { isRedisEnabled } from '../config/redis.js';
 import logger from '../utils/logger.js';
 
 const WINDOW_SIZE_IN_SECONDS = 60;
@@ -10,9 +10,8 @@ export const rateLimiter = async (req: Request, res: Response, next: NextFunctio
         const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
         const key = `rate_limit:${ip}`;
 
-        // Skip if Redis is not connected to avoid hanging
-        // In development, we can skip rate limiting or use memory (simple skip for now)
-        if (redis.status !== 'ready' || process.env.NODE_ENV !== 'production') {
+        // Skip if Redis is not available
+        if (!isRedisEnabled || !redis || redis.status !== 'ready') {
             return next();
         }
 
