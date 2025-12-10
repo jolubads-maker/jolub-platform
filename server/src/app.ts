@@ -70,6 +70,8 @@ const allowedOrigins = [
     'http://127.0.0.1:3000',
     'https://www.jolub.com',
     'https://jolub.com',
+    'https://www.jolubads.com',
+    'https://jolubads.com',
     'http://192.168.0.3:5173', // Explicitly allow LAN IP
     process.env.CLIENT_URL
 ].filter(Boolean);
