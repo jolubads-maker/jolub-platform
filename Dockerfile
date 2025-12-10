@@ -7,7 +7,7 @@ FROM node:20-alpine AS builder
 
 WORKDIR /app
 
-# Copy package files
+# Copy package files (only root package.json exists)
 COPY package*.json ./
 
 # Install ALL dependencies (including devDependencies for build)
