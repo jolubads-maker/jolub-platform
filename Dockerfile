@@ -7,17 +7,15 @@ FROM node:20-alpine AS builder
 
 WORKDIR /app
 
-# Copy package files (only root package.json exists)
+# Copy package files and Prisma schema FIRST (needed for postinstall)
 COPY package*.json ./
+COPY prisma ./prisma/
 
-# Install ALL dependencies (including devDependencies for build)
+# Install ALL dependencies (this will run prisma generate via postinstall)
 RUN npm ci
 
-# Copy source code
+# Copy rest of source code
 COPY . .
-
-# Generate Prisma Client
-RUN npx prisma generate
 
 # Build ONLY the server (TypeScript to JavaScript)
 RUN npm run build:server
@@ -27,19 +25,15 @@ FROM node:20-alpine
 
 WORKDIR /app
 
-# Copy package files
+# Copy package files and Prisma schema FIRST (needed for postinstall)
 COPY package*.json ./
+COPY prisma ./prisma/
 
-# Install production dependencies only
+# Install production dependencies only (this will run prisma generate via postinstall)
 RUN npm ci --omit=dev
 
 # Copy built server from builder
 COPY --from=builder /app/dist-server ./dist-server
-
-# Copy Prisma files and generate client
-COPY --from=builder /app/prisma ./prisma
-COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
-COPY --from=builder /app/node_modules/@prisma ./node_modules/@prisma
 
 # Environment variables
 ENV NODE_ENV=production
