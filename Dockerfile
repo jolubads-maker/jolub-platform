@@ -1,50 +1,45 @@
+# ============================================
+# JOLUB Platform - Backend Only Dockerfile
+# ============================================
+
 # Stage 1: Builder
 FROM node:20-alpine AS builder
 
 WORKDIR /app
 
-# Argumentos de construcción para el frontend (VITE_...)
-ARG VITE_API_URL
-ARG VITE_CLOUDINARY_CLOUD_NAME
-ARG VITE_CLOUDINARY_UPLOAD_PRESET
-
 # Copy package files
 COPY package*.json ./
-COPY server/package*.json ./server/
 
-# Install dependencies
+# Install ALL dependencies (including devDependencies for build)
 RUN npm ci
 
 # Copy source code
 COPY . .
 
-# Build Frontend
-# Las variables de entorno VITE_ deben estar disponibles aquí si se usan en el build
-RUN npm run build
+# Generate Prisma Client
+RUN npx prisma generate
+
+# Build ONLY the server (TypeScript to JavaScript)
+RUN npm run build:server
 
 # Stage 2: Production
 FROM node:20-alpine
 
 WORKDIR /app
 
-# Install production dependencies only
+# Copy package files
 COPY package*.json ./
-COPY server/package*.json ./server/
-RUN npm ci --only=production
 
-# Copy built assets from builder (Frontend)
-COPY --from=builder /app/dist ./dist
+# Install production dependencies only
+RUN npm ci --omit=dev
 
-# Copy server source code for tsx execution
-COPY --from=builder /app/server ./server
-COPY --from=builder /app/src ./src
-# Note: Copiamos src root también si hay dependencias compartidas, aunque parece que todo está en server/src
-# Por seguridad copiamos todo lo necesario. Si server/src es autocontenido, basta con server.
-# Revisando estructura: server/src/index.ts.
+# Copy built server from builder
+COPY --from=builder /app/dist-server ./dist-server
 
-# Generate Prisma Client
+# Copy Prisma files and generate client
 COPY --from=builder /app/prisma ./prisma
-RUN npx prisma generate
+COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
+COPY --from=builder /app/node_modules/@prisma ./node_modules/@prisma
 
 # Environment variables
 ENV NODE_ENV=production
@@ -53,5 +48,9 @@ ENV PORT=4000
 # Expose port
 EXPOSE 4000
 
-# Start command using tsx (Opción B)
-CMD ["npx", "tsx", "server/src/index.ts"]
+# Health check
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+  CMD wget --no-verbose --tries=1 --spider http://localhost:4000/api/health || exit 1
+
+# Start command
+CMD ["node", "dist-server/index.js"]
