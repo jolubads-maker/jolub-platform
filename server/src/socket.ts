@@ -8,7 +8,7 @@ interface SocketUser {
 }
 
 import { createAdapter } from '@socket.io/redis-adapter';
-import redis from './config/redis.js';
+import redis, { isRedisEnabled } from './config/redis.js';
 
 export const initSocket = (httpServer: HttpServer, allowedOrigins: string[]) => {
     const io = new Server(httpServer, {
@@ -16,6 +16,10 @@ export const initSocket = (httpServer: HttpServer, allowedOrigins: string[]) => 
             origin: (origin, callback) => {
                 if (!origin) return callback(null, true);
                 if (allowedOrigins.indexOf(origin) !== -1) {
+                    return callback(null, true);
+                }
+                // Allow Vercel preview deployments
+                if (origin.endsWith('.vercel.app')) {
                     return callback(null, true);
                 }
                 // Allow local network IPs in development
@@ -30,23 +34,22 @@ export const initSocket = (httpServer: HttpServer, allowedOrigins: string[]) => 
         }
     });
 
-    const pubClient = redis;
-    const subClient = redis.duplicate();
+    // Only use Redis adapter if Redis is available
+    if (isRedisEnabled && redis) {
+        const pubClient = redis;
+        const subClient = redis.duplicate();
 
-    // Prevent crash on Redis error
-    pubClient.on('error', (err: any) => {
-        console.error('❌ Redis Pub Client Error:', err);
-    });
-    subClient.on('error', (err: any) => {
-        console.error('❌ Redis Sub Client Error:', err);
-    });
+        pubClient.on('error', (err: any) => {
+            console.error('❌ Redis Pub Client Error:', err);
+        });
+        subClient.on('error', (err: any) => {
+            console.error('❌ Redis Sub Client Error:', err);
+        });
 
-    // Only use Redis adapter in production or if explicitly enabled
-    if (process.env.NODE_ENV === 'production') {
         io.adapter(createAdapter(pubClient, subClient));
         console.log('🔌 Socket.io usando Redis Adapter');
     } else {
-        console.log('⚠️ Socket.io corriendo en memoria (Modo Desarrollo)');
+        console.log('⚠️ Socket.io corriendo en memoria (Sin Redis)');
     }
 
     // Socket.io Security Middleware
