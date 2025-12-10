@@ -133,7 +133,7 @@ const AdForm: React.FC<AdFormProps> = ({ onCancel, onSubmit }) => {
     notify.success('Imagen principal actualizada');
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!category) { notify.error('Selecciona una categoría'); return; }
