@@ -7,7 +7,7 @@
   "rewrites": [
     {
       "source": "/api/(.*)",
-      "destination": "https://marketplace-backend-n0ua.onrender.com/api/$1"
+      "destination": "https://jolub-backend-pne5.onrender.com/api/$1"
     },
     {
       "source": "/(.*)",
