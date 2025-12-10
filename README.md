@@ -1,141 +1,144 @@
+# 🛍️ JOLUB Platform
 
-
-# 🛍️ Marketplace JOLUB
-
-Marketplace moderno con autenticación OAuth, chat directo entre usuarios, y gestión de anuncios.
+Marketplace moderno con autenticación OAuth, chat en tiempo real, y gestión de anuncios.
 
 🌐 **Demo en vivo**: https://www.jolub.com
 
 ## ✨ Características
 
-- 🔐 Autenticación 
-- 💬 Chat directo entre usuarios (solo cuando están en línea)
-- 📱 Gestión de anuncios con multimedia
-- 👥 Sistema de usuarios y perfiles
-- 📊 Dashboard de usuario con métricas
-- 🔔 Verificación de teléfono con Twilio
-- ⚡ Prisma Optimize para monitoreo de rendimiento
--
+- 🔐 **Autenticación completa** (Email/Password + Google OAuth)
+- 💬 **Chat en tiempo real** entre usuarios (Socket.io)
+- 📱 **Gestión de anuncios** con multimedia (Cloudflare R2)
+- 👥 **Sistema de usuarios** y perfiles
+- 📊 **Dashboard** de usuario con métricas
+- 🔔 **Verificación de teléfono** con Twilio
+- 📧 **Notificaciones** por email con Nodemailer
+- ⚡ **Prisma Optimize** para monitoreo de rendimiento
 
-## 🚀 Ejecutar Localmente
+## 🚀 Inicio Rápido (Desarrollo Local)
 
-**Prerequisitos:**  Node.js 18+
-
-### 1. Instalar dependencias
+### Opción 1: Usar el script automático
 ```bash
+# Windows
+dev-local.bat
+```
+
+### Opción 2: Comandos manuales
+
+**Prerequisitos:** Node.js 20+
+
+```bash
+# 1. Instalar dependencias
 npm install
-```
 
-### 2. Configurar Prisma Optimize (Recomendado)
+# 2. Configurar variables de entorno
+copy env.example .env
+# Edita .env con tus credenciales
 
-**Opción rápida:** Ejecuta el script automático
-```bash
-.\crear-env.ps1
-```
+# 3. Generar cliente Prisma
+npx prisma generate
 
-**O manualmente:** Crea un archivo `.env` en la raíz con tu API Key de Prisma Optimize:
-```env
-OPTIMIZE_API_KEY="tu_api_key_de_prisma_optimize"
-DATABASE_URL="file:./prisma/dev.db"
-```
-
-📚 Ver [`INSTRUCCIONES-RAPIDAS.md`](INSTRUCCIONES-RAPIDAS.md) para más detalles.
-
-### 2.1 Variables adicionales (Opcional)
-Puedes agregar al archivo `.env`:
-```env
-GEMINI_API_KEY=tu_api_key_aqui
-TWILIO_ACCOUNT_SID=tu_twilio_sid
-TWILIO_AUTH_TOKEN=tu_twilio_token
-TWILIO_PHONE_NUMBER=tu_numero_twilio
-```
-
-### 3. Inicializar la base de datos
-```bash
+# 4. Inicializar base de datos
 npm run db:push
-npm run db:seed
-```
+npm run db:seed  # (Opcional) Datos de prueba
 
-### 4. Ejecutar la aplicación
-```bash
+# 5. Ejecutar en desarrollo
 npm run dev:all
 ```
 
 La aplicación estará disponible en:
-- **Frontend**: http://localhost:3000
-- **Backend API**: http://localhost:4000
-
-## 📖 Guías de Configuración
-
-- **Google OAuth**: Ver [`CONFIGURACION-GOOGLE-OAUTH.md`](CONFIGURACION-GOOGLE-OAUTH.md)
-- **Apple Sign-In**: Ver [`README-OAUTH.md`](README-OAUTH.md)
-
-## 🎯 Características Principales
-
-### Autenticación
-- ✅ Google OAuth (Client ID ya configurado)
-- ✅ Modo Demo (sin necesidad de configuración)
-- ⏳ Apple Sign-In (requiere configuración adicional)
-
-### Chat Directo entre Usuarios
-- 💬 Comunicación en tiempo real entre comprador y vendedor
-- 🟢 Indicador de estado en línea
-- 🔒 Solo disponible cuando ambos usuarios están conectados
-- 📝 Historial de conversaciones guardado
-
-### Gestión de Anuncios
-- Crear, editar y eliminar anuncios
-- Subir imágenes y videos
-- Códigos únicos por anuncio
-- Sistema de vistas
-
-### Dashboard de Usuario
-- Ver tus anuncios publicados
-- Gestionar conversaciones
-- Verificar número de teléfono
-- Ver estadísticas
+- **Frontend**: http://localhost:5173
+- **Backend API**: http://localhost:3001
 
 ## 🛠️ Scripts Disponibles
 
-```bash
-npm run dev          # Solo frontend (Vite)
-npm run server       # Solo backend (Express)
-npm run dev:all      # Frontend + Backend simultáneamente
-npm run build        # Compilar para producción
-npm run db:generate  # Generar cliente Prisma
-npm run db:push      # Aplicar cambios al esquema
-npm run db:studio    # Abrir Prisma Studio
-npm run db:seed      # Poblar base de datos con datos demo
-```
+| Script | Descripción |
+|--------|-------------|
+| `npm run dev` | Solo frontend (Vite) |
+| `npm run server:dev` | Solo backend con hot-reload |
+| `npm run dev:all` | **Frontend + Backend simultáneamente** |
+| `npm run build` | Compilar para producción |
+| `npm run start` | Ejecutar en producción |
+| `npm run db:generate` | Generar cliente Prisma |
+| `npm run db:push` | Aplicar cambios al esquema |
+| `npm run db:studio` | Abrir Prisma Studio (GUI) |
+| `npm run db:seed` | Poblar base de datos con datos demo |
 
 ## 📁 Estructura del Proyecto
 
 ```
-marketplace-jolub/
+jolub-platform/
 ├── components/          # Componentes React
-│   ├── icons/          # Iconos SVG
-│   ├── AdCard.tsx      # Tarjeta de anuncio
-│   ├── ChatView.tsx    # Vista de chat
-│   ├── Dashboard.tsx   # Panel de usuario
-│   ├── HomePage.tsx    # Página principal
-│   ├── Register.tsx    # Página de registro
+│   ├── icons/           # Iconos SVG
+│   ├── AdCard.tsx       # Tarjeta de anuncio
+│   ├── ChatView.tsx     # Vista de chat
+│   ├── Dashboard.tsx    # Panel de usuario
 │   └── ...
-├── server/             # Backend Express
-│   ├── database.js     # Funciones de base de datos
-│   ├── index.js        # Servidor principal
-│   └── seed.js         # Datos de prueba
-├── services/           # Servicios
-│   ├── apiService.ts   # Cliente API
+├── server/              # Backend Express (TypeScript)
+│   └── src/
+│       ├── controllers/ # Controladores de rutas
+│       ├── middleware/  # Middlewares (auth, validation)
+│       ├── routes/      # Definición de rutas API
+│       ├── services/    # Servicios externos
+│       └── index.ts     # Entrada del servidor
+├── services/            # Servicios del frontend
+│   ├── apiService.ts    # Cliente API
 │   └── geminiService.ts # Integración Gemini AI
-├── config/             # Configuración
-│   └── oauth.ts        # Configuración OAuth
-├── prisma/             # Base de datos
-│   ├── schema.prisma   # Esquema de DB
-│   └── dev.db         # SQLite database
-└── ...
+├── prisma/              # Base de datos
+│   ├── schema.prisma    # Esquema de DB
+│   └── migrations/      # Migraciones
+├── docs/                # Documentación adicional
+└── dev-local.bat        # Script de desarrollo Windows
 ```
+
+## 🔧 Variables de Entorno
+
+Crea un archivo `.env` basado en `env.example`:
+
+```env
+# Base de datos
+DATABASE_URL="postgresql://user:password@localhost:5432/jolub"
+
+# JWT
+JWT_SECRET="tu_secreto_jwt"
+
+# Cloudflare R2 (Almacenamiento)
+R2_ACCOUNT_ID="tu_account_id"
+R2_ACCESS_KEY_ID="tu_access_key"
+R2_SECRET_ACCESS_KEY="tu_secret_key"
+R2_BUCKET_NAME="tu_bucket"
+R2_PUBLIC_DOMAIN="tu_dominio_publico"
+
+# Email (Nodemailer)
+EMAIL_USER="tu@email.com"
+EMAIL_PASS="tu_app_password"
+
+# Twilio (SMS)
+TWILIO_ACCOUNT_SID="tu_sid"
+TWILIO_AUTH_TOKEN="tu_token"
+TWILIO_PHONE_NUMBER="+1234567890"
+
+# Google OAuth
+GOOGLE_CLIENT_ID="tu_google_client_id"
+```
+
+## 📖 Documentación Adicional
+
+Ver la carpeta [`/docs`](./docs) para:
+- Configuración de OAuth (Google/Apple)
+- Sistema de autenticación
+- Sistema de chat
+- Configuración de Prisma Optimize
+- Guía de personalización UI
+
+## 🚀 Despliegue
+
+Este proyecto está configurado para desplegarse en **Vercel**:
+
+1. Conecta tu repositorio de GitHub a Vercel
+2. Configura las variables de entorno en Vercel Dashboard
+3. Deploy automático en cada push a `main`
 
 ## 📝 Licencia
 
-
-<!-- deployment trigger: 11/27/2025 09:11:35 -->
+MIT © JOLUB
