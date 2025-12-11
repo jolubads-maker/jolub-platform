@@ -3,9 +3,12 @@
 # ============================================
 
 # Stage 1: Builder
-FROM node:20-alpine AS builder
+FROM node:20-slim AS builder
 
 WORKDIR /app
+
+# Install OpenSSL (required by Prisma)
+RUN apt-get update -y && apt-get install -y openssl && rm -rf /var/lib/apt/lists/*
 
 # Copy package files and Prisma schema FIRST (needed for postinstall)
 COPY package*.json ./
@@ -21,9 +24,12 @@ COPY . .
 RUN npm run build:server
 
 # Stage 2: Production
-FROM node:20-alpine
+FROM node:20-slim
 
 WORKDIR /app
+
+# Install OpenSSL (required by Prisma)
+RUN apt-get update -y && apt-get install -y openssl wget && rm -rf /var/lib/apt/lists/*
 
 # Copy package files and Prisma schema FIRST (needed for postinstall)
 COPY package*.json ./
