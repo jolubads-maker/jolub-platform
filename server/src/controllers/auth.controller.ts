@@ -34,16 +34,22 @@ try {
     logger.error('Failed to initialize Twilio client:', error);
 }
 
-// Nodemailer setup with Gmail
+// Nodemailer setup with Gmail SMTP
 const emailTransporter = nodemailer.createTransport({
-    service: 'gmail',
+    host: 'smtp.gmail.com',
+    port: 587,
+    secure: false, // true for 465, false for 587
     auth: {
         user: process.env.EMAIL_USER,
         pass: process.env.EMAIL_PASS
     },
     tls: {
+        ciphers: 'SSLv3',
         rejectUnauthorized: false
-    }
+    },
+    connectionTimeout: 10000,
+    greetingTimeout: 10000,
+    socketTimeout: 10000
 });
 
 interface SyncUserBody {
