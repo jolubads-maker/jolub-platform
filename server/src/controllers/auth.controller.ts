@@ -84,33 +84,29 @@ const initializeEmailTransporter = async () => {
     const configs = [config1, config2, config3];
     const configNames = ['Gmail Service', 'SMTP 587', 'SMTP 465'];
 
-    for (let i = 0; i < configs.length; i++) {
-        try {
-            console.log(`📧 [EMAIL] Trying config ${i + 1}: ${configNames[i]}...`);
-            const transporter = nodemailer.createTransport(configs[i] as any);
-
-            // Verify connection
-            await transporter.verify();
-            console.log(`✅ [EMAIL] Success with: ${configNames[i]}`);
-            return transporter;
-        } catch (error: any) {
-            console.log(`❌ [EMAIL] Config ${configNames[i]} failed: ${error.message}`);
+    // Just create the transporter without verify (verify times out on Render)
+    // The actual error will appear when trying to send
+    console.log('📧 [EMAIL] Creating transporter with Gmail service...');
+    const transporter = nodemailer.createTransport({
+        service: 'gmail',
+        auth: {
+            user: process.env.EMAIL_USER,
+            pass: process.env.EMAIL_PASS
         }
-    }
-
-    console.log('❌ [EMAIL] All configurations failed');
-    return null;
+    });
+    console.log('✅ [EMAIL] Transporter created (will test on first send)');
+    return transporter;
 };
 
 // Initialize email transporter on startup
-initializeEmailTransporter().then(transporter => {
-    emailTransporter = transporter;
-    if (transporter) {
-        logger.info('Email service ready');
-    } else {
-        logger.warn('Email service not available - sending emails will fail');
+emailTransporter = nodemailer.createTransport({
+    service: 'gmail',
+    auth: {
+        user: process.env.EMAIL_USER,
+        pass: process.env.EMAIL_PASS
     }
 });
+console.log('📧 [EMAIL] Email transporter initialized');
 
 interface SyncUserBody {
     name: string;
