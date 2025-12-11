@@ -38,8 +38,12 @@ try {
 let emailTransporter: nodemailer.Transporter | null = null;
 
 const initializeEmailTransporter = async () => {
+    console.log('📧 [EMAIL] Initializing email transporter...');
+    console.log('📧 [EMAIL] EMAIL_USER:', process.env.EMAIL_USER ? `${process.env.EMAIL_USER.substring(0, 5)}...` : 'NOT SET');
+    console.log('📧 [EMAIL] EMAIL_PASS:', process.env.EMAIL_PASS ? 'SET (hidden)' : 'NOT SET');
+
     if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
-        logger.warn('EMAIL_USER or EMAIL_PASS not configured');
+        console.log('❌ [EMAIL] EMAIL_USER or EMAIL_PASS not configured');
         return null;
     }
 
@@ -82,19 +86,19 @@ const initializeEmailTransporter = async () => {
 
     for (let i = 0; i < configs.length; i++) {
         try {
-            logger.info(`Trying email config ${i + 1}: ${configNames[i]}...`);
+            console.log(`📧 [EMAIL] Trying config ${i + 1}: ${configNames[i]}...`);
             const transporter = nodemailer.createTransport(configs[i] as any);
 
             // Verify connection
             await transporter.verify();
-            logger.info(`✅ Email transporter initialized successfully with: ${configNames[i]}`);
+            console.log(`✅ [EMAIL] Success with: ${configNames[i]}`);
             return transporter;
         } catch (error: any) {
-            logger.error(`❌ Config ${configNames[i]} failed: ${error.message}`);
+            console.log(`❌ [EMAIL] Config ${configNames[i]} failed: ${error.message}`);
         }
     }
 
-    logger.error('All email configurations failed');
+    console.log('❌ [EMAIL] All configurations failed');
     return null;
 };
 
