@@ -1,7 +1,7 @@
 import { Request, Response } from 'express';
 import prisma from '../database.js';
 import crypto from 'crypto';
-import nodemailer from 'nodemailer';
+import sgMail from '@sendgrid/mail';
 import twilio from 'twilio';
 import bcrypt from 'bcryptjs';
 import logger from '../utils/logger.js';
@@ -34,79 +34,15 @@ try {
     logger.error('Failed to initialize Twilio client:', error);
 }
 
-// Nodemailer setup with Gmail - Multiple configuration attempts
-let emailTransporter: nodemailer.Transporter | null = null;
-
-const initializeEmailTransporter = async () => {
-    console.log('📧 [EMAIL] Initializing email transporter...');
-    console.log('📧 [EMAIL] EMAIL_USER:', process.env.EMAIL_USER ? `${process.env.EMAIL_USER.substring(0, 5)}...` : 'NOT SET');
-    console.log('📧 [EMAIL] EMAIL_PASS:', process.env.EMAIL_PASS ? 'SET (hidden)' : 'NOT SET');
-
-    if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
-        console.log('❌ [EMAIL] EMAIL_USER or EMAIL_PASS not configured');
-        return null;
-    }
-
-    // Configuration 1: Gmail service (simplest)
-    const config1 = {
-        service: 'gmail',
-        auth: {
-            user: process.env.EMAIL_USER,
-            pass: process.env.EMAIL_PASS
-        }
-    };
-
-    // Configuration 2: Direct SMTP with port 587
-    const config2 = {
-        host: 'smtp.gmail.com',
-        port: 587,
-        secure: false,
-        auth: {
-            user: process.env.EMAIL_USER,
-            pass: process.env.EMAIL_PASS
-        },
-        tls: {
-            rejectUnauthorized: false
-        }
-    };
-
-    // Configuration 3: Direct SMTP with port 465
-    const config3 = {
-        host: 'smtp.gmail.com',
-        port: 465,
-        secure: true,
-        auth: {
-            user: process.env.EMAIL_USER,
-            pass: process.env.EMAIL_PASS
-        }
-    };
-
-    const configs = [config1, config2, config3];
-    const configNames = ['Gmail Service', 'SMTP 587', 'SMTP 465'];
-
-    // Just create the transporter without verify (verify times out on Render)
-    // The actual error will appear when trying to send
-    console.log('📧 [EMAIL] Creating transporter with Gmail service...');
-    const transporter = nodemailer.createTransport({
-        service: 'gmail',
-        auth: {
-            user: process.env.EMAIL_USER,
-            pass: process.env.EMAIL_PASS
-        }
-    });
-    console.log('✅ [EMAIL] Transporter created (will test on first send)');
-    return transporter;
-};
-
-// Initialize email transporter on startup
-emailTransporter = nodemailer.createTransport({
-    service: 'gmail',
-    auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASS
-    }
-});
-console.log('📧 [EMAIL] Email transporter initialized');
+// SendGrid setup (uses HTTP API, works on Render free tier)
+let sendGridEnabled = false;
+if (process.env.SENDGRID_API_KEY) {
+    sgMail.setApiKey(process.env.SENDGRID_API_KEY);
+    sendGridEnabled = true;
+    console.log('✅ [EMAIL] SendGrid initialized');
+} else {
+    console.log('⚠️ [EMAIL] SENDGRID_API_KEY not configured - email sending will fail');
+}
 
 interface SyncUserBody {
     name: string;
@@ -435,8 +371,8 @@ export const sendEmailCode = async (req: Request, res: Response) => {
             }
         });
 
-        if (!emailTransporter) {
-            logger.error('Email transporter not available. Check EMAIL_USER and EMAIL_PASS.');
+        if (!sendGridEnabled) {
+            logger.error('SendGrid not configured. Check SENDGRID_API_KEY.');
             return res.status(500).json({ error: 'Servicio de correo no configurado en el servidor.' });
         }
 
@@ -451,16 +387,17 @@ export const sendEmailCode = async (req: Request, res: Response) => {
       </div>
     `;
 
-        await emailTransporter.sendMail({
-            from: `"JOLUB Marketplace" <${process.env.EMAIL_USER}>`,
+        await sgMail.send({
             to: email,
+            from: process.env.SENDGRID_FROM_EMAIL || 'jolubads@gmail.com',
             subject: 'Tu código de verificación - JOLUB',
             html: htmlContent
         });
 
-        logger.info(`Email sent successfully to ${email}`);
+        console.log(`✅ [EMAIL] Code sent to ${email}`);
         res.json({ ok: true, message: `Código enviado por correo a ${email}` });
     } catch (err: any) {
+        console.log(`❌ [EMAIL] Error sending email: ${err.message}`);
         logger.error(`Error sending email: ${err}`);
         res.status(500).json({ error: err.message || 'Error enviando email' });
     }
@@ -583,14 +520,14 @@ export const forgotPassword = async (req: Request, res: Response) => {
 
         const resetLink = `https://www.jolubads.com/reset-password?token=${token}`;
 
-        if (!emailTransporter) {
-            logger.error('Email transporter not available.');
+        if (!sendGridEnabled) {
+            logger.error('SendGrid not configured.');
             return res.status(500).json({ error: 'Servicio de correo no configurado en el servidor.' });
         }
 
-        await emailTransporter.sendMail({
-            from: `"JOLUB Marketplace" <${process.env.EMAIL_USER}>`,
+        await sgMail.send({
             to: email,
+            from: process.env.SENDGRID_FROM_EMAIL || 'jolubads@gmail.com',
             subject: 'Restablecer Contraseña - JOLUB',
             html: `
                 <div style="font-family: sans-serif; padding: 20px; background: linear-gradient(135deg, #6e0ad6 0%, #4a0890 100%); border-radius: 16px; max-width: 400px; margin: 0 auto;">
