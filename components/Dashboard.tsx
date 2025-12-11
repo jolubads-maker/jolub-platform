@@ -241,7 +241,7 @@ const Dashboard: React.FC = () => {
             currentUser={currentUser}
             onSelectAd={setSelectedAd}
             onHighlightAd={handleHighlight}
-            onVerifyPhone={() => setShowPhoneVerifyModal(true)}
+            onVerifyEmail={() => setShowEmailVerifyModal(true)}
           />
 
           {/* 5. MIS CHATS */}

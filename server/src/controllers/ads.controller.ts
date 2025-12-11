@@ -132,9 +132,9 @@ export const createAd = async (req: Request, res: Response) => {
         if (!seller) {
             return res.status(404).json({ error: 'Vendedor no encontrado' });
         }
-        // Aceptar email verificado O teléfono verificado
-        if (!seller.emailVerified && !seller.phoneVerified) {
-            return res.status(403).json({ error: 'Debes verificar tu email o teléfono para publicar anuncios' });
+        // Solo requerir email verificado
+        if (!seller.emailVerified) {
+            return res.status(403).json({ error: 'Debes verificar tu email para publicar anuncios' });
         }
 
         const uniqueCode = `AD-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;

@@ -29,10 +29,13 @@ const EmailVerificationModal: React.FC<EmailVerificationModalProps> = ({ current
         setLoading(true);
 
         try {
-            const res = await fetch('/api/send-email-code', {
+            const { getApiUrl } = await import('../config/api.config');
+            const apiUrl = getApiUrl();
+            const res = await fetch(`${apiUrl}/send-email-code`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ email })
+                body: JSON.stringify({ email }),
+                credentials: 'include'
             });
 
             const data = await res.json();
@@ -45,6 +48,7 @@ const EmailVerificationModal: React.FC<EmailVerificationModalProps> = ({ current
             setSuccess(`Código enviado por correo a ${email}`);
             setStep('enterCode');
         } catch (err: any) {
+            console.error('Error enviando código:', err);
             setError('Error de conexión. Verifica tu internet.');
         } finally {
             setLoading(false);
@@ -63,10 +67,13 @@ const EmailVerificationModal: React.FC<EmailVerificationModalProps> = ({ current
 
         try {
             setLoading(true);
-            const res = await fetch('/api/verify-email-code', {
+            const { getApiUrl } = await import('../config/api.config');
+            const apiUrl = getApiUrl();
+            const res = await fetch(`${apiUrl}/verify-email-code`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ email, code })
+                body: JSON.stringify({ email, code }),
+                credentials: 'include'
             });
 
             const data = await res.json();
@@ -76,13 +83,14 @@ const EmailVerificationModal: React.FC<EmailVerificationModalProps> = ({ current
                 return;
             }
 
-            setSuccess('¡Correo verificado! Ya puedes chatear con el vendedor');
+            setSuccess('¡Correo verificado! Ya puedes publicar anuncios');
             setTimeout(() => {
                 onEmailVerified();
                 onClose();
             }, 2000);
 
         } catch (err: any) {
+            console.error('Error verificando código:', err);
             setError('Error de conexión. Verifica tu internet.');
         } finally {
             setLoading(false);
