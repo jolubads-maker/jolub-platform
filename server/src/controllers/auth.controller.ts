@@ -515,24 +515,34 @@ export const forgotPassword = async (req: Request, res: Response) => {
             }
         });
 
-        const resetLink = `http://localhost:5173/reset-password?token=${token}`;
+        const resetLink = `https://www.jolubads.com/reset-password?token=${token}`;
 
-        if (!process.env.EMAIL_USER) {
-            logger.error('Email credentials not configured. Check EMAIL_USER.');
+        if (!resend) {
+            logger.error('Resend not configured. Check RESEND_API_KEY.');
             return res.status(500).json({ error: 'Servicio de correo no configurado en el servidor.' });
         }
 
-        await emailTransporter.sendMail({
-            from: `"JOLUB Marketplace" <${process.env.EMAIL_USER}>`,
-            to: email,
+        const { error } = await resend.emails.send({
+            from: 'JOLUB <onboarding@resend.dev>',
+            to: [email],
             subject: 'Restablecer Contraseña - JOLUB',
             html: `
-                <h1>Restablecer Contraseña</h1>
-                <p>Haz clic en el siguiente enlace para restablecer tu contraseña:</p>
-                <a href="${resetLink}">${resetLink}</a>
-                <p>Este enlace expira en 15 minutos.</p>
+                <div style="font-family: sans-serif; padding: 20px; background: linear-gradient(135deg, #6e0ad6 0%, #4a0890 100%); border-radius: 16px; max-width: 400px; margin: 0 auto;">
+                    <h1 style="color: white; text-align: center; margin-bottom: 20px;">JOLUB</h1>
+                    <div style="background: white; border-radius: 12px; padding: 30px; text-align: center;">
+                        <h2 style="color: #333;">Restablecer Contraseña</h2>
+                        <p style="color: #666;">Haz clic en el siguiente enlace para restablecer tu contraseña:</p>
+                        <a href="${resetLink}" style="display: inline-block; background: #6e0ad6; color: white; padding: 12px 24px; border-radius: 8px; text-decoration: none; margin: 20px 0;">Restablecer Contraseña</a>
+                        <p style="color: #999; font-size: 12px;">Este enlace expira en 15 minutos.</p>
+                    </div>
+                </div>
             `
         });
+
+        if (error) {
+            logger.error(`Error sending password reset email: ${JSON.stringify(error)}`);
+            return res.status(500).json({ error: 'Error enviando correo' });
+        }
 
         res.json({ ok: true, message: 'Correo enviado' });
     } catch (err) {
