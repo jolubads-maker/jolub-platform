@@ -1,7 +1,7 @@
 import { Request, Response } from 'express';
 import prisma from '../database.js';
 import crypto from 'crypto';
-import nodemailer from 'nodemailer';
+import { Resend } from 'resend';
 import twilio from 'twilio';
 import bcrypt from 'bcryptjs';
 import logger from '../utils/logger.js';
@@ -34,23 +34,8 @@ try {
     logger.error('Failed to initialize Twilio client:', error);
 }
 
-// Nodemailer setup with Gmail SMTP
-const emailTransporter = nodemailer.createTransport({
-    host: 'smtp.gmail.com',
-    port: 587,
-    secure: false, // true for 465, false for 587
-    auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASS
-    },
-    tls: {
-        ciphers: 'SSLv3',
-        rejectUnauthorized: false
-    },
-    connectionTimeout: 10000,
-    greetingTimeout: 10000,
-    socketTimeout: 10000
-});
+// Resend setup (API-based email service - works on any cloud server)
+const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
 
 interface SyncUserBody {
     name: string;
@@ -379,26 +364,35 @@ export const sendEmailCode = async (req: Request, res: Response) => {
             }
         });
 
-        if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
-            logger.error('Email credentials not configured. Check EMAIL_USER and EMAIL_PASS.');
+        if (!resend) {
+            logger.error('Resend not configured. Check RESEND_API_KEY.');
             return res.status(500).json({ error: 'Servicio de correo no configurado en el servidor.' });
         }
 
         const htmlContent = `
-      <div style="font-family: sans-serif; padding: 20px;">
-        <h1>JOLUB</h1>
-        <p>Tu código de verificación es:</p>
-        <h2>${code}</h2>
+      <div style="font-family: sans-serif; padding: 20px; background: linear-gradient(135deg, #6e0ad6 0%, #4a0890 100%); border-radius: 16px; max-width: 400px; margin: 0 auto;">
+        <h1 style="color: white; text-align: center; margin-bottom: 20px;">JOLUB</h1>
+        <div style="background: white; border-radius: 12px; padding: 30px; text-align: center;">
+          <p style="color: #333; font-size: 16px; margin-bottom: 10px;">Tu código de verificación es:</p>
+          <h2 style="color: #6e0ad6; font-size: 36px; letter-spacing: 8px; margin: 20px 0;">${code}</h2>
+          <p style="color: #666; font-size: 14px;">Este código expira en 5 minutos.</p>
+        </div>
       </div>
     `;
 
-        await emailTransporter.sendMail({
-            from: `"JOLUB Marketplace" <${process.env.EMAIL_USER}>`,
-            to: email,
+        const { data, error } = await resend.emails.send({
+            from: 'JOLUB <onboarding@resend.dev>',
+            to: [email],
             subject: 'Tu código de verificación - JOLUB',
             html: htmlContent
         });
 
+        if (error) {
+            logger.error(`Error sending email with Resend: ${JSON.stringify(error)}`);
+            return res.status(500).json({ error: 'Error enviando email' });
+        }
+
+        logger.info(`Email sent successfully to ${email}. ID: ${data?.id}`);
         res.json({ ok: true, message: `Código enviado por correo a ${email}` });
     } catch (err: any) {
         logger.error(`Error sending email: ${err}`);
