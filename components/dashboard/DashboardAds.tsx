@@ -46,7 +46,7 @@ const DashboardAds: React.FC<DashboardAdsProps> = ({
                     <span className="w-3 h-8 bg-[#6e0ad6] rounded-full shadow-[0_0_15px_rgba(110,10,214,0.5)]" />
                     Mis Publicaciones
                 </h3>
-                {currentUser.phoneVerified && userAds.length > 0 && (
+                {(currentUser.emailVerified || currentUser.phoneVerified) && userAds.length > 0 && (
                     <button
                         onClick={() => navigate('/publicar')}
                         className="bg-[#ea580c] hover:bg-[#d9520b] text-white text-sm font-bold px-4 py-2 rounded-xl transition-colors shadow-md flex items-center gap-2"
@@ -93,7 +93,7 @@ const DashboardAds: React.FC<DashboardAdsProps> = ({
                         ))
                     ) : (
                         <div className="w-full h-full flex flex-col items-center justify-center text-gray-400 opacity-80 min-h-[300px]">
-                            {!currentUser.phoneVerified ? (
+                            {!currentUser.emailVerified && !currentUser.phoneVerified ? (
                                 <motion.div
                                     onClick={onVerifyPhone}
                                     className="w-full cursor-pointer flex flex-col items-center gap-4 group py-10"
@@ -104,8 +104,8 @@ const DashboardAds: React.FC<DashboardAdsProps> = ({
                                         </svg>
                                     </div>
                                     <div className="text-center">
-                                        <span className="text-xl font-bold text-black block mb-1">Verifica tu teléfono</span>
-                                        <span className="text-sm text-black font-medium">Para publicar anuncios</span>
+                                        <span className="text-xl font-bold text-black block mb-1">Verifica tu cuenta</span>
+                                        <span className="text-sm text-black font-medium">Verifica tu email o teléfono para publicar</span>
                                     </div>
                                 </motion.div>
                             ) : (
