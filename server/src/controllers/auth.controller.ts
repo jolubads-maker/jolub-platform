@@ -1,7 +1,7 @@
 import { Request, Response } from 'express';
 import prisma from '../database.js';
 import crypto from 'crypto';
-import { Resend } from 'resend';
+import nodemailer from 'nodemailer';
 import twilio from 'twilio';
 import bcrypt from 'bcryptjs';
 import logger from '../utils/logger.js';
@@ -34,8 +34,79 @@ try {
     logger.error('Failed to initialize Twilio client:', error);
 }
 
-// Resend setup (API-based email service - works on any cloud server)
-const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
+// Nodemailer setup with Gmail - Multiple configuration attempts
+let emailTransporter: nodemailer.Transporter | null = null;
+
+const initializeEmailTransporter = async () => {
+    if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
+        logger.warn('EMAIL_USER or EMAIL_PASS not configured');
+        return null;
+    }
+
+    // Configuration 1: Gmail service (simplest)
+    const config1 = {
+        service: 'gmail',
+        auth: {
+            user: process.env.EMAIL_USER,
+            pass: process.env.EMAIL_PASS
+        }
+    };
+
+    // Configuration 2: Direct SMTP with port 587
+    const config2 = {
+        host: 'smtp.gmail.com',
+        port: 587,
+        secure: false,
+        auth: {
+            user: process.env.EMAIL_USER,
+            pass: process.env.EMAIL_PASS
+        },
+        tls: {
+            rejectUnauthorized: false
+        }
+    };
+
+    // Configuration 3: Direct SMTP with port 465
+    const config3 = {
+        host: 'smtp.gmail.com',
+        port: 465,
+        secure: true,
+        auth: {
+            user: process.env.EMAIL_USER,
+            pass: process.env.EMAIL_PASS
+        }
+    };
+
+    const configs = [config1, config2, config3];
+    const configNames = ['Gmail Service', 'SMTP 587', 'SMTP 465'];
+
+    for (let i = 0; i < configs.length; i++) {
+        try {
+            logger.info(`Trying email config ${i + 1}: ${configNames[i]}...`);
+            const transporter = nodemailer.createTransport(configs[i] as any);
+
+            // Verify connection
+            await transporter.verify();
+            logger.info(`✅ Email transporter initialized successfully with: ${configNames[i]}`);
+            return transporter;
+        } catch (error: any) {
+            logger.error(`❌ Config ${configNames[i]} failed: ${error.message}`);
+        }
+    }
+
+    logger.error('All email configurations failed');
+    return null;
+};
+
+// Initialize email transporter on startup
+initializeEmailTransporter().then(transporter => {
+    emailTransporter = transporter;
+    if (transporter) {
+        logger.info('Email service ready');
+    } else {
+        logger.warn('Email service not available - sending emails will fail');
+    }
+});
 
 interface SyncUserBody {
     name: string;
@@ -364,8 +435,8 @@ export const sendEmailCode = async (req: Request, res: Response) => {
             }
         });
 
-        if (!resend) {
-            logger.error('Resend not configured. Check RESEND_API_KEY.');
+        if (!emailTransporter) {
+            logger.error('Email transporter not available. Check EMAIL_USER and EMAIL_PASS.');
             return res.status(500).json({ error: 'Servicio de correo no configurado en el servidor.' });
         }
 
@@ -380,19 +451,14 @@ export const sendEmailCode = async (req: Request, res: Response) => {
       </div>
     `;
 
-        const { data, error } = await resend.emails.send({
-            from: 'JOLUB <onboarding@resend.dev>',
-            to: [email],
+        await emailTransporter.sendMail({
+            from: `"JOLUB Marketplace" <${process.env.EMAIL_USER}>`,
+            to: email,
             subject: 'Tu código de verificación - JOLUB',
             html: htmlContent
         });
 
-        if (error) {
-            logger.error(`Error sending email with Resend: ${JSON.stringify(error)}`);
-            return res.status(500).json({ error: 'Error enviando email' });
-        }
-
-        logger.info(`Email sent successfully to ${email}. ID: ${data?.id}`);
+        logger.info(`Email sent successfully to ${email}`);
         res.json({ ok: true, message: `Código enviado por correo a ${email}` });
     } catch (err: any) {
         logger.error(`Error sending email: ${err}`);
@@ -517,14 +583,14 @@ export const forgotPassword = async (req: Request, res: Response) => {
 
         const resetLink = `https://www.jolubads.com/reset-password?token=${token}`;
 
-        if (!resend) {
-            logger.error('Resend not configured. Check RESEND_API_KEY.');
+        if (!emailTransporter) {
+            logger.error('Email transporter not available.');
             return res.status(500).json({ error: 'Servicio de correo no configurado en el servidor.' });
         }
 
-        const { error } = await resend.emails.send({
-            from: 'JOLUB <onboarding@resend.dev>',
-            to: [email],
+        await emailTransporter.sendMail({
+            from: `"JOLUB Marketplace" <${process.env.EMAIL_USER}>`,
+            to: email,
             subject: 'Restablecer Contraseña - JOLUB',
             html: `
                 <div style="font-family: sans-serif; padding: 20px; background: linear-gradient(135deg, #6e0ad6 0%, #4a0890 100%); border-radius: 16px; max-width: 400px; margin: 0 auto;">
@@ -538,11 +604,6 @@ export const forgotPassword = async (req: Request, res: Response) => {
                 </div>
             `
         });
-
-        if (error) {
-            logger.error(`Error sending password reset email: ${JSON.stringify(error)}`);
-            return res.status(500).json({ error: 'Error enviando correo' });
-        }
 
         res.json({ ok: true, message: 'Correo enviado' });
     } catch (err) {
