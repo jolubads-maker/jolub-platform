@@ -1,7 +1,7 @@
 // Configuración de API para diferentes entornos
 export const API_CONFIG = {
   // URL del backend en producción
-  PRODUCTION_API_URL: 'https://jolubads.onrender.com/api',
+  PRODUCTION_API_URL: 'https://jolub-backend-pne5.onrender.com/api',
   // URL del backend en desarrollo
   DEV_API_URL: 'http://localhost:4000/api'
 };
