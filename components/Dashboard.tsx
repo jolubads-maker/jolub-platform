@@ -18,6 +18,7 @@ import DashboardChats from './dashboard/DashboardChats';
 import DashboardAds from './dashboard/DashboardAds';
 import ChatView from './ChatView';
 import { getAdLimitForPlan } from './PricingPage';
+import { usePayment } from '../hooks/usePayment';
 
 const Dashboard: React.FC = () => {
   const navigate = useNavigate();
@@ -36,7 +37,19 @@ const Dashboard: React.FC = () => {
   // Highlight Ad State
   const [highlightAd, setHighlightAd] = useState<Ad | null>(null);
   const [highlightDuration, setHighlightDuration] = useState('1');
-  const [highlightTermsAccepted, setHighlightTermsAccepted] = useState(false);
+
+  // Payment Hook
+  const {
+    isProcessing: isPaymentProcessing,
+    termsAccepted: highlightTermsAccepted,
+    setTermsAccepted: setHighlightTermsAccepted,
+    createPayPalOrder,
+    handlePayPalApprove,
+  } = usePayment({
+    ad: highlightAd,
+    duration: highlightDuration,
+    onSuccess: () => setHighlightAd(null),
+  });
 
   // Email Verification Modal State
   const [showEmailVerifyModal, setShowEmailVerifyModal] = useState(false);
@@ -242,8 +255,8 @@ const Dashboard: React.FC = () => {
                 <div className="flex items-center justify-between mb-4">
                   <div className="flex items-center gap-3">
                     <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${userPlan === 'free' ? 'bg-gray-100' :
-                        userPlan === 'basic' ? 'bg-blue-100' :
-                          userPlan === 'pro' ? 'bg-purple-100' : 'bg-amber-100'
+                      userPlan === 'basic' ? 'bg-blue-100' :
+                        userPlan === 'pro' ? 'bg-purple-100' : 'bg-amber-100'
                       }`}>
                       <span className="text-xl">
                         {userPlan === 'free' ? '🆓' :
@@ -280,8 +293,8 @@ const Dashboard: React.FC = () => {
                       animate={{ width: `${progressPercent}%` }}
                       transition={{ duration: 0.8, ease: "easeOut" }}
                       className={`h-full rounded-full ${isFull ? 'bg-gradient-to-r from-red-500 to-red-600' :
-                          isAlmostFull ? 'bg-gradient-to-r from-orange-400 to-orange-500' :
-                            'bg-gradient-to-r from-purple-500 to-pink-500'
+                        isAlmostFull ? 'bg-gradient-to-r from-orange-400 to-orange-500' :
+                          'bg-gradient-to-r from-purple-500 to-pink-500'
                         }`}
                     />
                   </div>
@@ -485,36 +498,9 @@ const Dashboard: React.FC = () => {
                     <PayPalScriptProvider options={{ clientId: import.meta.env.VITE_PAYPAL_CLIENT_ID || "test" }}>
                       <PayPalButtons
                         style={{ layout: "vertical" }}
-                        disabled={!highlightTermsAccepted}
-                        createOrder={(data, actions) => {
-                          let value = "2.00";
-                          if (highlightDuration === "3") value = "5.00";
-                          if (highlightDuration === "7") value = "8.00";
-                          if (highlightDuration === "15") value = "12.00";
-                          if (highlightDuration === "30") value = "15.00";
-
-                          return actions.order.create({
-                            intent: "CAPTURE",
-                            purchase_units: [
-                              {
-                                amount: {
-                                  currency_code: "USD",
-                                  value: value,
-                                },
-                                description: `Destacar anuncio ${highlightAd.title} por ${highlightDuration} días`,
-                              },
-                            ],
-                          });
-                        }}
-                        onApprove={async (data, actions) => {
-                          if (actions.order) {
-                            const details = await actions.order.capture();
-                            // Aquí llamarías a tu backend para confirmar el pago y destacar el anuncio
-                            console.log("Pago completado:", details);
-                            alert("¡Pago exitoso! Tu anuncio ha sido destacado.");
-                            setHighlightAd(null);
-                          }
-                        }}
+                        disabled={!highlightTermsAccepted || isPaymentProcessing}
+                        createOrder={(data, actions) => createPayPalOrder(actions)}
+                        onApprove={(data, actions) => handlePayPalApprove(data, actions)}
                       />
                     </PayPalScriptProvider>
                     <button

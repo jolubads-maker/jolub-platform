@@ -1,0 +1,173 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // ============================================
+    // FUNCIONES AUXILIARES
+    // ============================================
+    
+    // Verifica si el usuario está autenticado
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    // Verifica si el usuario es el dueño del recurso
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+    
+    // Verifica si el usuario es participante del chat
+    function isParticipant() {
+      return isAuthenticated() && 
+             request.auth.uid in resource.data.participantIds;
+    }
+    
+    // Verifica si el usuario será participante (para crear chats)
+    function willBeParticipant() {
+      return isAuthenticated() && 
+             request.auth.uid in request.resource.data.participantIds;
+    }
+    
+    // ============================================
+    // USUARIOS (users)
+    // ============================================
+    
+    match /users/{userId} {
+      // Cualquiera puede leer perfiles de usuario
+      allow read: if true;
+      
+      // Solo el propio usuario puede crear/editar su perfil
+      allow create: if isOwner(userId);
+      allow update: if isOwner(userId);
+      
+      // Solo el propio usuario puede eliminar su perfil
+      allow delete: if isOwner(userId);
+    }
+    
+    // ============================================
+    // ANUNCIOS (ads)
+    // ============================================
+    
+    match /ads/{adId} {
+      // Cualquiera puede leer anuncios
+      allow read: if true;
+      
+      // Solo usuarios autenticados pueden crear anuncios
+      // Validaciones de datos:
+      // - title debe ser string no vacío
+      // - price debe ser número >= 0
+      // - category debe ser string no vacío
+      // - sellerId debe coincidir con el usuario autenticado
+      allow create: if isAuthenticated() 
+                    && request.resource.data.sellerId == request.auth.uid
+                    && request.resource.data.title is string
+                    && request.resource.data.title.size() > 0
+                    && request.resource.data.price is number
+                    && request.resource.data.price >= 0
+                    && request.resource.data.category is string
+                    && request.resource.data.category.size() > 0;
+      
+      // Solo el dueño del anuncio puede editar
+      // El sellerId no puede ser modificado
+      allow update: if isAuthenticated()
+                    && resource.data.sellerId == request.auth.uid
+                    && request.resource.data.sellerId == resource.data.sellerId
+                    && request.resource.data.price is number
+                    && request.resource.data.price >= 0;
+      
+      // Solo el dueño del anuncio puede eliminar
+      allow delete: if isAuthenticated()
+                    && resource.data.sellerId == request.auth.uid;
+    }
+    
+    // ============================================
+    // CHATS (chats)
+    // ============================================
+    
+    match /chats/{chatId} {
+      // Solo participantes pueden leer el chat
+      allow read: if isParticipant();
+      
+      // Solo usuarios autenticados pueden crear chats
+      // El creador debe ser uno de los participantes
+      allow create: if willBeParticipant()
+                    && request.resource.data.participantIds is list
+                    && request.resource.data.participantIds.size() >= 2;
+      
+      // Solo participantes pueden actualizar el chat
+      allow update: if isParticipant();
+      
+      // Solo participantes pueden eliminar el chat
+      allow delete: if isParticipant();
+      
+      // Subcolección de mensajes
+      match /messages/{messageId} {
+        // Solo participantes del chat padre pueden leer mensajes
+        allow read: if isAuthenticated() 
+                    && request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.participantIds;
+        
+        // Solo participantes pueden crear mensajes
+        // El userId del mensaje debe coincidir con el usuario autenticado
+        allow create: if isAuthenticated()
+                      && request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.participantIds
+                      && request.resource.data.userId == request.auth.uid
+                      && request.resource.data.text is string;
+        
+        // Solo el autor del mensaje puede actualizarlo (ej: marcar como leído)
+        allow update: if isAuthenticated()
+                      && request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.participantIds;
+        
+        // Solo el autor puede eliminar su mensaje
+        allow delete: if isAuthenticated()
+                      && resource.data.userId == request.auth.uid;
+      }
+    }
+    
+    // ============================================
+    // TRANSACCIONES (transactions)
+    // ============================================
+    
+    match /transactions/{transactionId} {
+      // Solo el usuario de la transacción puede leerla
+      allow read: if isAuthenticated() 
+                  && resource.data.userId == request.auth.uid;
+      
+      // Solo Cloud Functions pueden crear transacciones (no clientes)
+      allow create: if false;
+      allow update: if false;
+      allow delete: if false;
+    }
+    
+    // ============================================
+    // FAVORITOS (favorites)
+    // ============================================
+    
+    match /favorites/{favoriteId} {
+      // Solo el dueño puede leer sus favoritos
+      allow read: if isAuthenticated()
+                  && resource.data.userId == request.auth.uid;
+      
+      // Solo usuarios autenticados pueden crear favoritos
+      // El userId debe coincidir con el usuario autenticado
+      allow create: if isAuthenticated()
+                    && request.resource.data.userId == request.auth.uid
+                    && request.resource.data.adId is string;
+      
+      // Solo el dueño puede eliminar sus favoritos
+      allow delete: if isAuthenticated()
+                    && resource.data.userId == request.auth.uid;
+      
+      // No se permite actualizar favoritos
+      allow update: if false;
+    }
+    
+    // ============================================
+    // REGLA POR DEFECTO: DENEGAR TODO
+    // ============================================
+    
+    // Si ninguna regla coincide, denegar acceso
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

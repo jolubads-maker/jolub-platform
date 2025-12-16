@@ -2,7 +2,7 @@
 // Implementa paginación con limit() y startAfter(), caché en memoria
 
 import { create } from 'zustand';
-import { Ad, Media } from '../src/types';
+import { Ad, Media, toAppError, ErrorCodes } from '../src/types';
 import { adService } from '../services/firebaseService';
 
 const PAGE_SIZE = 20; // Límite de anuncios por página
@@ -76,9 +76,10 @@ export const useAdStore = create<AdState>((set, get) => ({
                 lastFetchTime: Date.now()
             });
             console.log(`✅ Cargados ${result.ads.length} anuncios (limit: ${PAGE_SIZE})`);
-        } catch (error: any) {
-            console.error('Error fetching ads:', error);
-            set({ error: error.message, loading: false });
+        } catch (error: unknown) {
+            const appError = toAppError(error, ErrorCodes.FIRESTORE_ERROR);
+            console.error('Error fetching ads:', appError);
+            set({ error: appError.message, loading: false });
         }
     },
 
@@ -107,8 +108,9 @@ export const useAdStore = create<AdState>((set, get) => ({
                 lastDoc: result.lastDoc
             }));
             console.log(`➕ Cargados ${newAds.length} anuncios más (total: ${ads.length + newAds.length})`);
-        } catch (error: any) {
-            console.error('Error loading more ads:', error);
+        } catch (error: unknown) {
+            const appError = toAppError(error, ErrorCodes.FIRESTORE_ERROR);
+            console.error('Error loading more ads:', appError);
             set({ loadingMore: false });
         }
     },
@@ -134,9 +136,10 @@ export const useAdStore = create<AdState>((set, get) => ({
                 set({ loading: false });
             }
             return ad;
-        } catch (error: any) {
-            console.error('Error fetching ad by code:', error);
-            set({ error: error.message, loading: false });
+        } catch (error: unknown) {
+            const appError = toAppError(error, ErrorCodes.NOT_FOUND);
+            console.error('Error fetching ad by code:', appError);
+            set({ error: appError.message, loading: false });
             return null;
         }
     },
@@ -163,10 +166,11 @@ export const useAdStore = create<AdState>((set, get) => ({
             }));
 
             return newAd;
-        } catch (error: any) {
-            console.error('Error creating ad:', error);
-            set({ error: error.message, loading: false });
-            throw error;
+        } catch (error: unknown) {
+            const appError = toAppError(error, ErrorCodes.FIRESTORE_ERROR);
+            console.error('Error creating ad:', appError);
+            set({ error: appError.message, loading: false });
+            throw appError;
         }
     },
 
@@ -181,8 +185,9 @@ export const useAdStore = create<AdState>((set, get) => ({
                         : ad
                 )
             }));
-        } catch (error) {
-            console.error('Error incrementing views:', error);
+        } catch (error: unknown) {
+            const appError = toAppError(error, ErrorCodes.FIRESTORE_ERROR);
+            console.warn('Error incrementing views:', appError);
         }
     },
 
@@ -210,9 +215,10 @@ export const useAdStore = create<AdState>((set, get) => ({
             // Si no hay resultados locales, buscar en Firestore
             const ads = await adService.searchAds(query);
             set({ ads, loading: false });
-        } catch (error: any) {
-            console.error('Error searching ads:', error);
-            set({ error: error.message, loading: false });
+        } catch (error: unknown) {
+            const appError = toAppError(error, ErrorCodes.FIRESTORE_ERROR);
+            console.error('Error searching ads:', appError);
+            set({ error: appError.message, loading: false });
         }
     },
 
@@ -223,9 +229,10 @@ export const useAdStore = create<AdState>((set, get) => ({
             set(state => ({
                 ads: state.ads.filter(ad => (ad.id as any) !== adId)
             }));
-        } catch (error: any) {
-            console.error('Error deleting ad:', error);
-            throw error;
+        } catch (error: unknown) {
+            const appError = toAppError(error, ErrorCodes.FIRESTORE_ERROR);
+            console.error('Error deleting ad:', appError);
+            throw appError;
         }
     },
 

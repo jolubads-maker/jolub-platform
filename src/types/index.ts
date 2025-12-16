@@ -1,5 +1,132 @@
 import { Chat } from '@google/genai';
 
+// ============================================
+// TIPOS DE ERROR
+// ============================================
+
+export type ErrorSeverity = 'info' | 'warning' | 'error' | 'critical';
+
+export interface AppError {
+  code: string;
+  message: string;
+  severity: ErrorSeverity;
+  originalError?: unknown;
+  timestamp?: Date;
+}
+
+// Códigos de error predefinidos
+export const ErrorCodes = {
+  // Network errors
+  NETWORK_ERROR: 'NETWORK_ERROR',
+  TIMEOUT: 'TIMEOUT',
+
+  // Auth errors
+  AUTH_REQUIRED: 'AUTH_REQUIRED',
+  AUTH_EXPIRED: 'AUTH_EXPIRED',
+  PERMISSION_DENIED: 'PERMISSION_DENIED',
+
+  // Data errors
+  NOT_FOUND: 'NOT_FOUND',
+  INVALID_DATA: 'INVALID_DATA',
+  VALIDATION_ERROR: 'VALIDATION_ERROR',
+
+  // Firebase errors
+  FIREBASE_ERROR: 'FIREBASE_ERROR',
+  FIRESTORE_ERROR: 'FIRESTORE_ERROR',
+  STORAGE_ERROR: 'STORAGE_ERROR',
+
+  // Generic
+  UNKNOWN_ERROR: 'UNKNOWN_ERROR',
+} as const;
+
+export type ErrorCode = typeof ErrorCodes[keyof typeof ErrorCodes];
+
+/**
+ * Convierte un error desconocido a AppError tipado
+ */
+export function toAppError(error: unknown, defaultCode: ErrorCode = ErrorCodes.UNKNOWN_ERROR): AppError {
+  // Si ya es AppError, retornarlo
+  if (isAppError(error)) {
+    return error;
+  }
+
+  // Si es un Error estándar
+  if (error instanceof Error) {
+    return {
+      code: defaultCode,
+      message: error.message,
+      severity: 'error',
+      originalError: error,
+      timestamp: new Date(),
+    };
+  }
+
+  // Si es un string
+  if (typeof error === 'string') {
+    return {
+      code: defaultCode,
+      message: error,
+      severity: 'error',
+      timestamp: new Date(),
+    };
+  }
+
+  // Si es un objeto con message
+  if (error && typeof error === 'object' && 'message' in error) {
+    return {
+      code: (error as any).code || defaultCode,
+      message: String((error as any).message),
+      severity: 'error',
+      originalError: error,
+      timestamp: new Date(),
+    };
+  }
+
+  // Fallback
+  return {
+    code: defaultCode,
+    message: 'An unknown error occurred',
+    severity: 'error',
+    originalError: error,
+    timestamp: new Date(),
+  };
+}
+
+/**
+ * Type guard para verificar si es AppError
+ */
+export function isAppError(error: unknown): error is AppError {
+  return (
+    error !== null &&
+    typeof error === 'object' &&
+    'code' in error &&
+    'message' in error &&
+    'severity' in error
+  );
+}
+
+/**
+ * Crea un AppError con valores específicos
+ */
+export function createAppError(
+  code: ErrorCode,
+  message: string,
+  severity: ErrorSeverity = 'error',
+  originalError?: unknown
+): AppError {
+  return {
+    code,
+    message,
+    severity,
+    originalError,
+    timestamp: new Date(),
+  };
+}
+
+// ============================================
+// TIPOS DE USUARIO
+// ============================================
+
 export interface User {
   id: number | string; // Puede ser number (legacy) o string (Firebase UID)
   uid?: string; // Firebase UID

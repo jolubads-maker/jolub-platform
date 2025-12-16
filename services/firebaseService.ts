@@ -187,8 +187,15 @@ export const adService = {
         const ads: Ad[] = [];
         for (const docSnap of snapshot.docs) {
             const data = docSnap.data() as any;
-            // No cargar seller aquí para reducir lecturas
-            // Se puede cargar lazy si es necesario
+            // Cargar seller para mostrar info en tarjetas
+            let seller = undefined;
+            if (data.sellerId) {
+                try {
+                    seller = await userService.getUser(data.sellerId);
+                } catch (e) {
+                    console.warn('No se pudo cargar seller para anuncio:', docSnap.id);
+                }
+            }
             ads.push({
                 id: docSnap.id as any,
                 uniqueCode: data.uniqueCode,
@@ -205,7 +212,7 @@ export const adService = {
                 isFeatured: data.isFeatured || false,
                 createdAt: data.createdAt?.toDate(),
                 updatedAt: data.updatedAt?.toDate(),
-                seller: undefined // Lazy load cuando sea necesario
+                seller: seller || undefined
             } as Ad);
         }
 
