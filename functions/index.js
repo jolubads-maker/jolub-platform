@@ -8,10 +8,13 @@
  * 
  * Funciones de Limpieza:
  * - cleanupExpiredAds: Limpia anuncios expirados del plan Free
+ * 
+ * MIGRACIÓN: Usa defineSecret() en lugar de functions.config()
  */
 
 const { onSchedule } = require("firebase-functions/v2/scheduler");
 const { onRequest, onCall } = require("firebase-functions/v2/https");
+const { defineSecret } = require("firebase-functions/params");
 const { logger } = require("firebase-functions");
 const admin = require("firebase-admin");
 
@@ -20,6 +23,13 @@ admin.initializeApp();
 
 const db = admin.firestore();
 const storage = admin.storage().bucket();
+
+// ============================================
+// SECRETS (Nueva sintaxis - reemplaza functions.config())
+// ============================================
+
+const stripeSecretKey = defineSecret("STRIPE_SECRET_KEY");
+const stripeWebhookSecret = defineSecret("STRIPE_WEBHOOK_SECRET");
 
 // ============================================
 // CONFIGURACIÓN DE PLANES
@@ -61,6 +71,7 @@ exports.createStripeCheckout = onCall(
     {
         cors: true,
         region: 'us-central1',
+        secrets: [stripeSecretKey], // Declarar secrets que usa la función
     },
     async (request) => {
         const { planId, userId, userEmail, userName } = request.data;
@@ -76,8 +87,8 @@ exports.createStripeCheckout = onCall(
 
         const plan = PLANS[planId];
 
-        // Inicializar Stripe con la clave secreta desde config
-        const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
+        // Inicializar Stripe con la clave secreta desde Secret Manager
+        const stripe = require('stripe')(stripeSecretKey.value());
 
         try {
             logger.info(`🛒 Creando sesión Stripe para usuario ${userId}, plan ${planId}`);
@@ -105,8 +116,8 @@ exports.createStripeCheckout = onCall(
                     planId,
                     planName: plan.name,
                 },
-                success_url: `${process.env.FRONTEND_URL || 'https://jolub-1177c.web.app'}/dashboard/${userId}?payment=success`,
-                cancel_url: `${process.env.FRONTEND_URL || 'https://jolub-1177c.web.app'}/pricing?payment=cancelled`,
+                success_url: `https://jolub-1177c.web.app/dashboard/${userId}?payment=success`,
+                cancel_url: `https://jolub-1177c.web.app/pricing?payment=cancelled`,
             });
 
             logger.info(`✅ Sesión Stripe creada: ${session.id}`);
@@ -134,10 +145,11 @@ exports.handleStripeWebhook = onRequest(
     {
         cors: false,
         region: 'us-central1',
+        secrets: [stripeSecretKey, stripeWebhookSecret], // Declarar secrets
     },
     async (req, res) => {
-        const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
-        const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET;
+        const stripe = require('stripe')(stripeSecretKey.value());
+        const endpointSecret = stripeWebhookSecret.value();
 
         if (req.method !== 'POST') {
             res.status(405).send('Method Not Allowed');
