@@ -16,12 +16,14 @@ const ResetPassword = lazy(() => import('./components/ResetPassword'));
 const HomePage = lazy(() => import('./components/HomePage'));
 const Dashboard = lazy(() => import('./components/Dashboard'));
 const ChatPageLayout = lazy(() => import('./components/ChatPageLayout'));
+const PricingPage = lazy(() => import('./components/PricingPage'));
 
 // Admin Components
 const AdminLayout = lazy(() => import('./components/admin/AdminLayout'));
 const DashboardOverview = lazy(() => import('./components/admin/DashboardOverview'));
 const UsersTable = lazy(() => import('./components/admin/UsersTable'));
 const AdsTable = lazy(() => import('./components/admin/AdsTable'));
+const SalesDashboard = lazy(() => import('./components/admin/SalesDashboard'));
 
 // Loading Component
 const LoadingScreen = () => {
@@ -236,6 +238,7 @@ const App: React.FC = () => {
               currentUser ? <Dashboard /> : <Navigate to="/login" />
             } />
 
+            <Route path="/pricing" element={<PricingPage />} />
             <Route path="/chat/:chatId" element={<ChatRouteWrapper />} />
             <Route path="/chat" element={<ChatPageLayout />} />
 
@@ -244,6 +247,7 @@ const App: React.FC = () => {
               <Route index element={<DashboardOverview />} />
               <Route path="users" element={<UsersTable />} />
               <Route path="ads" element={<AdsTable />} />
+              <Route path="sales" element={<SalesDashboard />} />
             </Route>
           </Routes>
         </Suspense>

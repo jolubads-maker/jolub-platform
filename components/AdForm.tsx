@@ -1,10 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useNavigate } from 'react-router-dom';
 import { AdFormData, Media, AdCategory } from '../src/types';
 import PaperclipIcon from './icons/PaperclipIcon';
 import { storageService } from '../services/storageService';
 import { notify } from '../services/notificationService';
 import imageCompression from 'browser-image-compression';
+import { useAuthStore } from '../store/useAuthStore';
+import { useAdStore } from '../store/useAdStore';
+import { getAdLimitForPlan } from './PricingPage';
 
 // Configuración de compresión de imágenes (ahorro de costos)
 const IMAGE_COMPRESSION_OPTIONS = {
@@ -55,6 +59,10 @@ const getMediaLimit = (category: AdCategory, subcategory: string): number => {
 };
 
 const AdForm: React.FC<AdFormProps> = ({ onCancel, onSubmit }) => {
+  const navigate = useNavigate();
+  const { currentUser } = useAuthStore();
+  const { ads } = useAdStore();
+
   // Estados del formulario
   const [category, setCategory] = useState<AdCategory | ''>('');
   const [subcategory, setSubcategory] = useState('');
@@ -67,6 +75,20 @@ const AdForm: React.FC<AdFormProps> = ({ onCancel, onSubmit }) => {
   // Estados de UI
   const [uploading, setUploading] = useState(false);
   const [focusedField, setFocusedField] = useState<string | null>(null);
+  const [showLimitModal, setShowLimitModal] = useState(false);
+
+  // Verificar límite de anuncios del plan
+  const userPlan = currentUser?.subscriptionPlan || 'free';
+  const adLimit = getAdLimitForPlan(userPlan);
+  const userAdsCount = currentUser ? ads.filter(ad => ad.sellerId === currentUser.providerId || ad.sellerId === currentUser.uid || String(ad.sellerId) === String(currentUser.id)).length : 0;
+  const canPublish = userAdsCount < adLimit;
+
+  // Mostrar modal si excede límite
+  useEffect(() => {
+    if (!canPublish && !showLimitModal) {
+      setShowLimitModal(true);
+    }
+  }, [canPublish]);
 
   // Reset subcategory when category changes
   useEffect(() => {
@@ -467,6 +489,56 @@ const AdForm: React.FC<AdFormProps> = ({ onCancel, onSubmit }) => {
           </div>
         </form>
       </motion.div>
+
+      {/* Modal de límite de anuncios */}
+      <AnimatePresence>
+        {showLimitModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="bg-gradient-to-br from-gray-900 to-gray-800 rounded-3xl p-8 max-w-md w-full border border-purple-500/30 shadow-[0_0_60px_rgba(168,85,247,0.3)]"
+            >
+              <div className="text-center">
+                <span className="text-6xl mb-4 block">🚫</span>
+                <h3 className="text-2xl font-bold text-white mb-2">Límite de Anuncios Alcanzado</h3>
+                <p className="text-gray-400 mb-6">
+                  Tu plan <span className="text-purple-400 font-bold uppercase">{userPlan}</span> permite hasta <span className="text-white font-bold">{adLimit}</span> anuncios.
+                  <br />
+                  Actualmente tienes <span className="text-red-400 font-bold">{userAdsCount}</span> anuncios activos.
+                </p>
+
+                <div className="bg-white/10 rounded-xl p-4 mb-6">
+                  <p className="text-sm text-gray-300">
+                    Mejora tu plan para publicar más anuncios y acceder a funciones premium.
+                  </p>
+                </div>
+
+                <div className="flex gap-3">
+                  <button
+                    onClick={onCancel}
+                    className="flex-1 py-3 rounded-xl font-bold bg-gray-700 text-gray-300 hover:bg-gray-600 transition-all"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    onClick={() => navigate('/pricing')}
+                    className="flex-1 py-3 rounded-xl font-bold bg-gradient-to-r from-purple-500 to-pink-500 text-white hover:shadow-[0_0_20px_rgba(168,85,247,0.5)] transition-all"
+                  >
+                    🚀 Mejorar Plan
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };

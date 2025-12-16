@@ -17,6 +17,7 @@ import DashboardProfile from './dashboard/DashboardProfile';
 import DashboardChats from './dashboard/DashboardChats';
 import DashboardAds from './dashboard/DashboardAds';
 import ChatView from './ChatView';
+import { getAdLimitForPlan } from './PricingPage';
 
 const Dashboard: React.FC = () => {
   const navigate = useNavigate();
@@ -221,6 +222,93 @@ const Dashboard: React.FC = () => {
 
           {/* 1. PERFIL */}
           <DashboardProfile currentUser={currentUser} />
+
+          {/* TARJETA PLAN Y PROGRESO */}
+          {(() => {
+            const userPlan = currentUser.subscriptionPlan || 'free';
+            const adLimit = getAdLimitForPlan(userPlan);
+            const usedAds = userAds.length;
+            const progressPercent = Math.min((usedAds / adLimit) * 100, 100);
+            const isAlmostFull = progressPercent >= 80;
+            const isFull = progressPercent >= 100;
+
+            return (
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="col-span-1 md:col-span-2 bg-white rounded-[2rem] p-6 shadow-[0_20px_60px_-15px_rgba(0,0,0,0.1)] border-2 border-[#6e0ad6] flex flex-col"
+              >
+                {/* Header con Plan y Botón */}
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-3">
+                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${userPlan === 'free' ? 'bg-gray-100' :
+                        userPlan === 'basic' ? 'bg-blue-100' :
+                          userPlan === 'pro' ? 'bg-purple-100' : 'bg-amber-100'
+                      }`}>
+                      <span className="text-xl">
+                        {userPlan === 'free' ? '🆓' :
+                          userPlan === 'basic' ? '📦' :
+                            userPlan === 'pro' ? '⭐' : '🏢'}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-xs text-gray-500 uppercase tracking-wide">Tu Plan</span>
+                      <h4 className="text-lg font-black text-gray-800 capitalize">{userPlan === 'free' ? 'Gratis' : userPlan}</h4>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => navigate('/pricing')}
+                    className="px-4 py-2 bg-gradient-to-r from-purple-600 to-pink-500 text-white text-xs font-bold rounded-lg hover:shadow-lg hover:shadow-purple-500/30 transition-all flex items-center gap-1"
+                  >
+                    🚀 Mejorar
+                  </button>
+                </div>
+
+                {/* Barra de Progreso */}
+                <div className="flex-1">
+                  <div className="flex justify-between items-center mb-2">
+                    <span className="text-sm font-medium text-gray-600">Anuncios Activos</span>
+                    <span className={`text-sm font-bold ${isFull ? 'text-red-500' : isAlmostFull ? 'text-orange-500' : 'text-gray-800'}`}>
+                      {usedAds} / {adLimit}
+                    </span>
+                  </div>
+
+                  {/* Progress Bar */}
+                  <div className="h-3 bg-gray-100 rounded-full overflow-hidden">
+                    <motion.div
+                      initial={{ width: 0 }}
+                      animate={{ width: `${progressPercent}%` }}
+                      transition={{ duration: 0.8, ease: "easeOut" }}
+                      className={`h-full rounded-full ${isFull ? 'bg-gradient-to-r from-red-500 to-red-600' :
+                          isAlmostFull ? 'bg-gradient-to-r from-orange-400 to-orange-500' :
+                            'bg-gradient-to-r from-purple-500 to-pink-500'
+                        }`}
+                    />
+                  </div>
+
+                  {/* Mensaje de Estado */}
+                  <div className="mt-3 flex items-center gap-2">
+                    {isFull ? (
+                      <>
+                        <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse" />
+                        <span className="text-xs text-red-500 font-medium">Límite alcanzado - Mejora tu plan</span>
+                      </>
+                    ) : isAlmostFull ? (
+                      <>
+                        <span className="w-2 h-2 bg-orange-500 rounded-full" />
+                        <span className="text-xs text-orange-500 font-medium">Quedan {adLimit - usedAds} anuncios disponibles</span>
+                      </>
+                    ) : (
+                      <>
+                        <span className="w-2 h-2 bg-green-500 rounded-full" />
+                        <span className="text-xs text-gray-500">Tienes {adLimit - usedAds} anuncios disponibles</span>
+                      </>
+                    )}
+                  </div>
+                </div>
+              </motion.div>
+            );
+          })()}
 
           {/* 2 & 3. STATS */}
           <DashboardStats points={currentUser.points} adsCount={userAds.length} />

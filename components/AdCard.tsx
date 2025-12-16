@@ -1,8 +1,10 @@
-import React, { memo } from 'react';
+import React, { memo, useMemo } from 'react';
 import { motion } from 'framer-motion';
+import { useNavigate } from 'react-router-dom';
 import { Ad, User } from '../src/types';
 import { optimizeCloudinaryUrl } from '../src/utils/images';
 import UserStatusBadge from './UserStatusBadge';
+import { getTimeRemaining, formatTimeRemaining, getUrgencyColor } from '../src/utils/time';
 
 interface AdCardProps {
   ad: Ad;
@@ -15,7 +17,19 @@ interface AdCardProps {
 }
 
 const AdCard: React.FC<AdCardProps> = memo(({ ad, seller, onSelect, currentUser, onToggleFavorite, variant = 'default', onHighlight }) => {
+  const navigate = useNavigate();
   const firstMedia = ad.media?.[0];
+
+  // Calcular tiempo restante para usuarios Free
+  const sellerPlan = (seller as any)?.subscriptionPlan || 'free';
+  const timeRemaining = useMemo(() => {
+    if (!ad.createdAt) return null;
+    return getTimeRemaining(ad.createdAt, sellerPlan);
+  }, [ad.createdAt, sellerPlan]);
+
+  const urgencyColors = timeRemaining ? getUrgencyColor(timeRemaining) : null;
+  const showUrgencyIndicator = timeRemaining && (timeRemaining.isUrgent || timeRemaining.isExpired) && sellerPlan === 'free';
+  const isOwner = currentUser && seller && (currentUser.id === seller.id || currentUser.uid === seller.id || currentUser.providerId === seller.id);
 
   const handleFavoriteClick = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -31,6 +45,11 @@ const AdCard: React.FC<AdCardProps> = memo(({ ad, seller, onSelect, currentUser,
     }
   };
 
+  const handleUpgradeClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    navigate('/pricing');
+  };
+
   return (
     <motion.div
       onClick={onSelect}
@@ -39,7 +58,9 @@ const AdCard: React.FC<AdCardProps> = memo(({ ad, seller, onSelect, currentUser,
       className={`
         group cursor-pointer
         bg-white
-        ${variant === 'dashboard' ? 'border-2 border-black' : 'border border-gray-100'} rounded-xl overflow-hidden
+        ${variant === 'dashboard' ? 'border-2 border-black' : 'border border-gray-100'} 
+        ${showUrgencyIndicator && urgencyColors ? urgencyColors.border + ' border-2' : ''}
+        rounded-xl overflow-hidden
         shadow-sm hover:shadow-[0_8px_30px_rgb(0,0,0,0.12)]
         transition-all duration-300 ease-out
       `}
@@ -93,6 +114,28 @@ const AdCard: React.FC<AdCardProps> = memo(({ ad, seller, onSelect, currentUser,
               <path strokeLinecap="round" strokeLinejoin="round" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
             </svg>
           </button>
+        )}
+
+        {/* Badge de Expiración - Solo para plan Free con menos de 48h */}
+        {showUrgencyIndicator && timeRemaining && urgencyColors && (
+          <div className={`absolute top-2 ${ad.isFeatured ? 'left-12' : 'left-2'} z-10`}>
+            <div className={`${urgencyColors.bg} text-white px-2 py-1 rounded-lg shadow-lg text-xs font-bold flex items-center gap-1 ${timeRemaining.isCritical ? 'animate-pulse' : ''}`}>
+              <span>⚠️</span>
+              <span>Expira en {formatTimeRemaining(timeRemaining)}</span>
+            </div>
+          </div>
+        )}
+
+        {/* Barra de Progreso de Expiración - Solo para plan Free con menos de 48h */}
+        {showUrgencyIndicator && timeRemaining && urgencyColors && (
+          <div className="absolute bottom-0 left-0 right-0 h-1.5 bg-black/30">
+            <motion.div
+              initial={{ width: 0 }}
+              animate={{ width: `${timeRemaining.percentage}%` }}
+              transition={{ duration: 1, ease: "easeOut" }}
+              className={`h-full ${urgencyColors.bg}`}
+            />
+          </div>
         )}
       </div>
 
