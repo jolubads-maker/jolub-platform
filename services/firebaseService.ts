@@ -259,6 +259,41 @@ export const adService = {
         const adsRef = collection(db, 'ads');
         const uniqueCode = `AD-${Date.now().toString().slice(-5)}${Math.random().toString(36).slice(-3).toUpperCase()}`;
 
+        // Stop words en español para filtrar
+        const stopWords = new Set([
+            'el', 'la', 'los', 'las', 'un', 'una', 'unos', 'unas',
+            'de', 'del', 'al', 'a', 'ante', 'bajo', 'con', 'contra',
+            'en', 'entre', 'hacia', 'hasta', 'para', 'por', 'según',
+            'sin', 'sobre', 'tras', 'que', 'cual', 'cuyo', 'donde',
+            'como', 'cuando', 'cuanto', 'y', 'o', 'u', 'ni', 'pero',
+            'si', 'no', 'muy', 'más', 'menos', 'ya', 'es', 'son',
+            'ser', 'estar', 'fue', 'sido', 'era', 'han', 'ha', 'he',
+            'hay', 'este', 'esta', 'estos', 'estas', 'ese', 'esa',
+            'esos', 'esas', 'aquel', 'aquella', 'mi', 'tu', 'su',
+            'yo', 'tú', 'él', 'ella', 'usted', 'nosotros', 'ellos'
+        ]);
+
+        // Generar keywords a partir de title, category, description, subcategory y location
+        const generateKeywords = (text: string): string[] => {
+            return text
+                .toLowerCase()
+                .normalize('NFD')
+                .replace(/[\u0300-\u036f]/g, '') // Remover acentos
+                .replace(/[^a-z0-9\s]/g, ' ') // Solo alfanuméricos
+                .split(/\s+/)
+                .filter(word => word.length >= 2 && !stopWords.has(word));
+        };
+
+        const allText = [
+            adData.title,
+            adData.category,
+            adData.description,
+            adData.subcategory || '',
+            adData.location || ''
+        ].join(' ');
+
+        const keywords = [...new Set(generateKeywords(allText))].slice(0, 50); // Máx 50 keywords
+
         // Filtrar campos undefined (Firestore no acepta undefined)
         const cleanData: Record<string, any> = {};
         Object.entries(adData).forEach(([key, value]) => {
@@ -270,6 +305,7 @@ export const adService = {
         const newAd = {
             ...cleanData,
             uniqueCode,
+            keywords, // Agregar keywords para búsqueda
             views: 0,
             isFeatured: false,
             createdAt: serverTimestamp(),
@@ -282,6 +318,7 @@ export const adService = {
             id: docRef.id as any,
             ...cleanData,
             uniqueCode,
+            keywords,
             views: 0,
             isFeatured: false,
             createdAt: new Date()
@@ -296,18 +333,40 @@ export const adService = {
         });
     },
 
-    // Buscar anuncios
+    // Buscar anuncios (optimizado con array-contains)
     async searchAds(searchQuery: string): Promise<Ad[]> {
-        // Firestore no tiene búsqueda full-text nativa
-        // Opción simple: obtener todos y filtrar en cliente
-        const allAds = await this.getAds();
-        const lowerQuery = searchQuery.toLowerCase();
+        // Normalizar término de búsqueda
+        const searchTerm = searchQuery
+            .toLowerCase()
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '') // Remover acentos
+            .replace(/[^a-z0-9]/g, '') // Solo alfanuméricos
+            .trim();
 
-        return allAds.filter(ad =>
-            ad.title.toLowerCase().includes(lowerQuery) ||
-            ad.description.toLowerCase().includes(lowerQuery) ||
-            ad.category.toLowerCase().includes(lowerQuery)
+        if (!searchTerm || searchTerm.length < 2) {
+            return [];
+        }
+
+        // Usar array-contains para búsqueda eficiente
+        const adsRef = collection(db, 'ads');
+        const q = query(
+            adsRef,
+            where('keywords', 'array-contains', searchTerm),
+            orderBy('createdAt', 'desc'),
+            limit(50) // Limitar resultados
         );
+
+        const snapshot = await getDocs(q);
+
+        return snapshot.docs.map(doc => {
+            const data = doc.data();
+            return {
+                id: doc.id,
+                ...data,
+                createdAt: data.createdAt?.toDate?.() || new Date(),
+                updatedAt: data.updatedAt?.toDate?.() || new Date()
+            } as Ad;
+        });
     },
 
     // Eliminar anuncio

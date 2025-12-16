@@ -88,7 +88,8 @@ exports.createStripeCheckout = onCall(
         const plan = PLANS[planId];
 
         // Inicializar Stripe con la clave secreta desde Secret Manager
-        const stripe = require('stripe')(stripeSecretKey.value());
+        // .trim() elimina cualquier newline o espacio extra
+        const stripe = require('stripe')(stripeSecretKey.value().trim());
 
         try {
             logger.info(`🛒 Creando sesión Stripe para usuario ${userId}, plan ${planId}`);
@@ -148,8 +149,8 @@ exports.handleStripeWebhook = onRequest(
         secrets: [stripeSecretKey, stripeWebhookSecret], // Declarar secrets
     },
     async (req, res) => {
-        const stripe = require('stripe')(stripeSecretKey.value());
-        const endpointSecret = stripeWebhookSecret.value();
+        const stripe = require('stripe')(stripeSecretKey.value().trim());
+        const endpointSecret = stripeWebhookSecret.value().trim();
 
         if (req.method !== 'POST') {
             res.status(405).send('Method Not Allowed');
@@ -412,5 +413,92 @@ exports.manualCleanup = onRequest(
 
         logger.info("🔧 Ejecutando limpieza manual...");
         res.json({ success: true, message: "Limpieza iniciada" });
+    }
+);
+
+// ============================================
+// MIGRACIÓN DE KEYWORDS PARA ANUNCIOS EXISTENTES
+// ============================================
+
+exports.migrateAdsKeywords = onRequest(
+    { cors: true, timeoutSeconds: 300 },
+    async (req, res) => {
+        const secretKey = req.query.key || req.headers["x-migrate-key"];
+        if (secretKey !== "jolub-migrate-keywords-2024") {
+            res.status(403).json({ error: "Acceso denegado" });
+            return;
+        }
+
+        logger.info("🔄 Iniciando migración de keywords...");
+
+        // Stop words en español
+        const stopWords = new Set([
+            'el', 'la', 'los', 'las', 'un', 'una', 'unos', 'unas',
+            'de', 'del', 'al', 'a', 'ante', 'bajo', 'con', 'contra',
+            'en', 'entre', 'hacia', 'hasta', 'para', 'por', 'segun',
+            'sin', 'sobre', 'tras', 'que', 'cual', 'cuyo', 'donde',
+            'como', 'cuando', 'cuanto', 'y', 'o', 'u', 'ni', 'pero',
+            'si', 'no', 'muy', 'mas', 'menos', 'ya', 'es', 'son',
+            'ser', 'estar', 'fue', 'sido', 'era', 'han', 'ha', 'he',
+            'hay', 'este', 'esta', 'estos', 'estas', 'ese', 'esa',
+            'esos', 'esas', 'aquel', 'aquella', 'mi', 'tu', 'su',
+            'yo', 'tu', 'el', 'ella', 'usted', 'nosotros', 'ellos'
+        ]);
+
+        const generateKeywords = (text) => {
+            if (!text) return [];
+            return String(text)
+                .toLowerCase()
+                .normalize('NFD')
+                .replace(/[\u0300-\u036f]/g, '')
+                .replace(/[^a-z0-9\s]/g, ' ')
+                .split(/\s+/)
+                .filter(word => word.length >= 2 && !stopWords.has(word));
+        };
+
+        try {
+            const adsSnapshot = await db.collection('ads').get();
+            let updated = 0;
+            let skipped = 0;
+
+            const batch = db.batch();
+
+            for (const doc of adsSnapshot.docs) {
+                const data = doc.data();
+
+                // Saltar si ya tiene keywords
+                if (data.keywords && data.keywords.length > 0) {
+                    skipped++;
+                    continue;
+                }
+
+                const allText = [
+                    data.title || '',
+                    data.category || '',
+                    data.description || '',
+                    data.subcategory || '',
+                    data.location || ''
+                ].join(' ');
+
+                const keywords = [...new Set(generateKeywords(allText))].slice(0, 50);
+
+                batch.update(doc.ref, { keywords });
+                updated++;
+            }
+
+            await batch.commit();
+
+            logger.info(`✅ Migración completada: ${updated} actualizados, ${skipped} saltados`);
+            res.json({
+                success: true,
+                updated,
+                skipped,
+                total: adsSnapshot.size
+            });
+
+        } catch (error) {
+            logger.error("❌ Error en migración:", error);
+            res.status(500).json({ error: error.message });
+        }
     }
 );

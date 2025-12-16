@@ -57,6 +57,7 @@ export interface Ad {
   expiresAt?: Date | string;
   createdAt?: Date | string;
   updatedAt?: Date | string;
+  keywords?: string[]; // Palabras clave para búsqueda optimizada
   seller?: User;
 }
 
