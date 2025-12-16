@@ -1,9 +1,13 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/useAuthStore';
 import { userService } from '../services/firebaseService';
 import ForgotPasswordModal from './ForgotPasswordModal';
+
+// Rate limiter config
+const MAX_FAILED_ATTEMPTS = 3;
+const LOCKOUT_DURATION_MS = 30 * 1000; // 30 segundos
 
 interface LoginProps {
   onLogin?: (userInfo: any) => void;
@@ -22,6 +26,12 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
   // Email validation state
   const [emailExists, setEmailExists] = useState<boolean | null>(null);
   const [checkingEmail, setCheckingEmail] = useState(false);
+
+  // Rate limiting state
+  const [failedAttempts, setFailedAttempts] = useState(0);
+  const [isLocked, setIsLocked] = useState(false);
+  const [lockoutEndTime, setLockoutEndTime] = useState<number | null>(null);
+  const [remainingLockTime, setRemainingLockTime] = useState(0);
 
   // Debounced email check
   useEffect(() => {
@@ -46,24 +56,89 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
     return () => clearTimeout(timer);
   }, [email]);
 
+  // Lockout countdown timer
+  useEffect(() => {
+    if (!isLocked || !lockoutEndTime) return;
+
+    const interval = setInterval(() => {
+      const remaining = Math.max(0, Math.ceil((lockoutEndTime - Date.now()) / 1000));
+      setRemainingLockTime(remaining);
+
+      if (remaining === 0) {
+        setIsLocked(false);
+        setLockoutEndTime(null);
+        setFailedAttempts(0);
+        clearInterval(interval);
+      }
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [isLocked, lockoutEndTime]);
+
+  // Validate form before attempting Firebase call
+  const validateForm = useCallback((): boolean => {
+    if (!email.trim()) {
+      setLocalError('El email es obligatorio');
+      return false;
+    }
+    if (!email.includes('@') || !email.includes('.')) {
+      setLocalError('Ingresa un email válido');
+      return false;
+    }
+    if (!password) {
+      setLocalError('La contraseña es obligatoria');
+      return false;
+    }
+    if (password.length < 6) {
+      setLocalError('La contraseña debe tener al menos 6 caracteres');
+      return false;
+    }
+    return true;
+  }, [email, password]);
+
+  // Handle failed login attempt
+  const handleFailedAttempt = useCallback((errorMessage: string) => {
+    const newAttempts = failedAttempts + 1;
+    setFailedAttempts(newAttempts);
+
+    if (newAttempts >= MAX_FAILED_ATTEMPTS) {
+      const lockEndTime = Date.now() + LOCKOUT_DURATION_MS;
+      setIsLocked(true);
+      setLockoutEndTime(lockEndTime);
+      setRemainingLockTime(Math.ceil(LOCKOUT_DURATION_MS / 1000));
+      setLocalError(`Demasiados intentos fallidos. Espera ${Math.ceil(LOCKOUT_DURATION_MS / 1000)} segundos.`);
+      console.warn(`🔒 Login bloqueado por ${LOCKOUT_DURATION_MS / 1000}s después de ${newAttempts} intentos fallidos`);
+    } else {
+      setLocalError(`${errorMessage} (Intento ${newAttempts}/${MAX_FAILED_ATTEMPTS})`);
+    }
+  }, [failedAttempts]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLocalError(null);
     setError(null);
 
-    if (!email || !password) {
-      setLocalError('Por favor completa todos los campos');
+    // Check if locked out
+    if (isLocked) {
+      setLocalError(`Espera ${remainingLockTime} segundos antes de intentar de nuevo.`);
+      return;
+    }
+
+    // Validate form BEFORE calling Firebase (saves API calls)
+    if (!validateForm()) {
       return;
     }
 
     try {
       const user = await login({ email, password });
       if (user) {
+        // Reset attempts on successful login
+        setFailedAttempts(0);
         if (onLogin) onLogin(user);
         navigate(`/dashboard/${user.uniqueId || 'USER-' + user.id}`);
       }
     } catch (err: any) {
-      setLocalError(err.message);
+      handleFailedAttempt(err.message || 'Error al iniciar sesión');
     }
   };
 
@@ -146,10 +221,10 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   className={`w-full px-4 py-3 pr-12 border-2 rounded-xl focus:outline-none transition-all text-base text-gray-800 placeholder-gray-400 ${emailExists === false
-                      ? 'border-amber-400 focus:border-amber-500'
-                      : emailExists === true
-                        ? 'border-green-400 focus:border-green-500'
-                        : 'border-[#ea580c] focus:border-[#d9520b]'
+                    ? 'border-amber-400 focus:border-amber-500'
+                    : emailExists === true
+                      ? 'border-green-400 focus:border-green-500'
+                      : 'border-[#ea580c] focus:border-[#d9520b]'
                     }`}
                   placeholder="tu@email.com"
                   required
@@ -252,8 +327,8 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
               type="submit"
               disabled={loading || !isFormValid}
               className={`w-full font-bold py-3.5 rounded-xl shadow-lg transition-all transform ${isFormValid
-                  ? 'bg-[#6e0ad6] hover:bg-[#5808ab] text-white hover:shadow-xl hover:-translate-y-0.5'
-                  : 'bg-gray-300 text-gray-500 cursor-not-allowed shadow-none'
+                ? 'bg-[#6e0ad6] hover:bg-[#5808ab] text-white hover:shadow-xl hover:-translate-y-0.5'
+                : 'bg-gray-300 text-gray-500 cursor-not-allowed shadow-none'
                 }`}
             >
               {loading ? (

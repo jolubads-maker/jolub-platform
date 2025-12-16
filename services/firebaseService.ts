@@ -19,7 +19,9 @@ import {
     increment,
     Timestamp,
     DocumentData,
-    QuerySnapshot
+    QuerySnapshot,
+    startAfter,
+    DocumentSnapshot
 } from 'firebase/firestore';
 import { db, auth } from '../src/config/firebase';
 import { User, Ad, ChatLog, ChatMessage, Media } from '../src/types';
@@ -134,16 +136,15 @@ export const userService = {
 // ============================================
 
 export const adService = {
-    // Obtener todos los anuncios
+    // Obtener todos los anuncios (legacy - usar getAdsPaginated)
     async getAds(): Promise<Ad[]> {
         const adsRef = collection(db, 'ads');
-        const q = query(adsRef, orderBy('createdAt', 'desc'));
+        const q = query(adsRef, orderBy('createdAt', 'desc'), limit(20));
         const snapshot = await getDocs(q);
 
         const ads: Ad[] = [];
         for (const docSnap of snapshot.docs) {
             const data = docSnap.data();
-            // Obtener datos del vendedor
             const seller = await userService.getUser(data.sellerId);
             ads.push({
                 id: docSnap.id as any,
@@ -166,6 +167,49 @@ export const adService = {
         }
 
         return ads;
+    },
+
+    // Obtener anuncios con paginación (optimizado)
+    async getAdsPaginated(pageSize: number = 20, lastDocument?: DocumentSnapshot): Promise<{ ads: Ad[], lastDoc: DocumentSnapshot | null }> {
+        const adsRef = collection(db, 'ads');
+
+        // Construir query con o sin cursor
+        let q;
+        if (lastDocument) {
+            q = query(adsRef, orderBy('createdAt', 'desc'), startAfter(lastDocument), limit(pageSize));
+        } else {
+            q = query(adsRef, orderBy('createdAt', 'desc'), limit(pageSize));
+        }
+
+        const snapshot = await getDocs(q);
+        const lastDoc = snapshot.docs.length > 0 ? snapshot.docs[snapshot.docs.length - 1] : null;
+
+        const ads: Ad[] = [];
+        for (const docSnap of snapshot.docs) {
+            const data = docSnap.data() as any;
+            // No cargar seller aquí para reducir lecturas
+            // Se puede cargar lazy si es necesario
+            ads.push({
+                id: docSnap.id as any,
+                uniqueCode: data.uniqueCode,
+                title: data.title,
+                description: data.description,
+                details: data.details,
+                price: data.price,
+                category: data.category,
+                subcategory: data.subcategory,
+                location: data.location,
+                sellerId: data.sellerId,
+                views: data.views || 0,
+                media: data.media || [],
+                isFeatured: data.isFeatured || false,
+                createdAt: data.createdAt?.toDate(),
+                updatedAt: data.updatedAt?.toDate(),
+                seller: undefined // Lazy load cuando sea necesario
+            } as Ad);
+        }
+
+        return { ads, lastDoc };
     },
 
     // Obtener anuncio por código único

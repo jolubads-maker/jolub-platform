@@ -21,6 +21,7 @@
     "@sentry/react": "^10.27.0",
     "@sentry/tracing": "^7.120.4",
     "@types/react-google-recaptcha": "^2.1.9",
+    "browser-image-compression": "^2.0.2",
     "cloudinary": "^2.8.0",
     "clsx": "^2.1.1",
     "date-fns": "^4.1.0",

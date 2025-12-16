@@ -4,6 +4,17 @@ import { AdFormData, Media, AdCategory } from '../src/types';
 import PaperclipIcon from './icons/PaperclipIcon';
 import { storageService } from '../services/storageService';
 import { notify } from '../services/notificationService';
+import imageCompression from 'browser-image-compression';
+
+// Configuración de compresión de imágenes (ahorro de costos)
+const IMAGE_COMPRESSION_OPTIONS = {
+  maxSizeMB: 0.2,           // Máximo 200KB
+  maxWidthOrHeight: 1080,   // Máximo 1080px
+  useWebWorker: true,       // Usar Web Worker para no bloquear UI
+  fileType: 'image/jpeg',   // Convertir todo a JPEG
+  initialQuality: 0.7,      // Calidad 70%
+  exifOrientation: 1,       // Eliminar metadatos EXIF (solo mantener orientación)
+};
 
 interface AdFormProps {
   onCancel: () => void;
@@ -62,9 +73,29 @@ const AdForm: React.FC<AdFormProps> = ({ onCancel, onSubmit }) => {
     setSubcategory('');
   }, [category]);
 
+  // Comprimir imagen antes de subir (ahorra costos de almacenamiento y ancho de banda)
+  const compressImage = async (file: File): Promise<File> => {
+    // Solo comprimir imágenes, no videos
+    if (!file.type.startsWith('image/')) {
+      return file;
+    }
+
+    try {
+      console.log(`📦 Comprimiendo: ${file.name} (${(file.size / 1024).toFixed(1)}KB)`);
+      const compressedFile = await imageCompression(file, IMAGE_COMPRESSION_OPTIONS);
+      console.log(`✅ Comprimido: ${compressedFile.name} (${(compressedFile.size / 1024).toFixed(1)}KB) - Ahorro: ${((1 - compressedFile.size / file.size) * 100).toFixed(0)}%`);
+      return compressedFile;
+    } catch (error) {
+      console.warn('⚠️ Error comprimiendo imagen, usando original:', error);
+      return file; // Si falla, usar original
+    }
+  };
+
   const uploadToFirebase = async (file: File): Promise<string> => {
     try {
-      const url = await storageService.uploadImage(file, 'ads');
+      // Comprimir imagen antes de subir
+      const compressedFile = await compressImage(file);
+      const url = await storageService.uploadImage(compressedFile, 'ads');
       return url;
     } catch (error) {
       console.error('Error subiendo imagen:', error);
