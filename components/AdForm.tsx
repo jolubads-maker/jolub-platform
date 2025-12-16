@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { AdFormData, Media, AdCategory } from '../src/types';
 import PaperclipIcon from './icons/PaperclipIcon';
-import { apiService } from '../services/apiService';
+import { storageService } from '../services/storageService';
 import { notify } from '../services/notificationService';
 
 interface AdFormProps {
@@ -62,13 +62,10 @@ const AdForm: React.FC<AdFormProps> = ({ onCancel, onSubmit }) => {
     setSubcategory('');
   }, [category]);
 
-  const uploadToR2 = async (file: File): Promise<string> => {
-    const formData = new FormData();
-    formData.append('file', file);
-
+  const uploadToFirebase = async (file: File): Promise<string> => {
     try {
-      const response = await apiService.uploadFile(formData);
-      return response.url;
+      const url = await storageService.uploadImage(file, 'ads');
+      return url;
     } catch (error) {
       console.error('Error subiendo imagen:', error);
       throw error;
@@ -104,7 +101,7 @@ const AdForm: React.FC<AdFormProps> = ({ onCancel, onSubmit }) => {
       setUploading(true);
       try {
         const uploadPromises = validFiles.map(async (file) => {
-          const url = await uploadToR2(file);
+          const url = await uploadToFirebase(file);
           const type = (file.type.startsWith('image/') ? 'image' : 'video') as 'image' | 'video';
           return { url, type } as Media;
         });

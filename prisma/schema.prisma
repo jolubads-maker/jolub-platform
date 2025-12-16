@@ -17,6 +17,13 @@ enum Role {
   ADMIN
 }
 
+enum MembershipTier {
+  FREE
+  BASIC
+  PRO
+  BUSINESS
+}
+
 model User {
   id            Int      @id @default(autoincrement())
   uniqueId      String?  @unique // ID único para dashboard dinámico (ej: "USER-123456789")
@@ -29,6 +36,9 @@ model User {
   provider      String?  // 'google' | 'apple' | 'manual'
   providerId    String?  // ID del proveedor OAuth
   sessionToken  String?  @unique // Token de sesión para detección automática
+  membershipTier MembershipTier @default(FREE)
+  membershipExpiresAt DateTime?
+  adsLimit      Int      @default(1)
   points        Int      @default(0)
   phone         String?
   phoneVerified Boolean  @default(false)
@@ -65,7 +75,7 @@ model Ad {
   views       Int      @default(0)
   isFeatured  Boolean  @default(false)
   featuredExpiresAt DateTime?
-  expiresAt   DateTime? // Fecha de caducidad del anuncio (se extiende al destacar)
+  expiresAt   DateTime? // DEPRECATED: La caducidad ahora depende de la membresía del usuario, pero se mantiene para lógica interna.
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 

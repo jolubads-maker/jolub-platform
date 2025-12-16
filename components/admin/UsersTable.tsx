@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
-import { apiService } from '../../services/apiService';
-import { User } from '../../types';
+import { User } from '../../src/types';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
+import { collection, getDocs } from 'firebase/firestore';
+import { db } from '../../src/config/firebase';
 
 const UsersTable: React.FC = () => {
     const [users, setUsers] = useState<User[]>([]);
@@ -14,8 +15,13 @@ const UsersTable: React.FC = () => {
 
     const fetchUsers = async () => {
         try {
-            const data = await apiService.get('/admin/users');
-            setUsers(data);
+            const usersRef = collection(db, 'users');
+            const snapshot = await getDocs(usersRef);
+            const usersData: User[] = snapshot.docs.map(doc => ({
+                id: doc.id,
+                ...doc.data()
+            })) as User[];
+            setUsers(usersData);
         } catch (error) {
             console.error('Error fetching users:', error);
         } finally {
@@ -23,10 +29,10 @@ const UsersTable: React.FC = () => {
         }
     };
 
-    const handleToggleBan = async (id: number) => {
+    const handleToggleBan = async (id: string | number) => {
         try {
-            await apiService.put(`/admin/users/${id}/ban`, {});
-            alert('Funcionalidad de ban pendiente de implementación completa');
+            // TODO: Implement ban functionality with Firestore
+            alert('Funcionalidad de ban pendiente de implementación con Firebase');
         } catch (error) {
             console.error('Error toggling ban:', error);
             alert('Error al actualizar estado del usuario');

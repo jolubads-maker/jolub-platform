@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { apiService } from '../../services/apiService';
-import { Ad } from '../../types';
+import { Ad } from '../../src/types';
+import { adService } from '../../services/firebaseService';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 
@@ -14,7 +14,7 @@ const AdsTable: React.FC = () => {
 
     const fetchAds = async () => {
         try {
-            const data = await apiService.get('/admin/ads');
+            const data = await adService.getAds();
             setAds(data);
         } catch (error) {
             console.error('Error fetching ads:', error);
@@ -23,10 +23,10 @@ const AdsTable: React.FC = () => {
         }
     };
 
-    const handleDelete = async (id: number) => {
+    const handleDelete = async (id: string | number) => {
         if (!window.confirm('¿Estás seguro de eliminar este anuncio?')) return;
         try {
-            await apiService.delete(`/admin/ads/${id}`);
+            await adService.deleteAd(String(id));
             setAds(ads.filter(ad => ad.id !== id));
         } catch (error) {
             console.error('Error deleting ad:', error);

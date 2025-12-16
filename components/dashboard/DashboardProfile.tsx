@@ -2,20 +2,18 @@ import React, { useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import { User } from '../../src/types';
 import { useAuthStore } from '../../store/useAuthStore';
-import { apiService } from '../../services/apiService';
+import { storageService } from '../../services/storageService';
+import { userService } from '../../services/firebaseService';
 
 interface DashboardProfileProps {
     currentUser: User;
 }
 
 const DashboardProfile: React.FC<DashboardProfileProps> = ({ currentUser }) => {
-    const { togglePrivacy } = useAuthStore();
     const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
+    const [showEmail, setShowEmail] = useState(currentUser.showEmail || false);
+    const [showPhone, setShowPhone] = useState(currentUser.showPhone || false);
     const fileInputRef = useRef<HTMLInputElement>(null);
-
-    // 🔧 CONFIGURACIÓN CLOUDINARY
-    const CLOUDINARY_CLOUD_NAME = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
-    const CLOUDINARY_UPLOAD_PRESET = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
 
     const handleAvatarClick = () => {
         fileInputRef.current?.click();
@@ -27,22 +25,14 @@ const DashboardProfile: React.FC<DashboardProfileProps> = ({ currentUser }) => {
 
         setIsUploadingAvatar(true);
         try {
-            const formData = new FormData();
-            formData.append('file', file);
-            formData.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
+            // Upload to Firebase Storage
+            const newAvatarUrl = await storageService.uploadImage(file, 'avatars');
 
-            const response = await fetch(
-                `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`,
-                { method: 'POST', body: formData }
-            );
-            const data = await response.json();
-            const newAvatarUrl = data.secure_url;
+            // Update user in Firestore
+            const uid = String(currentUser.providerId || currentUser.uid || currentUser.id);
+            await userService.updateUser(uid, { avatar: newAvatarUrl });
 
-            await apiService.createOrUpdateUser({
-                ...currentUser,
-                avatar: newAvatarUrl
-            });
-
+            // Update local state
             useAuthStore.setState(state => ({
                 currentUser: { ...state.currentUser!, avatar: newAvatarUrl }
             }));
@@ -54,6 +44,16 @@ const DashboardProfile: React.FC<DashboardProfileProps> = ({ currentUser }) => {
         } finally {
             setIsUploadingAvatar(false);
         }
+    };
+
+    const toggleEmailVisibility = () => {
+        setShowEmail(!showEmail);
+        // TODO: Persist to Firestore if needed
+    };
+
+    const togglePhoneVisibility = () => {
+        setShowPhone(!showPhone);
+        // TODO: Persist to Firestore if needed
     };
 
     return (
@@ -121,11 +121,11 @@ const DashboardProfile: React.FC<DashboardProfileProps> = ({ currentUser }) => {
                                         {currentUser.showEmail ? currentUser.email : 'Confirmado'}
                                     </span>
                                     <button
-                                        onClick={() => togglePrivacy('showEmail')}
-                                        className={`relative w-10 h-5 rounded-full transition-all duration-300 ease-out focus:outline-none shadow-inner ${currentUser.showEmail ? 'bg-green-500' : 'bg-black/40 border border-white/10'}`}
+                                        onClick={toggleEmailVisibility}
+                                        className={`relative w-10 h-5 rounded-full transition-all duration-300 ease-out focus:outline-none shadow-inner ${showEmail ? 'bg-green-500' : 'bg-black/40 border border-white/10'}`}
                                     >
                                         <span
-                                            className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow-md transform transition-transform duration-300 cubic-bezier(0.4, 0.0, 0.2, 1) ${currentUser.showEmail ? 'translate-x-5' : 'translate-x-0'}`}
+                                            className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow-md transform transition-transform duration-300 cubic-bezier(0.4, 0.0, 0.2, 1) ${showEmail ? 'translate-x-5' : 'translate-x-0'}`}
                                         />
                                     </button>
                                 </div>
@@ -147,11 +147,11 @@ const DashboardProfile: React.FC<DashboardProfileProps> = ({ currentUser }) => {
                                         {currentUser.showPhone ? currentUser.phone : 'Confirmado'}
                                     </span>
                                     <button
-                                        onClick={() => togglePrivacy('showPhone')}
-                                        className={`relative w-10 h-5 rounded-full transition-all duration-300 ease-out focus:outline-none shadow-inner ${currentUser.showPhone ? 'bg-green-500' : 'bg-black/40 border border-white/10'}`}
+                                        onClick={togglePhoneVisibility}
+                                        className={`relative w-10 h-5 rounded-full transition-all duration-300 ease-out focus:outline-none shadow-inner ${showPhone ? 'bg-green-500' : 'bg-black/40 border border-white/10'}`}
                                     >
                                         <span
-                                            className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow-md transform transition-transform duration-300 cubic-bezier(0.4, 0.0, 0.2, 1) ${currentUser.showPhone ? 'translate-x-5' : 'translate-x-0'}`}
+                                            className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow-md transform transition-transform duration-300 cubic-bezier(0.4, 0.0, 0.2, 1) ${showPhone ? 'translate-x-5' : 'translate-x-0'}`}
                                         />
                                     </button>
                                 </div>

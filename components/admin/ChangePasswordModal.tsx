@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
-import { apiService } from '../../services/apiService';
+import { EmailAuthProvider, reauthenticateWithCredential, updatePassword } from 'firebase/auth';
+import { auth } from '../../src/config/firebase';
 
 interface ChangePasswordModalProps {
     isOpen: boolean;
@@ -27,35 +28,37 @@ const ChangePasswordModal: React.FC<ChangePasswordModalProps> = ({ isOpen, onClo
             return;
         }
 
+        const user = auth.currentUser;
+        if (!user || !user.email) {
+            toast.error('No hay usuario autenticado');
+            return;
+        }
+
         setLoading(true);
 
         try {
-            // We need to add this method to apiService or call fetch directly
-            // Using fetch directly for now as it's a specific admin feature
-            const token = localStorage.getItem('sessionToken');
-            const response = await fetch('/api/auth/change-password', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`
-                },
-                body: JSON.stringify({ currentPassword, newPassword })
-            });
+            // Re-authenticate user before changing password
+            const credential = EmailAuthProvider.credential(user.email, currentPassword);
+            await reauthenticateWithCredential(user, credential);
 
-            const data = await response.json();
-
-            if (!response.ok) {
-                throw new Error(data.error || 'Error al cambiar contraseña');
-            }
+            // Update password
+            await updatePassword(user, newPassword);
 
             toast.success('Contraseña actualizada exitosamente');
             onClose();
-            // Optional: Clear form
+            // Clear form
             setCurrentPassword('');
             setNewPassword('');
             setConfirmPassword('');
         } catch (error: any) {
-            toast.error(error.message || 'Error al cambiar contraseña');
+            console.error('Error changing password:', error);
+            let message = 'Error al cambiar contraseña';
+            if (error.code === 'auth/wrong-password') {
+                message = 'La contraseña actual es incorrecta';
+            } else if (error.code === 'auth/too-many-requests') {
+                message = 'Demasiados intentos. Intenta más tarde';
+            }
+            toast.error(message);
         } finally {
             setLoading(false);
         }

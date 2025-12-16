@@ -21,9 +21,24 @@ const DashboardChats: React.FC<DashboardChatsProps> = ({
     onVerifyEmail
 }) => {
 
+    // Get current user's UID (could be providerId, uid, or id)
+    const currentUid = String(currentUser.providerId || currentUser.uid || currentUser.id);
+
     const getOtherParticipant = (chat: ChatLog) => {
-        const otherId = chat.participantIds.find(id => id !== currentUser.id);
-        return users.find(user => user.id === otherId);
+        // participantIds are strings (Firebase UIDs)
+        const otherId = chat.participantIds.find(id => String(id) !== currentUid);
+        if (!otherId) return undefined;
+
+        // Find user by comparing different possible ID fields
+        return users.find(user =>
+            String(user.providerId || user.uid || user.id) === String(otherId)
+        );
+    };
+
+    // Check for unread messages
+    const hasUnreadMessages = (chat: ChatLog) => {
+        if (!chat.messages || chat.messages.length === 0) return false;
+        return chat.messages.some((m: any) => !m.isRead && String(m.userId) !== currentUid);
     };
 
     return (
@@ -37,7 +52,7 @@ const DashboardChats: React.FC<DashboardChatsProps> = ({
                     userChats.map((chat, index) => {
                         const otherUser = getOtherParticipant(chat);
                         if (!otherUser) return null;
-                        const hasUnread = chat.messages && chat.messages.some((m: any) => !m.isRead && m.userId !== currentUser.id);
+                        const hasUnread = hasUnreadMessages(chat);
 
                         return (
                             <motion.div

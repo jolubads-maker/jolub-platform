@@ -1,9 +1,27 @@
-import { create } from 'zustand';
-import { User } from '../src/types';
-import { apiService } from '../services/apiService';
+// Authentication Store con Firebase - Migración Completa
+// Reemplaza el sistema anterior basado en apiService
 
+import { create } from 'zustand';
+import {
+    signInWithEmailAndPassword,
+    signOut,
+    onAuthStateChanged,
+    User as FirebaseUser,
+    createUserWithEmailAndPassword,
+    sendPasswordResetEmail,
+    updateProfile,
+    GoogleAuthProvider,
+    signInWithPopup,
+    sendEmailVerification
+} from 'firebase/auth';
+import { auth } from '../src/config/firebase';
+import { userService } from '../services/firebaseService';
+import { User } from '../src/types';
+
+// Tipo para el estado del store
 interface AuthState {
     currentUser: User | null;
+    firebaseUser: FirebaseUser | null;
     users: User[];
     loading: boolean;
     error: string | null;
@@ -13,19 +31,65 @@ interface AuthState {
     setError: (error: string | null) => void;
     setCurrentUser: (user: User | null) => void;
     setUsers: (users: User[]) => void;
-    fetchUsers: () => Promise<void>;
-    getUserById: (userId: number) => Promise<User | undefined>;
-    login: (userInfo: any) => Promise<User | void>;
+    login: (credentials: { email: string; password: string }) => Promise<User | void>;
+    loginWithGoogle: () => Promise<User | void>;
+    register: (data: { email: string; password: string; name: string }) => Promise<User | void>;
     logout: () => Promise<void>;
     verifySession: () => Promise<void>;
-    updateUserStatus: (userId: number, isOnline: boolean) => Promise<void>;
-    updateUserPhone: (phoneNumber: string) => Promise<void>;
-    updateUserEmail: () => Promise<void>;
-    togglePrivacy: (field: 'showEmail' | 'showPhone') => Promise<void>;
+    resetPassword: (email: string) => Promise<void>;
+    sendVerificationEmail: () => Promise<void>;
+    getUserById: (userId: string | number) => Promise<User | undefined>;
+    updateUserStatus: (userId: string | number, isOnline: boolean) => Promise<void>;
 }
+
+// Función para convertir FirebaseUser a User del sistema
+const mapFirebaseUserToUser = (firebaseUser: FirebaseUser): User => {
+    return {
+        id: parseInt(firebaseUser.uid.slice(-8), 16) || Date.now(), // Generar ID numérico del UID
+        uniqueId: `USER-${firebaseUser.uid.slice(-10).toUpperCase()}`,
+        name: firebaseUser.displayName || firebaseUser.email?.split('@')[0] || 'Usuario',
+        email: firebaseUser.email || undefined,
+        avatar: firebaseUser.photoURL || `https://ui-avatars.com/api/?name=${encodeURIComponent(firebaseUser.displayName || 'U')}&background=6e0ad6&color=fff`,
+        emailVerified: firebaseUser.emailVerified,
+        provider: firebaseUser.providerData[0]?.providerId === 'google.com' ? 'google' : 'manual',
+        providerId: firebaseUser.uid,
+        points: 0,
+        isOnline: true,
+        createdAt: new Date(),
+    };
+};
+
+// Traducir errores de Firebase al español
+function getSpanishErrorMessage(errorCode: string): string {
+    const errorMessages: Record<string, string> = {
+        'auth/invalid-email': 'El correo electrónico no es válido',
+        'auth/user-disabled': 'Esta cuenta ha sido deshabilitada',
+        'auth/user-not-found': 'No existe una cuenta con este correo electrónico',
+        'auth/wrong-password': 'La contraseña es incorrecta',
+        'auth/email-already-in-use': 'Este correo electrónico ya está registrado',
+        'auth/weak-password': 'La contraseña debe tener al menos 6 caracteres',
+        'auth/operation-not-allowed': 'Operación no permitida',
+        'auth/too-many-requests': 'Demasiados intentos. Intenta más tarde',
+        'auth/network-request-failed': 'Error de conexión. Verifica tu internet',
+        'auth/invalid-credential': 'Credenciales inválidas. Verifica tu email y contraseña',
+        'auth/popup-closed-by-user': 'Ventana de login cerrada por el usuario',
+    };
+
+    for (const [code, message] of Object.entries(errorMessages)) {
+        if (errorCode.includes(code)) {
+            return message;
+        }
+    }
+
+    return 'Ha ocurrido un error. Intenta de nuevo.';
+}
+
+// Google Auth Provider
+const googleProvider = new GoogleAuthProvider();
 
 export const useAuthStore = create<AuthState>((set, get) => ({
     currentUser: null,
+    firebaseUser: null,
     users: [],
     loading: false,
     error: null,
@@ -35,227 +99,229 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     setCurrentUser: (user) => set({ currentUser: user }),
     setUsers: (users) => set({ users }),
 
-    fetchUsers: async () => {
+    // Login con email y contraseña
+    login: async (credentials) => {
+        set({ loading: true, error: null });
         try {
-            const users = await apiService.getUsers();
-            set({ users });
-        } catch (error) {
-            console.error('Error fetching users:', error);
-        }
-    },
+            const userCredential = await signInWithEmailAndPassword(
+                auth,
+                credentials.email,
+                credentials.password
+            );
+            const user = mapFirebaseUserToUser(userCredential.user);
 
-    getUserById: async (userId: number) => {
-        const { users } = get();
-        const existingUser = users.find(u => u.id === userId);
-        if (existingUser) return existingUser;
+            set({
+                currentUser: user,
+                firebaseUser: userCredential.user,
+                loading: false,
+                error: null
+            });
 
-        try {
-            const user = await apiService.getUser(userId);
-            set(state => ({ users: [...state.users, user] }));
+            localStorage.setItem('currentUser', JSON.stringify(user));
             return user;
-        } catch (error) {
-            console.error(`Error fetching user ${userId}:`, error);
-            return undefined;
-        }
-    },
-
-    login: async (userInfo) => {
-        try {
-            // Optimization: If userInfo already has ID (Manual Login), skip sync
-            if (userInfo.id) {
-                set({ loading: true, error: null });
-
-                // Optimistic update
-                const userWithOnline = { ...userInfo, isOnline: true };
-
-                set(state => {
-                    const existingUserIndex = state.users.findIndex(u => u.id === userWithOnline.id);
-                    let newUsers = [...state.users];
-                    if (existingUserIndex >= 0) {
-                        newUsers[existingUserIndex] = userWithOnline;
-                    } else {
-                        newUsers.push(userWithOnline);
-                    }
-                    return { currentUser: userWithOnline, users: newUsers, loading: false };
-                });
-
-                localStorage.setItem('currentUser', JSON.stringify(userWithOnline));
-                localStorage.setItem('currentUser', JSON.stringify(userWithOnline));
-                if (userWithOnline.sessionToken) {
-                    localStorage.setItem('sessionToken', userWithOnline.sessionToken);
-                }
-
-                // Update online status in background
-                apiService.updateUserOnlineStatus(userWithOnline.id, true).catch(err => {
-                    console.error('Background online status update failed:', err);
-                });
-
-                return userWithOnline;
-            }
-
-            set({ loading: true, error: null });
-            const user = await apiService.createOrUpdateUser(userInfo);
-            // const sessionToken = await apiService.generateSessionToken(user.id); // REMOVED
-
-            // Optimistic update: Set user immediately to unblock UI
-            const userWithOnline = { ...user, isOnline: true };
-
-            set(state => {
-                const existingUserIndex = state.users.findIndex(u => u.id === user.id);
-                let newUsers = [...state.users];
-                if (existingUserIndex >= 0) {
-                    newUsers[existingUserIndex] = userWithOnline;
-                } else {
-                    newUsers.push(userWithOnline);
-                }
-                return { currentUser: userWithOnline, users: newUsers, loading: false };
-            });
-
-            localStorage.setItem('currentUser', JSON.stringify(userWithOnline));
-            localStorage.setItem('currentUser', JSON.stringify(userWithOnline));
-            if (userWithOnline.sessionToken) {
-                localStorage.setItem('sessionToken', userWithOnline.sessionToken);
-            }
-
-            // Update online status in background (Fire and forget)
-            apiService.updateUserOnlineStatus(user.id, true).catch(err => {
-                console.error('Background online status update failed:', err);
-            });
-
-            return userWithOnline;
         } catch (error: any) {
-            set({ error: error.message || 'Error logging in', loading: false });
-            throw error;
+            const errorMessage = getSpanishErrorMessage(error.code || error.message);
+            set({ error: errorMessage, loading: false });
+            throw new Error(errorMessage);
         }
     },
 
+    // Login con Google
+    loginWithGoogle: async () => {
+        set({ loading: true, error: null });
+        try {
+            const result = await signInWithPopup(auth, googleProvider);
+            const user = mapFirebaseUserToUser(result.user);
+
+            set({
+                currentUser: user,
+                firebaseUser: result.user,
+                loading: false,
+                error: null
+            });
+
+            localStorage.setItem('currentUser', JSON.stringify(user));
+            return user;
+        } catch (error: any) {
+            const errorMessage = getSpanishErrorMessage(error.code || error.message);
+            set({ error: errorMessage, loading: false });
+            throw new Error(errorMessage);
+        }
+    },
+
+    // Registro de nuevo usuario
+    register: async (data) => {
+        set({ loading: true, error: null });
+        try {
+            const userCredential = await createUserWithEmailAndPassword(
+                auth,
+                data.email,
+                data.password
+            );
+
+            // Actualizar el perfil con el nombre
+            if (data.name) {
+                await updateProfile(userCredential.user, {
+                    displayName: data.name,
+                    photoURL: `https://ui-avatars.com/api/?name=${encodeURIComponent(data.name)}&background=6e0ad6&color=fff`
+                });
+            }
+
+            // Enviar email de verificación
+            await sendEmailVerification(userCredential.user);
+
+            const user = mapFirebaseUserToUser(userCredential.user);
+            user.name = data.name; // Asegurar el nombre
+
+            set({
+                currentUser: user,
+                firebaseUser: userCredential.user,
+                loading: false,
+                error: null
+            });
+
+            localStorage.setItem('currentUser', JSON.stringify(user));
+            return user;
+        } catch (error: any) {
+            const errorMessage = getSpanishErrorMessage(error.code || error.message);
+            set({ error: errorMessage, loading: false });
+            throw new Error(errorMessage);
+        }
+    },
+
+    // Cerrar sesión
     logout: async () => {
-        const { currentUser } = get();
-        if (currentUser) {
-            try {
-                await apiService.logout(currentUser.id);
-            } catch (error) {
-                console.error('Error logging out:', error);
-            }
+        try {
+            await signOut(auth);
+            localStorage.removeItem('currentUser');
+            localStorage.removeItem('sessionToken');
+            set({
+                currentUser: null,
+                firebaseUser: null,
+                error: null
+            });
+        } catch (error: any) {
+            console.error('Error al cerrar sesión:', error);
+            // Limpiar estado de todos modos
+            localStorage.removeItem('currentUser');
+            set({ currentUser: null, firebaseUser: null });
         }
-
-        localStorage.removeItem('sessionToken');
-        localStorage.removeItem('currentUser');
-        localStorage.removeItem('phoneVerification');
-
-        set({ currentUser: null });
     },
 
+    // Verificar sesión (llamado por onAuthStateChanged)
     verifySession: async () => {
-        // Try to authenticate with cookie only
+        // Esta función ahora es manejada por onAuthStateChanged
+        // Se mantiene para compatibilidad con App.tsx
+        return Promise.resolve();
+    },
+
+    // Enviar email para restablecer contraseña
+    resetPassword: async (email: string) => {
+        set({ loading: true, error: null });
         try {
-            // Pass empty string or null, apiService will send empty body but include cookie
-            const user = await apiService.authenticateWithToken('');
-            if (user) {
-                set({ currentUser: user });
-                // Also refresh users list to ensure we have latest data
-                get().fetchUsers();
-            } else {
-                // Invalid session
-                localStorage.removeItem('currentUser');
-                set({ currentUser: null });
+            await sendPasswordResetEmail(auth, email);
+            set({ loading: false });
+        } catch (error: any) {
+            const errorMessage = getSpanishErrorMessage(error.code || error.message);
+            set({ error: errorMessage, loading: false });
+            throw new Error(errorMessage);
+        }
+    },
+
+    // Reenviar email de verificación
+    sendVerificationEmail: async () => {
+        const { firebaseUser } = get();
+        if (firebaseUser) {
+            try {
+                await sendEmailVerification(firebaseUser);
+            } catch (error: any) {
+                throw new Error(getSpanishErrorMessage(error.code || error.message));
             }
-        } catch (error) {
-            console.error('Session verification failed (Server Error):', error);
-            // Do NOT logout on server error (429, 500). 
-        } finally {
-            set({ isCheckingSession: false });
         }
     },
 
-    updateUserStatus: async (userId, isOnline) => {
-        try {
-            await apiService.updateUserOnlineStatus(userId, isOnline);
-            // Optimistic update or refetch
-            set(state => ({
-                users: state.users.map(u => u.id === userId ? { ...u, isOnline } : u)
-            }));
-        } catch (error) {
-            console.error('Error updating status:', error);
-        }
-    },
+    // Obtener usuario por ID (compatibilidad)
+    getUserById: async (userId: string | number) => {
+        const { users, currentUser } = get();
+        const userIdStr = String(userId);
 
-    updateUserPhone: async (phoneNumber) => {
-        const { currentUser } = get();
-        if (!currentUser) return;
-
-        try {
-            const updatedUser = await apiService.verifyUserPhone(currentUser.id, phoneNumber);
-            set(state => ({
-                currentUser: updatedUser,
-                users: state.users.map(u => u.id === updatedUser.id ? updatedUser : u)
-            }));
-            localStorage.setItem('currentUser', JSON.stringify(updatedUser));
-        } catch (error) {
-            throw error;
-        }
-    },
-
-    updateUserEmail: async () => {
-        const { currentUser } = get();
-        if (!currentUser) return;
-
-        // 1. Optimistic Update: Update local state immediately
-        const pointsIncrement = currentUser.emailVerified ? 0 : 10;
-        const optimisticUser = {
-            ...currentUser,
-            emailVerified: true,
-            points: (currentUser.points || 0) + pointsIncrement
-        };
-
-        set(state => ({
-            currentUser: optimisticUser,
-            users: state.users.map(u => u.id === optimisticUser.id ? optimisticUser : u)
-        }));
-        localStorage.setItem('currentUser', JSON.stringify(optimisticUser));
-
-        try {
-            // 2. Background Re-fetch to ensure consistency
-            // Just call verifySession to refresh from cookie
-            const updatedUser = await apiService.authenticateWithToken('');
-            if (updatedUser) {
-                set(state => ({
-                    currentUser: updatedUser,
-                    users: state.users.map(u => u.id === updatedUser.id ? updatedUser : u)
-                }));
-                localStorage.setItem('currentUser', JSON.stringify(updatedUser));
+        // Primero buscar por providerId (Firebase UID)
+        if (currentUser) {
+            const currentUid = String(currentUser.providerId || currentUser.uid || currentUser.id);
+            if (currentUid === userIdStr) {
+                return currentUser;
             }
-        } catch (error) {
-            console.error('Error syncing user status after email verification:', error);
         }
+
+        // Buscar en usuarios cargados
+        let found = users.find(u => {
+            const uid = String(u.providerId || u.uid || u.id);
+            return uid === userIdStr || String(u.id) === userIdStr;
+        });
+
+        // Si no se encuentra, intentar cargar desde Firestore
+        if (!found) {
+            try {
+                found = await userService.getUserById(userIdStr);
+            } catch (e) {
+                console.warn('Usuario no encontrado en Firestore:', userId);
+            }
+        }
+
+        return found;
     },
 
-    togglePrivacy: async (field) => {
-        const { currentUser } = get();
-        if (!currentUser) return;
-
-        // 1. Optimistic Update
-        const newValue = !currentUser[field];
-        const optimisticUser = { ...currentUser, [field]: newValue };
-
+    // Actualizar estado online (simplificado para Firebase)
+    updateUserStatus: async (userId: number, isOnline: boolean) => {
         set(state => ({
-            currentUser: optimisticUser,
-            users: state.users.map(u => u.id === optimisticUser.id ? optimisticUser : u)
+            currentUser: state.currentUser?.id === userId
+                ? { ...state.currentUser, isOnline }
+                : state.currentUser
         }));
-        localStorage.setItem('currentUser', JSON.stringify(optimisticUser));
-
-        try {
-            // 2. API Call
-            await apiService.updatePrivacy(currentUser.id, { [field]: newValue });
-        } catch (error) {
-            console.error(`Error updating privacy for ${field}:`, error);
-            // Revert on error
-            const revertedUser = { ...currentUser, [field]: !newValue };
-            set(state => ({
-                currentUser: revertedUser,
-                users: state.users.map(u => u.id === revertedUser.id ? revertedUser : u)
-            }));
-            localStorage.setItem('currentUser', JSON.stringify(revertedUser));
-        }
-    }
+    },
 }));
+
+// ============================================
+// LISTENER DE AUTENTICACIÓN (onAuthStateChanged)
+// ============================================
+// Se ejecuta automáticamente para mantener la sesión sincronizada
+
+onAuthStateChanged(auth, async (firebaseUser) => {
+    if (firebaseUser) {
+        // Usuario autenticado - Sincronizar con Firestore
+        const user = mapFirebaseUserToUser(firebaseUser);
+
+        // Crear o actualizar usuario en Firestore
+        try {
+            await userService.createOrUpdateUser({
+                uid: firebaseUser.uid,
+                name: user.name,
+                email: user.email,
+                avatar: user.avatar,
+                emailVerified: user.emailVerified,
+                provider: user.provider
+            });
+        } catch (error) {
+            console.error('Error syncing user to Firestore:', error);
+        }
+
+        useAuthStore.setState({
+            currentUser: { ...user, providerId: firebaseUser.uid },
+            firebaseUser: firebaseUser,
+            isCheckingSession: false,
+            loading: false
+        });
+        localStorage.setItem('currentUser', JSON.stringify(user));
+    } else {
+        // Usuario no autenticado
+        useAuthStore.setState({
+            currentUser: null,
+            firebaseUser: null,
+            isCheckingSession: false,
+            loading: false
+        });
+        localStorage.removeItem('currentUser');
+    }
+});
+
+export type { AuthState };

@@ -8,7 +8,6 @@ import EyeIcon from './icons/EyeIcon';
 import PhoneVerificationModal from './PhoneVerificationModal';
 import EmailVerificationModal from './EmailVerificationModal';
 import { useAuthStore } from '../store/useAuthStore';
-import { getSocketUrl } from '../config/api.config';
 
 // Global State
 import { useAdStore } from '../store/useAdStore';
@@ -17,14 +16,15 @@ import DashboardStats from './dashboard/DashboardStats';
 import DashboardProfile from './dashboard/DashboardProfile';
 import DashboardChats from './dashboard/DashboardChats';
 import DashboardAds from './dashboard/DashboardAds';
+import ChatView from './ChatView';
 
 const Dashboard: React.FC = () => {
   const navigate = useNavigate();
 
   // Global State
-  const { currentUser, logout, updateUserPhone, updateUserEmail } = useAuthStore();
+  const { currentUser, logout } = useAuthStore();
   const { ads } = useAdStore();
-  const { chatLogs } = useChatStore();
+  const { chatLogs, loadUserChats, subscribeToUserChats } = useChatStore();
   const { getUserById } = useAuthStore();
 
   // Local State
@@ -51,13 +51,15 @@ const Dashboard: React.FC = () => {
   // Derived State
   const userAds = useMemo(() => {
     if (!currentUser) return [];
-    return ads.filter(ad => ad.sellerId === currentUser.id);
+    const currentUid = String(currentUser.providerId || currentUser.uid || currentUser.id);
+    return ads.filter(ad => String(ad.sellerId) === currentUid);
   }, [ads, currentUser]);
 
   const userChats = useMemo(() => {
     if (!currentUser) return [];
+    const currentUid = String(currentUser.providerId || currentUser.uid || currentUser.id);
     return Array.from(chatLogs.values()).filter(log =>
-      (log as ChatLog).participantIds.includes(currentUser.id)
+      (log as ChatLog).participantIds.some(id => String(id) === currentUid)
     );
   }, [chatLogs, currentUser]);
 
@@ -66,10 +68,12 @@ const Dashboard: React.FC = () => {
     const loadRelevantUsers = async () => {
       if (!userChats.length) return;
 
-      const uniqueUserIds = new Set<number>();
+      const currentUid = String(currentUser.providerId || currentUser.uid || currentUser.id);
+      const uniqueUserIds = new Set<string>();
       userChats.forEach(chat => {
         chat.participantIds.forEach(id => {
-          if (id !== currentUser.id) uniqueUserIds.add(id);
+          const idStr = String(id);
+          if (idStr !== currentUid) uniqueUserIds.add(idStr);
         });
       });
 
@@ -82,11 +86,12 @@ const Dashboard: React.FC = () => {
     };
 
     loadRelevantUsers();
-  }, [userChats, currentUser.id, getUserById]);
+  }, [userChats, currentUser, getUserById]);
 
   useEffect(() => {
     if (selectedChat && currentUser) {
-      const partnerId = selectedChat.participantIds.find(id => id !== currentUser.id);
+      const currentUid = String(currentUser.providerId || currentUser.uid || currentUser.id);
+      const partnerId = selectedChat.participantIds.find(id => String(id) !== currentUid);
       if (partnerId) {
         getUserById(partnerId).then(setChatPartner);
       } else {
@@ -95,28 +100,19 @@ const Dashboard: React.FC = () => {
     }
   }, [selectedChat, currentUser, getUserById]);
 
-  // Listen for new messages to update chat list
+  // Subscribe to chats in real-time
   useEffect(() => {
     if (!currentUser) return;
+    const currentUid = String(currentUser.providerId || currentUser.uid || currentUser.id);
 
-    const socketUrl = getSocketUrl();
-    import('socket.io-client').then(({ io }) => {
-      const socket = io(socketUrl, {
-        transports: ['websocket'],
-        auth: { token: currentUser.sessionToken }
-      });
+    // Subscribe to real-time updates
+    const unsubscribe = subscribeToUserChats(currentUid);
 
-      socket.on('new_message_notification', (data) => {
-        console.log('🔔 Dashboard: Nueva notificación recibida, actualizando chats...', data);
-        // Reload chats to update order and unread status
-        useChatStore.getState().loadUserChats(currentUser.id);
-      });
-
-      return () => {
-        socket.disconnect();
-      };
-    });
-  }, [currentUser]);
+    // Cleanup on unmount
+    return () => {
+      unsubscribe();
+    };
+  }, [currentUser, subscribeToUserChats]);
 
   if (!currentUser) {
     navigate('/login');
@@ -157,21 +153,15 @@ const Dashboard: React.FC = () => {
   };
 
   const handlePhoneVerified = async (phoneNumber: string) => {
-    try {
-      await updateUserPhone(phoneNumber);
-      setShowPhoneVerifyModal(false);
-    } catch (error) {
-      console.error('Error updating phone in store:', error);
-    }
+    // Phone verification no longer used with Firebase
+    console.log('Phone verified:', phoneNumber);
+    setShowPhoneVerifyModal(false);
   };
 
   const handleEmailVerified = async () => {
-    try {
-      await updateUserEmail();
-      setShowEmailVerifyModal(false);
-    } catch (error) {
-      console.error('Error updating email in store:', error);
-    }
+    // Email verification is handled by Firebase Auth
+    console.log('Email verified');
+    setShowEmailVerifyModal(false);
   };
 
   return (

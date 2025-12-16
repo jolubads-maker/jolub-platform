@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { Ad } from '../src/types';
 import AdCard from './AdCard';
-import { apiService } from '../services/apiService';
+import { favoriteService } from '../services/firebaseService';
 import { useAuthStore } from '../store/useAuthStore';
 import { useAdStore } from '../store/useAdStore';
 import UserStatusBadge from './UserStatusBadge';
@@ -192,7 +192,7 @@ const HomePage: React.FC = () => {
     setFilteredAds(ads);
   }, [ads]);
 
-  const handleToggleFavorite = useCallback(async (adId: number) => {
+  const handleToggleFavorite = useCallback(async (adId: string | number) => {
     if (!currentUser) {
       navigate('/login');
       return;
@@ -202,10 +202,13 @@ const HomePage: React.FC = () => {
       const ad = filteredAds.find(a => a.id === adId);
       if (!ad) return;
 
+      const userId = String(currentUser.providerId || currentUser.uid || currentUser.id);
+      const adIdStr = String(adId);
+
       if (ad.isFavorite) {
-        await apiService.removeFavorite(currentUser.id, adId);
+        await favoriteService.removeFavorite(userId, adIdStr);
       } else {
-        await apiService.addFavorite(currentUser.id, adId);
+        await favoriteService.addFavorite(userId, adIdStr);
       }
 
       // Update local state
@@ -218,9 +221,9 @@ const HomePage: React.FC = () => {
     }
   }, [currentUser, filteredAds, navigate]);
 
-  const handleSelectAd = useCallback(async (adId: number) => {
-    await incrementViews(adId);
-    const ad = ads.find(a => a.id === adId);
+  const handleSelectAd = useCallback(async (adId: string | number) => {
+    await incrementViews(String(adId));
+    const ad = ads.find(a => a.id === adId || String(a.id) === String(adId));
     if (ad) {
       navigate(`/anuncio/${ad.uniqueCode}`);
     }

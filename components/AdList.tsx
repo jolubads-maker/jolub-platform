@@ -4,7 +4,7 @@ import AdCard from './AdCard';
 
 interface AdListProps {
   ads: Ad[];
-  onSelectAd: (adId: number) => void;
+  onSelectAd: (adId: string | number) => void;
 }
 
 const AdList: React.FC<AdListProps> = ({ ads, onSelectAd }) => {
@@ -19,7 +19,7 @@ const AdList: React.FC<AdListProps> = ({ ads, onSelectAd }) => {
       ) : (
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 md:gap-6">
           {ads.map(ad => (
-            <AdCard key={ad.id} ad={ad} onSelectAd={onSelectAd} />
+            <AdCard key={ad.id} ad={ad} onSelect={() => onSelectAd(ad.id)} />
           ))}
         </div>
       )}

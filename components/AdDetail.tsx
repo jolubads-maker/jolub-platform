@@ -3,13 +3,12 @@ import { Ad, User, Media } from '../src/types';
 import ArrowLeftIcon from './icons/ArrowLeftIcon';
 import ChatIcon from './icons/ChatIcon';
 import EyeIcon from './icons/EyeIcon';
-import { getSocketUrl } from '../config/api.config';
 
 interface AdDetailProps {
   ad: Ad;
   seller: User;
   onBack: () => void;
-  onStartChat: (sellerId: number) => void;
+  onStartChat: (sellerId: string | number) => void;
   currentUser: User | null;
 }
 
@@ -72,43 +71,17 @@ const AdDetail: React.FC<AdDetailProps> = ({ ad, seller, onBack, onStartChat, cu
     }
   };
 
-  const showChatButton = currentUser && currentUser.id !== seller.id;
+  // Compare IDs considering string | number
+  const currentUserId = currentUser ? String(currentUser.providerId || currentUser.uid || currentUser.id) : null;
+  const sellerUid = String(seller.providerId || seller.uid || seller.id);
+  const showChatButton = currentUser && currentUserId !== sellerUid;
   const currentMedia = activeMedia || ad.media?.[0];
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [notification, setNotification] = useState<{ senderName: string; text: string; chatId: string } | null>(null);
 
+  // Socket removed - using Firestore listeners now
   useEffect(() => {
-    if (!currentUser) return;
-
-    const socketUrl = getSocketUrl();
-    import('socket.io-client').then(({ io }) => {
-      const socket = io(socketUrl, {
-        transports: ['websocket'],
-        auth: { token: currentUser.sessionToken }
-      });
-
-      socket.on('connect', () => {
-        console.log('🔔 AdDetail conectado a socket para notificaciones');
-      });
-
-      socket.on('new_message_notification', (data: { chatId: string; senderName: string; text: string; adId?: number }) => {
-        console.log('🔔 Notificación recibida:', data);
-        if (data.adId && data.adId !== ad.id) return;
-
-        setNotification({
-          senderName: data.senderName,
-          text: data.text,
-          chatId: data.chatId
-        });
-
-        // Auto hide after 10 seconds
-        setTimeout(() => setNotification(null), 10000);
-      });
-
-      return () => {
-        socket.disconnect();
-      };
-    });
+    // TODO: Subscribe to chat notifications via Firestore if needed
   }, [currentUser, ad.id]);
 
   const handleStartChat = () => {

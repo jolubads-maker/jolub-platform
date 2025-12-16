@@ -9,7 +9,7 @@ interface AdCardProps {
   seller?: User;
   onSelect: () => void;
   currentUser?: User | null;
-  onToggleFavorite?: (adId: number) => void;
+  onToggleFavorite?: (adId: string | number) => void;
   variant?: 'default' | 'dashboard';
   onHighlight?: (ad: Ad) => void;
 }

@@ -15,6 +15,7 @@ const Register = lazy(() => import('./components/Register'));
 const ResetPassword = lazy(() => import('./components/ResetPassword'));
 const HomePage = lazy(() => import('./components/HomePage'));
 const Dashboard = lazy(() => import('./components/Dashboard'));
+const ChatPageLayout = lazy(() => import('./components/ChatPageLayout'));
 const ConnectionStatus = lazy(() => import('./components/ConnectionStatus'));
 
 // Admin Components
@@ -73,7 +74,7 @@ const AdDetailWrapper: React.FC = () => {
 
   const seller = useMemo(() => ad?.seller, [ad]);
 
-  const handleStartChat = (sellerId: number) => {
+  const handleStartChat = (sellerId: string | number) => {
     if (!currentUser) {
       navigate('/login');
       return;
@@ -138,20 +139,15 @@ const App: React.FC = () => {
 
   // Cargar datos iniciales
   useEffect(() => {
-    const init = async () => {
-      // Run session verification and ads fetch in parallel to reduce load time
-      await Promise.all([
-        verifySession(),
-        fetchAds()
-      ]);
-    };
-    init();
+    // Solo cargar anuncios, Firebase Auth maneja la sesión automáticamente via onAuthStateChanged
+    fetchAds();
   }, []);
 
   // Cargar chats cuando cambia el usuario
   useEffect(() => {
     if (currentUser) {
-      loadUserChats(currentUser.id);
+      const uid = String(currentUser.providerId || currentUser.uid || currentUser.id);
+      loadUserChats(uid);
     }
   }, [currentUser]);
 
@@ -198,9 +194,9 @@ const App: React.FC = () => {
                     try {
                       await useAdStore.getState().createAd({
                         ...data,
-                        sellerId: currentUser.id
+                        sellerId: currentUser.providerId || currentUser.uniqueId || String(currentUser.id)
                       });
-                      navigate('/');
+                      navigate(`/dashboard/${currentUser.uniqueId || 'USER-' + currentUser.id}`);
                       notify.success('¡Anuncio publicado exitosamente!');
                     } catch (e: any) {
                       notify.error(e.message || 'Error al crear anuncio');
@@ -213,30 +209,24 @@ const App: React.FC = () => {
             } />
 
             <Route path="/login" element={
-              <Login onLogin={async (data) => {
-                try {
-                  const user = await useAuthStore.getState().login(data);
-                  if (user) {
-                    navigate(`/dashboard/${user.uniqueId || 'USER-' + user.id}`);
-                    notify.success(`Bienvenido, ${user.name}!`);
-                  }
-                } catch (e: any) {
-                  notify.error(e.message || 'Error al iniciar sesión');
+              <Login onLogin={(user) => {
+                // User is already authenticated by Login.tsx
+                // Just navigate and show notification
+                if (user) {
+                  navigate(`/dashboard/${user.uniqueId || 'USER-' + user.id}`);
+                  notify.success(`Bienvenido, ${user.name || user.email}!`);
                 }
               }} />
             } />
 
             <Route path="/register" element={
               <Register
-                onRegister={async (data) => {
-                  try {
-                    const user = await useAuthStore.getState().login(data);
-                    if (user) {
-                      navigate(`/dashboard/${user.uniqueId || 'USER-' + user.id}`);
-                      notify.success(`Bienvenido, ${user.name}!`);
-                    }
-                  } catch (e: any) {
-                    notify.error(e.message || 'Error al registrarse');
+                onRegister={(user) => {
+                  // User is already authenticated by Register.tsx
+                  // Just navigate and show notification
+                  if (user) {
+                    navigate(`/dashboard/${user.uniqueId || 'USER-' + user.id}`);
+                    notify.success(`Bienvenido, ${user.name || user.email}!`);
                   }
                 }}
                 onBackToHome={() => navigate('/')}
@@ -249,6 +239,7 @@ const App: React.FC = () => {
             } />
 
             <Route path="/chat/:chatId" element={<ChatRouteWrapper />} />
+            <Route path="/chat" element={<ChatPageLayout />} />
 
             {/* Admin Routes */}
             <Route path="/admin" element={<AdminLayout />}>
@@ -283,7 +274,8 @@ const ChatRouteWrapper: React.FC = () => {
     return <Navigate to="/" />;
   }
 
-  const sellerId = state?.sellerId || (chatLog?.participantIds.find(id => id !== currentUser.id));
+  const currentUid = String(currentUser.providerId || currentUser.uid || currentUser.id);
+  const sellerId = state?.sellerId || (chatLog?.participantIds.find(id => String(id) !== currentUid));
   const [chatSeller, setChatSeller] = React.useState<User | undefined>(undefined);
 
   React.useEffect(() => {
@@ -294,15 +286,17 @@ const ChatRouteWrapper: React.FC = () => {
 
   if (!chatSeller) return <LoadingScreen />;
 
+  const sellerUid = String(chatSeller.providerId || chatSeller.uid || chatSeller.id);
+
   return (
     <ChatView
       seller={chatSeller}
       buyer={currentUser}
       onBack={() => navigate(`/dashboard/${currentUser?.uniqueId || 'USER-' + currentUser?.id}`)}
-      chatLog={chatLog || { id: chatId, participantIds: [currentUser.id, chatSeller.id], messages: [], lastMessage: undefined, updatedAt: new Date() }}
+      chatLog={chatLog || { id: chatId, participantIds: [currentUid, sellerUid], messages: [], lastMessage: undefined, updatedAt: new Date() }}
       onSendMessage={async (message) => {
         try {
-          await sendMessage(chatId, currentUser.id, message, currentUser.id === chatSeller.id ? 'seller' : 'buyer');
+          await sendMessage(chatId, currentUid, message, currentUid === sellerUid ? 'seller' : 'buyer');
         } catch (error) {
           console.error('Error enviando mensaje:', error);
           notify.error('Error al enviar el mensaje.');

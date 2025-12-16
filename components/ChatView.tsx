@@ -1,11 +1,10 @@
+// ChatView con Firebase Firestore
+// Chat en tiempo real usando Firestore listeners en lugar de Socket.io
+
 import React, { useState, useEffect, useRef } from 'react';
 import { User, ChatMessage, ChatLog, Ad } from '../src/types';
 import SendIcon from './icons/SendIcon';
-import { io, Socket } from 'socket.io-client';
-import { getSocketUrl } from '../config/api.config';
 import { useChatStore } from '../store/useChatStore';
-import { apiService } from '../services/apiService';
-import { connectSocket } from '../services/socketService';
 
 // X Icon Component
 const XMarkIcon = ({ className }: { className?: string }) => (
@@ -18,78 +17,54 @@ interface ChatViewProps {
   seller: User;
   buyer: User;
   onBack: () => void;
-  chatLog?: ChatLog; // Make optional as we might create it
+  chatLog?: ChatLog;
   onSendMessage?: (message: string) => void;
   isOverlay?: boolean;
-  ad?: Partial<Ad>; // Optional ad context
-  onClose?: () => void; // Optional close handler for drawer
+  ad?: Partial<Ad>;
+  onClose?: () => void;
 }
 
-const ChatView: React.FC<ChatViewProps> = ({ seller, buyer, onBack, chatLog: initialChatLog, onSendMessage, isOverlay = false, ad, onClose }) => {
+const ChatView: React.FC<ChatViewProps> = ({
+  seller,
+  buyer,
+  onBack,
+  chatLog: initialChatLog,
+  onSendMessage,
+  isOverlay = false,
+  ad,
+  onClose
+}) => {
   const [inputValue, setInputValue] = useState('');
-  const [chatLog, setChatLog] = useState<ChatLog | undefined>(initialChatLog);
+  const [chatId, setChatId] = useState<string | undefined>(initialChatLog?.id);
   const [messages, setMessages] = useState<ChatMessage[]>(initialChatLog?.messages || []);
-  const [isBlocked, setIsBlocked] = useState(initialChatLog?.isBlocked || false);
-  const [blockedBy, setBlockedBy] = useState<number | null>(initialChatLog?.blockedBy || null);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
-  const socketRef = useRef<Socket | null>(null);
-  const fetchMessages = useChatStore(state => state.fetchMessages);
-  const markAsRead = useChatStore(state => state.markAsRead);
-  const [initialLoad, setInitialLoad] = useState(true);
   const [isLoading, setIsLoading] = useState(!initialChatLog);
   const [isSending, setIsSending] = useState(false);
-  const [isConnected, setIsConnected] = useState(false);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // Rating Modal State
-  const [showRatingModal, setShowRatingModal] = useState(false);
-  const [rating, setRating] = useState(10);
-  const [isRatingSubmitting, setIsRatingSubmitting] = useState(false);
-
-  // Ad Detail Modal State
-  const [showAdDetailModal, setShowAdDetailModal] = useState(false);
-  const [selectedMediaIndex, setSelectedMediaIndex] = useState(0);
+  // Firestore store hooks
+  const ensureChatExists = useChatStore(state => state.ensureChatExists);
+  const sendMessage = useChatStore(state => state.sendMessage);
+  const subscribeToChat = useChatStore(state => state.subscribeToChat);
+  const unsubscribeFromChat = useChatStore(state => state.unsubscribeFromChat);
+  const chatLogs = useChatStore(state => state.chatLogs);
+  const markAsRead = useChatStore(state => state.markAsRead);
 
   const scrollToBottom = (smooth = true) => {
     messagesEndRef.current?.scrollIntoView({ behavior: smooth ? 'smooth' : 'auto' });
   };
 
-  // Initialize Chat (Check if exists, don't create yet)
+  // Get buyer UID for Firebase
+  const buyerUid = String(buyer.providerId || buyer.uid || buyer.id);
+  const sellerUid = String(seller.providerId || seller.uid || seller.id);
+
+  // Initialize or get chat
   useEffect(() => {
     const initChat = async () => {
-      if (!chatLog && seller && buyer) {
+      if (!chatId && seller && buyer) {
         try {
           setIsLoading(true);
-          // Check if chat exists without creating it
-          const existingChat = await apiService.createOrGetChat([buyer.id, seller.id], ad?.id, { checkOnly: true });
-
-          if (existingChat) {
-            // Ensure participantIds is populated from participants if missing
-            const chatData = {
-              ...existingChat,
-              participantIds: existingChat.participantIds || existingChat.participants?.map((p: any) => p.userId) || []
-            };
-            setChatLog(chatData);
-            setMessages(chatData.messages || []);
-            setIsBlocked(chatData.isBlocked || false);
-            setBlockedBy(chatData.blockedBy || null);
-          } else {
-            // Draft mode: Create a temporary chatLog object
-            const sortedIds = [buyer.id, seller.id].sort((a, b) => a - b);
-            const draftId = sortedIds.join('-');
-            setChatLog({
-              id: draftId,
-              participantIds: sortedIds,
-              messages: [],
-              updatedAt: new Date(),
-              ad: ad ? {
-                id: ad.id,
-                uniqueCode: ad.uniqueCode,
-                title: ad.title,
-                price: ad.price,
-                media: ad.media || []
-              } : undefined
-            });
-          }
+          const newChatId = await ensureChatExists([buyerUid, sellerUid], ad?.id ? String(ad.id) : undefined);
+          setChatId(newChatId);
         } catch (error) {
           console.error("Error initializing chat:", error);
         } finally {
@@ -99,280 +74,65 @@ const ChatView: React.FC<ChatViewProps> = ({ seller, buyer, onBack, chatLog: ini
     };
 
     initChat();
-  }, [seller, buyer, ad, chatLog]);
+  }, [seller, buyer, ad, chatId, ensureChatExists, buyerUid, sellerUid]);
 
-  // Sync state with props when initialChatLog changes (e.g. from Dashboard)
+  // Subscribe to real-time messages
   useEffect(() => {
-    if (initialChatLog) {
-      // Only reset state if we are switching to a DIFFERENT chat
-      // If it's the same chat, we might be receiving an update from the parent (Dashboard)
-      // but we don't want to overwrite our local state (which might have optimistic messages)
-      // unless the parent has MORE messages than we do.
+    if (chatId) {
+      const unsubscribe = subscribeToChat(chatId);
 
-      setChatLog(prev => {
-        if (prev?.id !== initialChatLog.id) {
-          // New chat selected: Reset everything
-          setMessages(initialChatLog.messages || []);
-          setIsBlocked(initialChatLog.isBlocked || false);
-          setBlockedBy(initialChatLog.blockedBy || null);
-          return initialChatLog;
-        } else {
-          // Same chat: Optional merge logic could go here, but for now
-          // we trust our local socket/optimistic state more than the parent re-render
-          // to avoid "flicker" or disappearing messages.
+      // Mark as read
+      markAsRead(chatId, buyerUid);
 
-          // However, if the parent has significantly more messages (e.g. initial load finished),
-          // we might want to update.
-          if ((initialChatLog.messages?.length || 0) > messages.length) {
-            setMessages(initialChatLog.messages || []);
-          }
-          return prev; // Keep current object reference if mostly same
-        }
-      });
-    }
-  }, [initialChatLog]);
-
-  // Sincronizar mensajes si cambian las props (carga inicial) y buscar historial completo
-  useEffect(() => {
-    if (chatLog && chatLog.id) {
-      if (messages.length > 0) {
-        // Don't overwrite if we already have messages from prop sync above
-      }
-      setIsBlocked(chatLog.isBlocked || false);
-      setBlockedBy(chatLog.blockedBy || null);
-
-      // Buscar historial completo del servidor para este chat
-      const loadHistory = async () => {
-        if (chatLog.id) {
-          console.log('🔄 Cargando historial completo para chat:', chatLog.id);
-          await fetchMessages(chatLog.id);
-          // Mark as read locally immediately
-          markAsRead(chatLog.id);
-        }
+      return () => {
+        unsubscribeFromChat();
       };
-      loadHistory();
     }
-  }, [chatLog?.id, fetchMessages, markAsRead]);
+  }, [chatId, subscribeToChat, unsubscribeFromChat, markAsRead, buyerUid]);
 
-  // Update messages state when store updates
+  // Sync messages from store
   useEffect(() => {
-    if (chatLog && chatLog.messages && chatLog.messages.length > messages.length) {
-      setMessages(chatLog.messages);
-      markAsRead(chatLog.id);
-    }
-  }, [chatLog?.messages, markAsRead, chatLog?.id]);
-
-  useEffect(() => {
-    if (!chatLog) return;
-
-    // Inicializar conexión de Socket.io usando el servicio compartido
-    const socket = connectSocket(buyer.sessionToken);
-    socketRef.current = socket;
-
-    // Update connection state
-    const updateConnectionStatus = () => {
-      setIsConnected(socket.connected);
-    };
-
-    socket.on('connect', () => {
-      console.log('✅ Socket conectado:', socket.id);
-      setIsConnected(true);
-      socket.emit('join_chat', chatLog.id);
-      socket.emit('mark_read', { chatId: chatLog.id, userId: buyer.id });
-      markAsRead(chatLog.id); // Update local store
-    });
-
-    socket.on('disconnect', () => {
-      console.log('❌ Socket desconectado');
-      setIsConnected(false);
-    });
-
-    socket.on('connect_error', (err) => {
-      console.error('❌ Error de conexión Socket.io:', err);
-      setIsConnected(false);
-    });
-
-    socket.on('receive_message', (newMessage: any) => {
-      console.log('📩 [CLIENT] Mensaje recibido del servidor:', newMessage);
-      setMessages((prevMessages) => {
-        // 1. If message with same real ID exists, ignore (duplicate)
-        if (prevMessages.some(m => m.id === newMessage.id)) return prevMessages;
-
-        // 2. If message has a tempId, check if we have a matching optimistic message
-        if (newMessage.tempId) {
-          const tempIndex = prevMessages.findIndex(m => m.id === newMessage.tempId);
-          if (tempIndex !== -1) {
-            // Replace optimistic message with real one
-            const newMessages = [...prevMessages];
-            newMessages[tempIndex] = newMessage;
-            return newMessages;
-          }
-        }
-
-        // 3. Otherwise, append new message
-        return [...prevMessages, newMessage];
-      });
-
-      socket.emit('mark_read', { chatId: chatLog.id, userId: buyer.id });
-      markAsRead(chatLog.id); // Update local store
-      // Auto-scroll on new message
-      setTimeout(scrollToBottom, 100);
-    });
-
-    socket.on('messages_read', (data: { chatId: string, readerId: number }) => {
-      if (data.chatId === chatLog.id && data.readerId !== buyer.id) {
-        setMessages(prev => prev.map(msg =>
-          msg.userId === buyer.id ? { ...msg, isRead: true } : msg
-        ));
-      }
-    });
-
-    socket.on('chat_blocked', (data: { chatId: string, blockedBy: number }) => {
-      if (data.chatId === chatLog.id) {
-        setIsBlocked(true);
-        setBlockedBy(data.blockedBy);
-      }
-    });
-
-    // Initial check
-    setIsConnected(socket.connected);
-
-    return () => {
-      if (socketRef.current) {
-        socketRef.current.disconnect();
-      }
-    };
-  }, [chatLog?.id, buyer.id, markAsRead]);
-
-  // Only scroll to bottom if the last message is from current user (sent) or if it's initial load
-  useEffect(() => {
-    if (initialLoad && messages.length > 0) {
-      scrollToBottom(false);
-      setInitialLoad(false);
-    } else if (messages.length > 0) {
-      const lastMsg = messages[messages.length - 1];
-      if (lastMsg.userId === buyer.id) {
-        scrollToBottom();
+    if (chatId) {
+      const chatLog = chatLogs.get(chatId);
+      if (chatLog && chatLog.messages) {
+        setMessages(chatLog.messages);
       }
     }
-  }, [messages, initialLoad, buyer.id]);
+  }, [chatId, chatLogs]);
+
+  // Auto-scroll when messages change
+  useEffect(() => {
+    if (messages.length > 0) {
+      scrollToBottom();
+    }
+  }, [messages]);
 
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!inputValue.trim() || !chatLog || isSending) return;
+    if (!inputValue.trim() || !chatId || isSending) return;
 
     setIsSending(true);
+    const messageText = inputValue;
+    setInputValue('');
 
-    // Optimistic UI Update
-    const tempId = `temp-${Date.now()}`;
-    const tempMessage: ChatMessage = {
-      id: tempId,
-      chatId: chatLog.id,
-      userId: buyer.id,
-      text: inputValue,
-      sender: 'buyer',
-      timestamp: new Date(),
-      isRead: false
-    };
-
-    // Add temp message immediately
-    setMessages(prev => [...prev, tempMessage]);
-    const messageText = inputValue; // Store text for emit
-    setInputValue(''); // Clear input immediately
-    scrollToBottom();
-
-    // Ensure chat exists in DB before sending via socket
     try {
-      await apiService.createOrGetChat(chatLog.participantIds, ad?.id, { checkOnly: false });
-    } catch (err) {
-      console.error("Error ensuring chat exists:", err);
-      setIsSending(false);
-      // Remove temp message if failed
-      setMessages(prev => prev.filter(m => m.id !== tempMessage.id));
-      alert('Error de conexión. Intenta de nuevo.');
-      return;
-    }
+      await sendMessage(chatId, buyerUid, messageText, 'buyer');
 
-    if (socketRef.current && socketRef.current.connected) {
-      const messageData = {
-        chatId: chatLog.id,
-        userId: buyer.id,
-        text: messageText,
-        sender: 'buyer',
-        tempId: tempId // Send tempId to server
-      };
-
-      // Timeout safety to prevent infinite loading state
-      const timeoutId = setTimeout(() => {
-        setIsSending(false);
-        alert('El servidor tardó demasiado en responder. Por favor, verifica tu conexión.');
-      }, 10000); // 10 seconds timeout
-
-      socketRef.current.emit('send_message', messageData, (response: any) => {
-        clearTimeout(timeoutId);
-        setIsSending(false); // Enable input after ACK
-
-        if (response.status !== 'ok') {
-          if (response.error === 'Chat is blocked') {
-            setIsBlocked(true);
-            alert('No puedes enviar mensajes porque el chat está bloqueado.');
-            // Remove optimistic message if failed
-            setMessages(prev => prev.filter(m => m.id !== tempMessage.id));
-          } else {
-            // Other error
-            console.error("Socket error:", response.error);
-            setMessages(prev => prev.filter(m => m.id !== tempMessage.id));
-            alert('Error enviando mensaje.');
-          }
-        } else {
-          // Success: Update temp message with real ID if needed
-          if (response.message) {
-            setMessages(prev => prev.map(m => m.id === tempMessage.id ? response.message : m));
-          }
-        }
-      });
-    } else {
-      setIsSending(false);
-      setMessages(prev => prev.filter(m => m.id !== tempMessage.id));
-      alert('No hay conexión con el servidor. Intentando reconectar...');
-    }
-
-    if (onSendMessage) onSendMessage(messageText);
-  };
-
-  const handleBlockToggle = () => {
-    if (isBlocked && blockedBy === buyer.id) {
-      setIsBlocked(false);
-      setBlockedBy(null);
-      // TODO: Persist unblock in backend
-    } else if (!isBlocked) {
-      if (window.confirm(`¿Estás seguro de bloquear a ${seller.name}?`)) {
-        setIsBlocked(true);
-        setBlockedBy(buyer.id);
-        // TODO: Persist block in backend
+      if (onSendMessage) {
+        onSendMessage(messageText);
       }
-    }
-  };
-
-  const handleRateUser = async () => {
-    if (isRatingSubmitting) return;
-    setIsRatingSubmitting(true);
-    try {
-      await apiService.rateUser(seller.id, rating);
-      alert(`¡Gracias! Has calificado a ${seller.name} con ${rating} puntos.`);
-      setShowRatingModal(false);
     } catch (error) {
-      console.error('Error rating user:', error);
-      alert('Error al enviar la calificación.');
+      console.error('Error sending message:', error);
+      alert('Error al enviar el mensaje. Intenta de nuevo.');
     } finally {
-      setIsRatingSubmitting(false);
+      setIsSending(false);
     }
   };
 
   const handleClose = () => {
     if (onClose) onClose();
     else onBack();
-  }
+  };
 
   if (isLoading) {
     return (
@@ -382,14 +142,11 @@ const ChatView: React.FC<ChatViewProps> = ({ seller, buyer, onBack, chatLog: ini
           <p className="text-white mt-4">Iniciando chat...</p>
         </div>
       </div>
-    )
+    );
   }
 
   return (
-    // Full screen liquid background container (Page Background)
     <div className={`fixed inset-0 z-50 flex justify-end ${isOverlay ? 'bg-black/60 backdrop-blur-sm' : 'liquid-bg'}`}>
-
-      {/* Chat Drawer - Right Aligned */}
       <div className="w-full md:w-[450px] h-full bg-[#0b141a]/95 backdrop-blur-xl border-l border-white/10 flex flex-col shadow-2xl animate-slide-in-right">
 
         {/* Header */}
@@ -410,59 +167,24 @@ const ChatView: React.FC<ChatViewProps> = ({ seller, buyer, onBack, chatLog: ini
                   ) : (
                     <span>Desconectado</span>
                   )}
-                  {/* Solo mostrar si realmente hay un error de conexión persistente */}
-                  {!isConnected && (
-                    <span className="text-orange-400 text-[10px] ml-1">(Reconectando...)</span>
-                  )}
                 </p>
               </div>
             </div>
 
-            <div className="flex items-center gap-2">
-              {/* Block Button */}
-              <button
-                onClick={handleBlockToggle}
-                className={`px-3 py-1 rounded-full text-xs font-bold transition-colors ${isBlocked && blockedBy === buyer.id
-                  ? 'bg-red-500 text-white hover:bg-red-600'
-                  : 'bg-white/10 text-white/80 hover:bg-white/20'
-                  }`}
-                disabled={isBlocked && blockedBy !== buyer.id}
-              >
-                {isBlocked && blockedBy === buyer.id ? 'Desbloquear' : 'Bloquear'}
-              </button>
-
-              {/* Close Button (X) */}
-              <button onClick={handleClose} className="p-2 rounded-full hover:bg-white/10 text-white/80 hover:text-white transition-colors">
-                <XMarkIcon className="w-6 h-6" />
-              </button>
-            </div>
+            <button onClick={handleClose} className="p-2 rounded-full hover:bg-white/10 text-white/80 hover:text-white transition-colors">
+              <XMarkIcon className="w-6 h-6" />
+            </button>
           </div>
 
           {/* Ad Context Header */}
           {ad && (
-            <div className="px-4 pb-4 pt-0 flex items-center gap-3 bg-white/5 mx-4 mb-4 rounded-xl border border-white/10 relative group">
+            <div className="px-4 pb-4 pt-0 flex items-center gap-3 bg-white/5 mx-4 mb-4 rounded-xl border border-white/10">
               {ad.media && ad.media.length > 0 && (
                 <img src={ad.media[0].url} alt={ad.title} className="w-12 h-12 rounded-lg object-cover" />
               )}
               <div className="flex-1 min-w-0 py-2">
                 <h3 className="text-sm font-bold text-white truncate">{ad.title}</h3>
-                <p className="text-xs text-[#d9520b] font-bold">${ad.price.toLocaleString()} USD</p>
-              </div>
-
-              {/* Action Buttons */}
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => setShowAdDetailModal(true)}
-                  className="px-3 py-1 bg-[#6e0ad6] hover:bg-[#5b08b0] text-white text-xs font-bold rounded-lg transition-colors shadow-sm"
-                >
-                  Ver
-                </button>
-                <button
-                  onClick={() => setShowRatingModal(true)}
-                  className="px-3 py-1 bg-orange-500 hover:bg-orange-600 text-white text-xs font-bold rounded-lg transition-colors shadow-sm"
-                >
-                  Clasificar
-                </button>
+                <p className="text-xs text-[#d9520b] font-bold">${ad.price?.toLocaleString()} USD</p>
               </div>
             </div>
           )}
@@ -485,7 +207,7 @@ const ChatView: React.FC<ChatViewProps> = ({ seller, buyer, onBack, chatLog: ini
               </div>
             ) : (
               messages.map((msg, index) => {
-                const isCurrentUser = msg.userId === buyer.id;
+                const isCurrentUser = String(msg.userId) === buyerUid;
 
                 return (
                   <div
@@ -494,8 +216,8 @@ const ChatView: React.FC<ChatViewProps> = ({ seller, buyer, onBack, chatLog: ini
                   >
                     <div
                       className={`relative max-w-[85%] px-4 py-2 rounded-2xl text-sm shadow-sm ${isCurrentUser
-                        ? 'bg-[#4b0997] text-white rounded-tr-sm' // Usuario: Purple
-                        : 'bg-[#d9520b] text-white rounded-tl-sm' // Otro: Orange
+                        ? 'bg-[#4b0997] text-white rounded-tr-sm'
+                        : 'bg-[#d9520b] text-white rounded-tl-sm'
                         }`}
                     >
                       <p className="break-words leading-relaxed">{msg.text}</p>
@@ -504,11 +226,18 @@ const ChatView: React.FC<ChatViewProps> = ({ seller, buyer, onBack, chatLog: ini
                           {new Date(msg.timestamp || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                         </span>
                         {isCurrentUser && (
-                          <span className={`text-[11px] ${msg.isRead ? 'text-blue-300' : 'text-white'}`}>
-                            {/* Doble check */}
-                            <svg viewBox="0 0 16 15" width="16" height="15" className="">
-                              <path fill="currentColor" d="M15.01 3.316l-.478-.372a.365.365 0 0 0-.51.063L8.666 9.879a.32.32 0 0 1-.484.033l-.358-.325a.319.319 0 0 0-.484.032l-.378.483a.418.418 0 0 0 .036.541l1.32 1.266c.143.14.361.125.484-.033l6.272-7.655a.366.366 0 0 0-.064-.512zm-4.1 0l-.478-.372a.365.365 0 0 0-.51.063L4.566 9.879a.32.32 0 0 1-.484.033L1.891 7.769a.366.366 0 0 0-.515.006l-.423.433a.364.364 0 0 0 .006.514l3.258 3.185c.143.14.361.125.484-.033l6.272-7.655a.365.365 0 0 0-.063-.51z"></path>
-                            </svg>
+                          <span className={`text-[11px] ${msg.isRead ? 'text-blue-300' : 'text-white/60'}`}>
+                            {msg.isRead ? (
+                              // Double check - leído
+                              <svg viewBox="0 0 16 15" width="16" height="15">
+                                <path fill="currentColor" d="M15.01 3.316l-.478-.372a.365.365 0 0 0-.51.063L8.666 9.879a.32.32 0 0 1-.484.033l-.358-.325a.319.319 0 0 0-.484.032l-.378.483a.418.418 0 0 0 .036.541l1.32 1.266c.143.14.361.125.484-.033l6.272-7.655a.366.366 0 0 0-.064-.512zm-4.1 0l-.478-.372a.365.365 0 0 0-.51.063L4.566 9.879a.32.32 0 0 1-.484.033L1.891 7.769a.366.366 0 0 0-.515.006l-.423.433a.364.364 0 0 0 .006.514l3.258 3.185c.143.14.361.125.484-.033l6.272-7.655a.365.365 0 0 0-.063-.51z"></path>
+                              </svg>
+                            ) : (
+                              // Single check - enviado pero no leído
+                              <svg viewBox="0 0 12 11" width="12" height="11">
+                                <path fill="currentColor" d="M11.155 2.12l-.485-.377a.37.37 0 0 0-.516.064L4.569 9.178a.326.326 0 0 1-.49.034L1.877 7.152a.37.37 0 0 0-.51.018l-.41.41a.37.37 0 0 0 .018.51l3.092 2.997a.326.326 0 0 0 .49-.034L11.22 2.636a.37.37 0 0 0-.065-.516z"></path>
+                              </svg>
+                            )}
                           </span>
                         )}
                       </div>
@@ -523,144 +252,34 @@ const ChatView: React.FC<ChatViewProps> = ({ seller, buyer, onBack, chatLog: ini
 
         {/* Input Area */}
         <div className="p-3 bg-black/20 backdrop-blur-md border-t border-white/10">
-          {isBlocked ? (
-            <div className="w-full p-4 bg-black/40 text-center rounded-lg border border-red-500/30">
-              <p className="text-red-400 font-bold text-sm">
-                {blockedBy === buyer.id
-                  ? 'Has bloqueado a este usuario.'
-                  : 'Has sido bloqueado por el usuario.'}
-              </p>
+          <form onSubmit={handleSendMessage} className="flex items-center space-x-2">
+            <div className={`flex-1 bg-white/5 rounded-full flex items-center px-4 py-2 border border-white/10 transition-colors ${isSending ? 'opacity-50 cursor-not-allowed' : 'focus-within:bg-white/10'}`}>
+              <input
+                type="text"
+                value={inputValue}
+                onChange={(e) => setInputValue(e.target.value)}
+                placeholder={isSending ? "Enviando..." : "Escribe un mensaje..."}
+                disabled={isSending}
+                className="flex-1 bg-transparent text-white placeholder-white/40 outline-none text-sm disabled:cursor-not-allowed"
+              />
             </div>
-          ) : (
-            <form onSubmit={handleSendMessage} className="flex items-center space-x-2">
-              <div className={`flex-1 bg-white/5 rounded-full flex items-center px-4 py-2 border border-white/10 transition-colors ${isSending ? 'opacity-50 cursor-not-allowed' : 'focus-within:bg-white/10'}`}>
-                <input
-                  type="text"
-                  value={inputValue}
-                  onChange={(e) => setInputValue(e.target.value)}
-                  placeholder={isSending ? "Enviando..." : "Escribe un mensaje..."}
-                  disabled={isSending}
-                  className="flex-1 bg-transparent text-white placeholder-white/40 outline-none text-sm disabled:cursor-not-allowed"
-                />
-              </div>
-              <button
-                type="submit"
-                disabled={!inputValue.trim() || isSending}
-                className={`p-3 rounded-full transition-all transform flex items-center justify-center ${inputValue.trim() && !isSending
-                  ? 'bg-[#4b0997] hover:bg-[#5b06b6] hover:scale-105 text-white shadow-lg shadow-purple-900/50'
-                  : 'bg-white/10 text-white/30 cursor-default'
-                  }`}
-              >
-                {isSending ? (
-                  <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-                ) : (
-                  <SendIcon className="w-5 h-5" />
-                )}
-              </button>
-            </form>
-          )}
+            <button
+              type="submit"
+              disabled={!inputValue.trim() || isSending}
+              className={`p-3 rounded-full transition-all transform flex items-center justify-center ${inputValue.trim() && !isSending
+                ? 'bg-[#4b0997] hover:bg-[#5b06b6] hover:scale-105 text-white shadow-lg shadow-purple-900/50'
+                : 'bg-white/10 text-white/30 cursor-default'
+                }`}
+            >
+              {isSending ? (
+                <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+              ) : (
+                <SendIcon className="w-5 h-5" />
+              )}
+            </button>
+          </form>
         </div>
       </div>
-
-      {/* RATING MODAL */}
-      {showRatingModal && (
-        <div className="absolute inset-0 z-[60] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-          <div className="bg-white rounded-2xl p-6 w-full max-w-sm shadow-2xl animate-scale-in">
-            <h3 className="text-xl font-black text-gray-800 mb-2">Clasificar Vendedor</h3>
-            <p className="text-gray-500 text-sm mb-6">¿Qué tal fue tu experiencia con {seller.name}?</p>
-
-            <div className="flex justify-center gap-2 mb-8">
-              {[...Array(11)].map((_, i) => (
-                <button
-                  key={i}
-                  onClick={() => setRating(i)}
-                  className={`w-8 h-8 rounded-full font-bold text-sm transition-all ${rating === i
-                    ? 'bg-[#6e0ad6] text-white scale-110 shadow-lg'
-                    : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
-                    }`}
-                >
-                  {i}
-                </button>
-              ))}
-            </div>
-
-            <div className="flex gap-3">
-              <button
-                onClick={() => setShowRatingModal(false)}
-                className="flex-1 py-3 text-gray-500 font-bold hover:bg-gray-50 rounded-xl transition-colors"
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={handleRateUser}
-                disabled={isRatingSubmitting}
-                className="flex-1 py-3 bg-[#6e0ad6] text-white font-bold rounded-xl hover:bg-[#5b08b0] transition-colors shadow-lg disabled:opacity-50"
-              >
-                {isRatingSubmitting ? 'Enviando...' : 'Enviar Puntos'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* AD DETAIL MODAL */}
-      {showAdDetailModal && ad && (
-        <div className="absolute inset-0 z-[60] flex items-center justify-center bg-black/90 backdrop-blur-md p-4">
-          <div className="bg-white rounded-3xl w-full max-w-2xl max-h-[80vh] overflow-hidden flex flex-col shadow-2xl animate-scale-in relative">
-            <button
-              onClick={() => setShowAdDetailModal(false)}
-              className="absolute top-4 right-4 z-10 p-2 bg-black/50 text-white rounded-full hover:bg-black/70 transition-colors"
-            >
-              <XMarkIcon className="w-6 h-6" />
-            </button>
-
-            <div className="h-64 bg-gray-900 relative flex items-center justify-center">
-              {ad.media && ad.media[selectedMediaIndex] ? (
-                ad.media[selectedMediaIndex].type === 'image' ? (
-                  <img src={ad.media[selectedMediaIndex].url} className="w-full h-full object-contain" />
-                ) : (
-                  <video src={ad.media[selectedMediaIndex].url} controls className="w-full h-full" />
-                )
-              ) : (
-                <div className="text-white/50">Sin imagen</div>
-              )}
-
-              {/* Navigation Arrows */}
-              {ad.media && ad.media.length > 1 && (
-                <>
-                  <button
-                    onClick={() => setSelectedMediaIndex(i => (i - 1 + ad.media.length) % ad.media.length)}
-                    className="absolute left-4 p-2 bg-black/50 text-white rounded-full"
-                  >‹</button>
-                  <button
-                    onClick={() => setSelectedMediaIndex(i => (i + 1) % ad.media.length)}
-                    className="absolute right-4 p-2 bg-black/50 text-white rounded-full"
-                  >›</button>
-                </>
-              )}
-            </div>
-
-            <div className="p-8 overflow-y-auto">
-              <h2 className="text-2xl font-black text-gray-800 mb-2">{ad.title}</h2>
-              <p className="text-3xl font-black text-[#6e0ad6] mb-6">${ad.price.toLocaleString()}</p>
-
-              <div className="space-y-4">
-                <div>
-                  <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Descripción</h4>
-                  <p className="text-gray-600 leading-relaxed">{ad.description || 'Sin descripción'}</p>
-                </div>
-                {ad.details && (
-                  <div>
-                    <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Detalles</h4>
-                    <p className="text-gray-600 leading-relaxed">{ad.details}</p>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
     </div>
   );
 };

@@ -1,7 +1,8 @@
 import { Chat } from '@google/genai';
 
 export interface User {
-  id: number;
+  id: number | string; // Puede ser number (legacy) o string (Firebase UID)
+  uid?: string; // Firebase UID
   uniqueId?: string; // ID único generado para el dashboard dinámico (ej: "USER-123456789")
   role?: 'USER' | 'ADMIN';
   username?: string;
@@ -34,18 +35,11 @@ export interface Media {
 export type AdCategory =
   | 'Bienes raíces'
   | 'Vehículos'
-  | 'Electrónica'
-  | 'Hogar'
-  | 'Moda'
-  | 'Deportes'
-  | 'Juguetes'
-  | 'Libros'
-  | 'Servicios profesionales'
   | 'Articulos Varios'
-  | 'Otros';
+  | 'Servicios profesionales';
 
 export interface Ad {
-  id: number;
+  id: number | string; // Puede ser number (legacy) o string (Firebase document ID)
   uniqueCode: string;
   title: string;
   description: string;
@@ -54,7 +48,7 @@ export interface Ad {
   category: AdCategory;
   subcategory?: string;
   location?: string;
-  sellerId: number;
+  sellerId: number | string; // Puede ser number (legacy) o string (Firebase UID)
   views: number;
   media: Media[];
   isFavorite?: boolean; // Indica si el usuario actual lo marcó como favorito
@@ -99,7 +93,7 @@ export type ViewState =
 export interface ChatMessage {
   id: string;
   chatId: string;
-  userId: number;
+  userId: number | string; // Puede ser number (legacy) o string (Firebase UID)
   text: string;
   sender: 'user' | 'seller' | 'buyer';
   timestamp: Date;
@@ -108,18 +102,18 @@ export interface ChatMessage {
 
 export interface ChatLog {
   id: string;
-  participantIds: number[];
+  participantIds: (number | string)[]; // Puede ser number[] (legacy) o string[] (Firebase UID)
   messages: ChatMessage[];
   lastMessage?: ChatMessage;
   updatedAt: Date;
   isBlocked?: boolean;
-  blockedBy?: number | null;
+  blockedBy?: number | string | null;
   ad?: {
-    id: number;
-    uniqueCode: string;
-    title: string;
-    price: number;
-    media: Media[];
+    id: number | string;
+    uniqueCode?: string;
+    title?: string;
+    price?: number;
+    media?: Media[];
   };
 }
 

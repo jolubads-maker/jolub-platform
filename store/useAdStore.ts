@@ -1,15 +1,20 @@
+// Ad Store con Firebase Firestore
+// Reemplaza el store anterior que usaba apiService
+
 import { create } from 'zustand';
-import { Ad, AdFormData, Media } from '../src/types';
-import { apiService } from '../services/apiService';
+import { Ad, Media } from '../src/types';
+import { adService } from '../services/firebaseService';
+import { storageService } from '../services/storageService';
 
 interface CreateAdParams {
     title: string;
     description: string;
     details?: string;
     price: number;
-    sellerId: number;
+    sellerId: string; // Ahora es string (Firebase UID)
     media: Media[];
     category: Ad['category'];
+    subcategory?: string;
     location?: string;
 }
 
@@ -21,9 +26,11 @@ interface AdState {
     // Actions
     fetchAds: () => Promise<void>;
     createAd: (adData: CreateAdParams) => Promise<Ad>;
-    incrementViews: (adId: number) => Promise<void>;
+    incrementViews: (adId: string) => Promise<void>;
     searchAds: (query: string) => Promise<void>;
     fetchAdByUniqueCode: (uniqueCode: string) => Promise<Ad | null>;
+    deleteAd: (adId: string) => Promise<void>;
+    subscribeToAds: () => () => void;
 }
 
 export const useAdStore = create<AdState>((set, get) => ({
@@ -32,50 +39,73 @@ export const useAdStore = create<AdState>((set, get) => ({
     error: null,
 
     fetchAds: async () => {
-        set({ loading: true });
+        set({ loading: true, error: null });
         try {
-            const ads = await apiService.getAds();
+            const ads = await adService.getAds();
             set({ ads, loading: false });
         } catch (error: any) {
+            console.error('Error fetching ads:', error);
             set({ error: error.message, loading: false });
         }
     },
 
     fetchAdByUniqueCode: async (uniqueCode: string) => {
-        set({ loading: true });
+        set({ loading: true, error: null });
         try {
-            const ad = await apiService.getAdByUniqueCode(uniqueCode);
-            set(state => ({
-                ads: [ad, ...state.ads.filter(a => a.id !== ad.id)],
-                loading: false
-            }));
+            const ad = await adService.getAdByCode(uniqueCode);
+            if (ad) {
+                set(state => ({
+                    ads: [ad, ...state.ads.filter(a => a.uniqueCode !== ad.uniqueCode)],
+                    loading: false
+                }));
+            } else {
+                set({ loading: false });
+            }
             return ad;
         } catch (error: any) {
+            console.error('Error fetching ad by code:', error);
             set({ error: error.message, loading: false });
             return null;
         }
     },
 
     createAd: async (adData: CreateAdParams) => {
+        set({ loading: true, error: null });
         try {
-            // Ensure media is correctly typed for the API
-            const apiAdData = {
-                ...adData,
-                media: adData.media.map(m => ({ type: m.type, url: m.url }))
-            };
-            const newAd = await apiService.createAd(apiAdData);
-            set(state => ({ ads: [newAd, ...state.ads] }));
+            const newAd = await adService.createAd({
+                title: adData.title,
+                description: adData.description,
+                details: adData.details,
+                price: adData.price,
+                category: adData.category,
+                subcategory: adData.subcategory,
+                location: adData.location,
+                sellerId: adData.sellerId,
+                media: adData.media
+            });
+
+            set(state => ({
+                ads: [newAd, ...state.ads],
+                loading: false
+            }));
+
             return newAd;
-        } catch (error) {
+        } catch (error: any) {
+            console.error('Error creating ad:', error);
+            set({ error: error.message, loading: false });
             throw error;
         }
     },
 
-    incrementViews: async (adId: number) => {
+    incrementViews: async (adId: string) => {
         try {
-            const updatedAd = await apiService.incrementAdViews(adId);
+            await adService.incrementViews(adId);
             set(state => ({
-                ads: state.ads.map(ad => ad.id === adId ? updatedAd : ad)
+                ads: state.ads.map(ad =>
+                    (ad.id as any) === adId
+                        ? { ...ad, views: (ad.views || 0) + 1 }
+                        : ad
+                )
             }));
         } catch (error) {
             console.error('Error incrementing views:', error);
@@ -83,13 +113,33 @@ export const useAdStore = create<AdState>((set, get) => ({
     },
 
     searchAds: async (query: string) => {
-        set({ loading: true });
+        set({ loading: true, error: null });
         try {
-            const ads = await apiService.searchAds(query);
+            const ads = await adService.searchAds(query);
             set({ ads, loading: false });
         } catch (error: any) {
+            console.error('Error searching ads:', error);
             set({ error: error.message, loading: false });
         }
+    },
+
+    deleteAd: async (adId: string) => {
+        try {
+            await adService.deleteAd(adId);
+            set(state => ({
+                ads: state.ads.filter(ad => (ad.id as any) !== adId)
+            }));
+        } catch (error: any) {
+            console.error('Error deleting ad:', error);
+            throw error;
+        }
+    },
+
+    // Suscripción en tiempo real a cambios en anuncios
+    subscribeToAds: () => {
+        const unsubscribe = adService.subscribeToAds((ads) => {
+            set({ ads, loading: false });
+        });
+        return unsubscribe;
     }
 }));
-
