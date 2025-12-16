@@ -16,7 +16,6 @@ const ResetPassword = lazy(() => import('./components/ResetPassword'));
 const HomePage = lazy(() => import('./components/HomePage'));
 const Dashboard = lazy(() => import('./components/Dashboard'));
 const ChatPageLayout = lazy(() => import('./components/ChatPageLayout'));
-const ConnectionStatus = lazy(() => import('./components/ConnectionStatus'));
 
 // Admin Components
 const AdminLayout = lazy(() => import('./components/admin/AdminLayout'));
@@ -167,7 +166,6 @@ const App: React.FC = () => {
     <GoogleOAuthProvider clientId={OAUTH_CONFIG.GOOGLE_CLIENT_ID}>
       <div className="min-h-screen bg-gray-900 text-gray-100 font-sans">
         <Toaster position="top-center" richColors />
-        <ConnectionStatus />
         {authError && (
           <div className="fixed top-4 right-4 bg-red-600 text-white px-6 py-3 rounded-lg shadow-lg z-50 flex items-center justify-between max-w-md">
             <span>{authError}</span>
